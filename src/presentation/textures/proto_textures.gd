@@ -5,27 +5,6 @@ extends RefCounted
 ## hash contro il canvas emulato di tools/extract_render_fixture.mjs.
 
 
-## mulberry32 con la semantica a 32 bit di JavaScript.
-class Mulberry32:
-	extends RefCounted
-	var a: int
-
-	func _init(s: int) -> void:
-		a = _i32(s)
-
-	func next() -> float:
-		a = _i32(a + 0x6D2B79F5)
-		var t := _imul(a ^ ((a & 0xFFFFFFFF) >> 15), 1 | a)
-		t = _i32(_i32(t + _imul(t ^ ((t & 0xFFFFFFFF) >> 7), 61 | t)) ^ t)
-		return float((t ^ ((t & 0xFFFFFFFF) >> 14)) & 0xFFFFFFFF) / 4294967296.0
-
-	static func _i32(v: int) -> int:
-		return ((v & 0xFFFFFFFF) ^ 0x80000000) - 0x80000000
-
-	static func _imul(x: int, y: int) -> int:
-		return _i32(_i32(x) * _i32(y))
-
-
 class Canvas:
 	extends RefCounted
 	var w: int

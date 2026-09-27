@@ -97,10 +97,13 @@ for (let cy = 0; cy < Y / 16; cy++) for (let cz = 0; cz < Z / 16; cz++) for (let
 }
 
 const spots = C.treeSpots(w, seed);
+// Binario Float64: il parser JSON di Godot non arrotonda correttamente i decimali lunghi.
+save('tree_spots.f64', new Float64Array(spots.flatMap((s) => [s.x, s.y, s.z, s.kind, s.rot, s.scale, s.seed])));
 const templates = [];
 for (let k = 0; k < 3; k++) for (let v = 0; v < 2; v++) {
   const t = C.makeTreeTemplate(k, seed * 7 + k * 13 + v * 101);
   templates.push({ kind: k, variant: v, seed: seed * 7 + k * 13 + v * 101, verts: t.verts, height: t.height, sha256: sha(bytes(t.data)) });
+  save(`tree_template_${k}_${v}.f32`, t.data);
 }
 const grass = [];
 let totalBlades = 0;
@@ -108,6 +111,7 @@ for (let cz = 0; cz < Z / 16; cz++) for (let cx = 0; cx < X / 16; cx++) {
   const b = C.grassBlades(w, cx, cz, seed, .27);
   totalBlades += b.length / 7;
   grass.push({ c: [cx, cz], blades: b.length / 7, sha256: sha(bytes(b)) });
+  if (cx === 6 && cz === 6) save('grass_6_6.f32', b);
 }
 const ground = [];
 for (const [x, z] of [[96.5, 96.5], [10.2, 150.7], [100.25, 40.75], [150, 150], [0.3, 191.6]]) ground.push({ x, z, h: C.groundHeight(w, x, z) });

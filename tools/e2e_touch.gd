@@ -70,8 +70,26 @@ func _process(_dt: float) -> bool:
 				print("tap costruzione: %s (%s)" % ["OK" if edited else "nessun edit", _game.last_edit])
 				_ok = _ok and edited
 			if _frame == 40:
-				var img := root.get_texture().get_image()
-				img.save_png(_out)
+				root.get_texture().get_image().save_png(_out)
+				# Muro alto 4 tra la camera e il giocatore: deve scattare il raggio X.
+				var p := _game.motor.position
+				var d := _game._camera_rig.view_dir()
+				var list: Array[WorldEditService.Edit] = []
+				var base := Vector3i(floori(p.x + d.x * 2.2), floori(p.y), floori(p.z + d.z * 2.2))
+				for dy in 4:
+					for k in range(-2, 3):
+						var c := base + Vector3i(k, dy, -k)
+						if _game.world.get_block(c) == BlockCatalog.AIR:
+							list.append(WorldEditService.Edit.new(c, BlockCatalog.STONE))
+				_game.edits.try_apply(list, &"e2e")
+				_phase = 3
+				_frame = 0
+		3:
+			if _frame == 40:
+				var cov := _game.coverage(_game.motor.position)
+				print("copertura dietro il muro: %.2f" % cov)
+				_ok = _ok and cov > 0.3
+				root.get_texture().get_image().save_png(_out.replace(".png", "_xray.png"))
 				print("screenshot %s · e2e %s" % [_out, "OK" if _ok else "FALLITO"])
 				quit(0 if _ok else 1)
 	return false

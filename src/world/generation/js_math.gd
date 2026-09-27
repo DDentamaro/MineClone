@@ -175,6 +175,29 @@ static func js_hypot(a: float, b: float) -> float:
 	return sqrt(na * na + nb * nb) * m
 
 
+## Math.hypot a tre argomenti di V8: normalizza sul massimo, somma di Kahan.
+static func js_hypot3(a: float, b: float, c: float) -> float:
+	a = absf(a)
+	b = absf(b)
+	c = absf(c)
+	if is_inf(a) or is_inf(b) or is_inf(c):
+		return INF
+	if is_nan(a) or is_nan(b) or is_nan(c):
+		return NAN
+	var m := maxf(a, maxf(b, c))
+	if m == 0.0:
+		return 0.0
+	var sum := 0.0
+	var comp := 0.0
+	for v in [a, b, c]:
+		var n: float = v / m
+		var summand := n * n - comp
+		var prelim := sum + summand
+		comp = (prelim - sum) - summand
+		sum = prelim
+	return sqrt(sum) * m
+
+
 static func _kernel_sin(x: float, y: float, iy: int) -> float:
 	var ix := high_word(x) & 0x7FFFFFFF
 	if ix < 0x3E400000 and int(x) == 0:

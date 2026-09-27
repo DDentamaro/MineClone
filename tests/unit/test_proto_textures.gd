@@ -3,7 +3,7 @@ extends TestCase
 
 func test_mulberry32_come_javascript() -> void:
 	# Primi valori di mulberry32(7) calcolati con Node.
-	var r := ProtoTextures.Mulberry32.new(7)
+	var r := Mulberry32.new(7)
 	var got := [r.next(), r.next(), r.next()]
 	var seq: Array = [0.011704753153026104, 0.06195825757458806, 0.97690763277933]
 	for i in 3:
