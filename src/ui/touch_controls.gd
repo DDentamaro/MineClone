@@ -46,12 +46,21 @@ class VButton:
 	var rect := Rect2()
 	var hold := false
 	var held := false
+	## &"main" sempre visibile, &"dev" solo con il pannello sviluppatore aperto.
+	var group: StringName = &"main"
 
 
 var stick_vector := Vector2.ZERO
 var stick_center := Vector2.ZERO
 var left_handed := false
 var labels := {}
+## Pannello sviluppatore (comandi tecnici del prototipo) aperto.
+var dev_open := false:
+	set(v):
+		dev_open = v
+		queue_redraw()
+const DEV_BUTTON_W_DP := 118.0
+const DEV_BUTTON_H_DP := 48.0
 
 var _fingers := {} # index -> Finger
 var _buttons: Array[VButton] = []
@@ -65,6 +74,7 @@ func _init() -> void:
 	add_button(&"mode", "Modo", false)
 	add_button(&"block", "Blocco", false)
 	add_button(&"camera", "Camera", false)
+	add_button(&"dev", "⚙", false)
 
 
 func _ready() -> void:
@@ -75,12 +85,19 @@ func _ready() -> void:
 	_layout()
 
 
-func add_button(id: StringName, label: String, hold: bool) -> void:
+func add_button(id: StringName, label: String, hold: bool, group: StringName = &"main") -> void:
 	var b := VButton.new()
 	b.id = id
 	b.label = label
 	b.hold = hold
+	b.group = group
 	_buttons.append(b)
+	if is_inside_tree():
+		_layout()
+
+
+func _visible(b: VButton) -> bool:
+	return b.group == &"main" or dev_open
 
 
 func set_button_label(id: StringName, text: String) -> void:
@@ -88,6 +105,13 @@ func set_button_label(id: StringName, text: String) -> void:
 		if b.id == id:
 			b.label = text
 	queue_redraw()
+
+
+func has_button(id: StringName) -> bool:
+	for b in _buttons:
+		if b.id == id:
+			return true
+	return false
 
 
 func is_held(id: StringName) -> bool:
@@ -124,14 +148,28 @@ func _layout() -> void:
 	var m := dp(20.0)
 	# Riga in alto dal bordo verso il centro: camera, blocco, modo.
 	var row: Array[StringName] = [&"camera", &"block", &"mode"]
+	var dw := dp(DEV_BUTTON_W_DP)
+	var dh := dp(DEV_BUTTON_H_DP)
+	var dx := m
+	var dy := m + small + m + dh
 	for b in _buttons:
 		var r := Rect2()
+		if b.group == &"dev":
+			if dx + dw > s.x - m:
+				dx = m
+				dy += dh + m * 0.4
+			r = Rect2(dx, dy, dw, dh)
+			dx += dw + m * 0.4
+			b.rect = r
+			continue
 		if b.id == &"jump":
 			r = Rect2(s.x - m - big, s.y - m - big, big, big)
+		elif b.id == &"dev":
+			r = Rect2(m, m + small * 0.9, small * 0.8, small * 0.8)
 		else:
 			var i := row.find(b.id)
 			r = Rect2(s.x - m - small - i * (small + m * 0.5), m, small, small)
-		if left_handed:
+		if left_handed and b.id != &"dev":
 			r.position.x = s.x - r.position.x - r.size.x
 		b.rect = r
 	queue_redraw()
@@ -165,7 +203,9 @@ func _touch_down(index: int, p: Vector2) -> bool:
 	f.last = p
 	f.t0 = Time.get_ticks_msec()
 	for b in _buttons:
-		if b.rect.has_point(p):
+		if _visible(b) and b.rect.has_point(p):
+			if b.id == &"dev":
+				dev_open = not dev_open
 			f.role = Role.BUTTON
 			f.button = b.id
 			b.held = true
@@ -284,10 +324,17 @@ func _draw() -> void:
 		return
 	var fs := int(dp(15.0))
 	for b in _buttons:
+		if not _visible(b):
+			continue
 		var c := b.rect.get_center()
 		var r := b.rect.size.x * 0.5
-		draw_circle(c, r, Color(0.08, 0.1, 0.12, 0.55 if not b.held else 0.8))
-		draw_arc(c, r, 0.0, TAU, 40, Color(0.63, 0.89, 0.78, 0.8), dp(2.0), true)
+		if b.group == &"dev":
+			draw_rect(b.rect, Color(0.08, 0.1, 0.12, 0.72 if not b.held else 0.9))
+			draw_rect(b.rect, Color(0.63, 0.89, 0.78, 0.8), false, dp(1.5))
+			r = b.rect.size.y * 0.5 * 2.2
+		else:
+			draw_circle(c, r, Color(0.08, 0.1, 0.12, 0.55 if not b.held else 0.8))
+			draw_arc(c, r, 0.0, TAU, 40, Color(0.63, 0.89, 0.78, 0.8), dp(2.0), true)
 		var text: String = labels.get(b.id, b.label)
 		# Riduce il corpo del testo finche' l'etichetta sta dentro il cerchio.
 		var size_px := fs

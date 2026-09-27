@@ -30,6 +30,9 @@ const EYE := 0.7
 const EPS := 0.001
 
 var world: WorldData
+## Griglia 8x8 degli alberi (Vector2i -> Array[Vegetation.TreeSpot]), condivisa
+## con VegetationRuntime. I tronchi sono cilindri da cui si viene spinti fuori.
+var tree_grid := {}
 var position := Vector3.ZERO
 var velocity := Vector3.ZERO
 var on_ground := false
@@ -179,6 +182,7 @@ func step(dt: float, move: Vector2, jump: bool) -> void:
 		blocked = true
 	position.x = nx
 	position.z = nz
+	_push_out_of_trees()
 
 	# Verticale.
 	if jump and on_ground:
@@ -224,6 +228,31 @@ func step(dt: float, move: Vector2, jump: bool) -> void:
 				land_t = LAND_REC * minf(1.0, drop / 4.0)
 				velocity.x *= 0.4
 				velocity.z *= 0.4
+
+
+## Tronchi: cilindro di raggio 0,30*scala fino a 4,2*scala (riga ~7020).
+func _push_out_of_trees() -> void:
+	if tree_grid.is_empty():
+		return
+	var cx := int(position.x / 8.0)
+	var cz := int(position.z / 8.0)
+	for gz in range(cz - 1, cz + 2):
+		for gx in range(cx - 1, cx + 2):
+			for t: Vegetation.TreeSpot in tree_grid.get(Vector2i(gx, gz), []):
+				if t.dead or position.y > t.y + 4.2 * t.scale:
+					continue
+				var r := 0.30 * t.scale + RADIUS
+				var dx := position.x - t.x
+				var dz := position.z - t.z
+				var d2 := dx * dx + dz * dz
+				if d2 < r * r and d2 > 1e-6:
+					var d := sqrt(d2)
+					position.x = t.x + dx / d * r
+					position.z = t.z + dz / d * r
+					var vn := (velocity.x * dx + velocity.z * dz) / d
+					if vn < 0.0:
+						velocity.x -= dx / d * vn
+						velocity.z -= dz / d * vn
 
 
 func eye_position() -> Vector3:

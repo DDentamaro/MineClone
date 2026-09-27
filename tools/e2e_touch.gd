@@ -40,7 +40,7 @@ func _process(_dt: float) -> bool:
 	var size := root.get_visible_rect().size
 	match _phase:
 		0:
-			if _game._runtime.is_idle() and _game._build_ms > 0:
+			if _game._runtime.is_idle() and _game._build_ms > 0 and _game._vegetation.is_idle():
 				_start_pos = _game.motor.position
 				_touch(0, Vector2(size.x * 0.15, size.y * 0.8), true)
 				_drag(0, Vector2(size.x * 0.15, size.y * 0.8 - 60))

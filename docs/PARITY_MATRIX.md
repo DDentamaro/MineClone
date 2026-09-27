@@ -15,13 +15,13 @@ verificato) · `verificato` (verificato anche su dispositivo).
 |---|---|---|---|---|---|---|
 | Mondo e blocchi | 4489–4520 | attivo | `WorldData`, `BlockDefinition`, `BlockCatalog`, `WorldEditService` | M0/M1 | fatto | Test: 16 ID/flag = `ISO_CORE`; layout `(y*Z+z)*X+x`; 432 chunk |
 | Generazione (6 biomi, laghi, fiumi, strati, minerali) | 4522–4608 | attivo | `WorldGenerator` (`world/generation`), passate versionate | M2 | fatto | Porting bit a bit (D-014): sha per passata/fase = prototipo su 64×32×64 (grotte), 96×40×80, 192×48×192 semi 1931 e 42; fixture seme 1931 rigenerata identica (`tools/verify_generator.gd`) |
-| Luce sole + blocchi (flood-fill) | 4613–4633 | attivo | `world/simulation` luce locale | M2 | dati | Buffer `sun`/`blk` nella fixture con SHA; manca il calcolo |
-| Greedy meshing + AO + cutaway | 4638–4709, 6811 | attivo | `ChunkMesher`, `WorldRuntime` (`ArrayMesh` per chunk) | M1 (facce visibili) / M2 (greedy, AO, cutaway) | parziale | Chunk (6,1,6): 62 quad / 248 vertici nel prototipo |
-| Vegetazione: alberi (3 archetipi) ed erba | 4893–4957, 6819–6854 | attivo | `TreeInstance`, MultiMesh erba | M2 | — | Alberi = collider cilindrici per player/nemici/proiettili |
+| Luce sole + blocchi (flood-fill) | 4613–4633 | attivo | `LightEngine` (calcolo completo + aggiornamento locale) | M2 | fatto | `compute_all` = fixture per SHA; aggiornamento locale = calcolo completo su 160 edit casuali; ~1,5 ms per un blocco (il prototipo ricalcolava tutto il mondo) |
+| Greedy meshing + AO + cutaway | 4638–4709, 6811 | attivo | `ChunkMesher`, `WorldRuntime` (`ArrayMesh` per chunk) | M2 | fatto | Identico al prototipo per hash su tutti i 432 chunk (41.172 quad): vertici, UV, dati, indici. Sezione (`slice`) supportata, nessun comando attivo la usa |
+| Vegetazione: alberi (3 archetipi) ed erba | 4893–4957, 6819–6854 | attivo | `Vegetation`, `VegetationRuntime`, `tree`/`grass.gdshader` | M2 | fatto | 498 alberi, 6 template e 402.080 fili identici al prototipo (hash/float64). Tronchi respingono il giocatore; alberi nella copertura dei raggi X. Abbattimento dormiente anche nel prototipo |
 | Acqua a livelli, correnti, cascate | 4965–5103, 6799–6808, 6943–6982 | attivo | `FluidSystem`, mesh acqua per tile 16×16 | M3 | parziale | Simulazione portata (D-014, senza `meshFluid`): initFluid, stepFluid, editFluid, sampleWater identici al prototipo nello scenario registrato; mancano mesh e gameplay |
-| Estetica (pixel RT, outline, dipinto, dithering, cielo, ombre, x-ray) | 5112–5665, 6718–6922 | attivo | shader/materiali, preset "riferimento" e "mobile" | M2 | — | Confronto per scene campione |
-| Camera ISO + TPS | 6718–6922 | attivo | `CameraRig` | M1 | parziale | Iso principale, TPS facoltativa (D-010). Mancano pixel snap e auto-follow della TPS |
-| Movimento (gradini, rampa, salto) | 6929, 6987–7039 | attivo | `PlayerMotor` con query voxel (D-011) | M1 | fatto | 11 test: velocità, rampa, muro, salto, soffitto, galleria, caduta. Mancano gli alberi (M2) |
+| Estetica (pixel RT, outline, dipinto, dithering, cielo, ombre, x-ray) | 5112–5665, 6718–6922 | attivo | `chunk`/`post`/`tree`/`grass.gdshader`, `DayCycle`, pannello sviluppatore | M2 | parziale | Screenshot affiancati al prototipo (Chromium headless) in iso e TPS: stesse forme, palette e posizioni. Differenze note: acqua provvisoria (M3), contorni anche sui ciuffi d'erba, raggi X a passata singola (D-016), orizzonte TPS fisso |
+| Camera ISO + TPS | 6718–6922 | attivo | `CameraRig` | M1/M2 | parziale | Iso con aggancio ai pixel e spostamento sub-pixel (fatto); TPS senza il contesto adattivo (corsa, soffitto) del prototipo |
+| Movimento (gradini, rampa, salto) | 6929, 6987–7039 | attivo | `PlayerMotor` con query voxel (D-011) | M1/M2 | fatto | 12 test: velocità, rampa, muro, salto, soffitto, galleria, caduta, tronchi |
 | Nuoto / guado | 6941–6982 | attivo | stati di locomozione | M3 | — | Soglie ingresso/uscita in inventario §3 |
 | Avatar CHARGEN + editor eroe | 4246–4481, 6629–6677, 7898–7917 | attivo | `AvatarRecipe`, editor, persistenza | M4 | — | Ricetta `isoterra.hero.dna` |
 | Corpo a corpo: pugni + spada, lancia, martello, spadone | 7107, 7490–7834 | attivo | `CombatController`, `WeaponDefinition`, `AttackDefinition` | M4 | — | Hitstop, sweep, un colpo per bersaglio. Il giocatore parte con la spada sguainata (7871) |
@@ -31,7 +31,7 @@ verificato) · `verificato` (verificato anche su dispositivo).
 | Costruzione (terra, pietra, sabbia, legno, torcia) | 4885, 7098–7102, 7858–7860 | attivo, gratuita | `WorldEditService`, `GameRoot.apply_action` | M1 (edit debug) / M5 (costo) | fatto (gratuita) | Portata 7,5; rifiuto se sovrapposta al player |
 | Inventario (contatore) | 7109–7110 | parziale | `InventoryService` a slot | M5 | — | Si riempie solo dai crateri; nascosto |
 | Persistenza impostazioni/avatar/camera | 8 chiavi `isoterra.*` | parziale | `SaveService` / impostazioni | M4/M5 | — | Nessun salvataggio del mondo |
-| UI touch (stick flottante, drag, pinch, pulsanti) | 7835–7870 | attivo | `TouchControls` con ownership delle dita (D-012) | M1 | fatto | 6 test + prova e2e con tocchi iniettati. Pannello strumenti grafici del prototipo non portato |
+| UI touch (stick flottante, drag, pinch, pulsanti) | 7835–7870 | attivo | `TouchControls` con ownership delle dita (D-012) | M1/M2 | fatto | 6 test + prova e2e con tocchi iniettati. Interruttori grafici del prototipo nel pannello sviluppatore (⚙) |
 
 ## Rinviate dal proprietario (fuori dal gate R, D-009)
 
@@ -60,6 +60,14 @@ verificato) · `verificato` (verificato anche su dispositivo).
 - [x] Fixture caricata in Godot con SHA per buffer, istogramma, layout, spawn
 - [x] Catalogo blocchi come `Resource`, coincidente col prototipo
 - [ ] Parità visiva e di gameplay: da M1 in poi
+
+## Stato verifiche M2
+
+- [x] Seme 1931 rigenerato dal generatore portato = fixture originale (sha dei blocchi `ce0d3766…`)
+- [x] Nessuna fessura tra chunk: mesh greedy identica al prototipo su tutti i chunk
+- [x] Riferimenti visivi delle due camere confrontati con il prototipo in Chromium headless
+- [x] Edit locale: luce e mesh solo nei chunk toccati, erba solo nelle colonne cambiate
+- [ ] Prova su telefono reale e misure FPS
 
 ## Stato verifiche M1
 

@@ -141,3 +141,19 @@ func test_sovrapposizione_per_piazzare() -> void:
 	check(m.overlaps_cell(Vector3i(8, 5, 8)), "cella della testa")
 	check(not m.overlaps_cell(Vector3i(8, 6, 8)), "sopra la testa")
 	check(not m.overlaps_cell(Vector3i(9, 4, 8)), "accanto")
+
+
+func test_tronco_respinge() -> void:
+	var m := _motor(TestWorlds.flat(4), Vector3(6.5, 4, 8.62))
+	var t := Vegetation.TreeSpot.new()
+	t.x = 9.0
+	t.y = 4.0
+	t.z = 8.5
+	t.scale = 1.0
+	m.tree_grid = {Vector2i(1, 1): [t]}
+	var min_d := 99.0
+	for i in 90:
+		m.step(DT, Vector2(1, 0), false)
+		min_d = minf(min_d, Vector2(m.position.x - t.x, m.position.z - t.z).length())
+	check(min_d >= 0.30 + PlayerMotor.RADIUS - 1e-4, "mai dentro il tronco (min %f)" % min_d)
+	check(m.position.x > 9.5, "scivola attorno al tronco (x=%f)" % m.position.x)

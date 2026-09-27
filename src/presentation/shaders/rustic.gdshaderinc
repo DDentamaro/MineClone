@@ -60,6 +60,13 @@ vec3 paint_grass_color(vec2 sp, float th, float th2) {
 	return k == 0 ? vec3(0.290, 0.420, 0.125) : (k == 1 ? vec3(0.470, 0.460, 0.195) : (k == 2 ? vec3(0.300, 0.395, 0.130) : vec3(0.215, 0.365, 0.150)));
 }
 
+float patch_class(vec2 p) { float n2 = vnoise(p * 0.11 + vec2(4.37, 11.83)); float n3 = vnoise(p * 0.10 + vec2(21.19, 3.71)); float c = 0.0; if (n2 > 0.537) c = 1.0; if (n3 > 0.471) c = 2.0; return c; }
+vec3 rustic_patch_color(float c) { if (c < 0.5) return vec3(0.305, 0.405, 0.125); if (c < 1.5) return vec3(0.405, 0.430, 0.190); return vec3(0.350, 0.335, 0.155); }
+vec3 rustic_blend(vec2 p) {
+	vec4 w = rustic_weights(p);
+	return vec3(0.300, 0.395, 0.118) * w.x + vec3(0.455, 0.435, 0.205) * w.y + vec3(0.325, 0.255, 0.145) * w.z + vec3(0.255, 0.345, 0.135) * w.w;
+}
+
 const int BAYER[16] = {0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5};
 float bayer(vec2 p) { int x = int(mod(p.x, 4.0)), y = int(mod(p.y, 4.0)); return (float(BAYER[y * 4 + x]) + 0.5) / 16.0; }
 

@@ -19,6 +19,8 @@ const CLOUD_COVER := 0.73
 @export var paused := false
 @export var light: DirectionalLight3D
 
+## Interruttore OMBRE del prototipo (SHADOW.strength 0,84 / 0).
+var shadows_on := true
 var state := {}
 var clock := 0.0
 
@@ -47,7 +49,9 @@ func apply(dt: float) -> void:
 	rs.global_shader_parameter_set(&"ambient_color", state["ambient"])
 	rs.global_shader_parameter_set(&"night", state["night"])
 	rs.global_shader_parameter_set(&"sun_level", maxf(0.05, state["daylight"]))
-	rs.global_shader_parameter_set(&"shadow_strength", state["shadow"])
+	rs.global_shader_parameter_set(&"shadow_strength", state["shadow"] if shadows_on else 0.0)
+	if light != null:
+		light.shadow_enabled = shadows_on
 	rs.global_shader_parameter_set(&"sky_horizon", state["horizon"])
 	rs.global_shader_parameter_set(&"sky_top", state["top"])
 	rs.global_shader_parameter_set(&"fog_color", state["horizon"])

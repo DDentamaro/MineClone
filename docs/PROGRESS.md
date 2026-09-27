@@ -1,6 +1,50 @@
 # Avanzamento
 
-## Stato corrente: M1 — Percorso giocabile minimo · completata (senza prova su telefono)
+## Stato corrente: M2 — Mondo e resa · completata (senza prova su telefono)
+
+Sessione del 27/09/2026 (stessa di M0–M1).
+
+### Fatto
+- **Generatore e fluidi** (porting in parallelo, D-014): `WorldGenerator` v0_64 con le 11
+  passate, `FluidSystem` senza mesh. Il seme 1931 rigenera esattamente la fixture originale.
+- **Luce** (`LightEngine`): calcolo completo identico alla fixture; aggiornamento locale sugli
+  edit, uguale al calcolo completo; i chunk con luce cambiata vengono rimeshati.
+- **Mesher greedy** (`ChunkMesher`): identico al prototipo per hash su tutti i 432 chunk.
+- **Texture procedurali** (atlante, ciuffo d'erba) identiche pixel per pixel.
+- **Vegetazione**: alberi (498, tre archetipi) ed erba (402.080 fili) identici al prototipo,
+  costruiti su thread; erba rigenerata per colonna dopo gli edit; tronchi solidi per il giocatore.
+- **Resa** (D-015): stile dipinto con luce a bande, AO, ombra direzionale, nubi, torce;
+  post-processing con contorni, spigoli, raggi, cielo, notte e grading; render target a 360
+  righe con camera iso agganciata ai pixel; ciclo giorno/notte di 240 s.
+- **Raggi X** a passata singola (D-016) con copertura del prototipo.
+- **Pannello sviluppatore** (⚙): nuovo seme, ora +3h, righe 270/360/450, contorni, spigoli,
+  dipinto, dither, raggi, erba, ombre, nubi.
+- Confronto visivo con il prototipo eseguito in Chromium headless (`--use-angle=swiftshader`).
+
+### Test realmente eseguiti (M2)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 88/88 PASS, log senza errori né warning (il runner ora fallisce sugli errori) |
+| `tools/verify_generator.gd` (dall'agente del generatore) | OK su 192×48×192 semi 1931 e 42, 96×40×80 |
+| `tools/e2e_touch.gd` | stick, tap di costruzione, muro → copertura 1,00 e raggi X visibili |
+| `tools/bench_mesh.gd` (1 thread) | generazione 2,7 s; luce 1,7 s; mesh 4,3 s; alberi 0,8 s; erba 5,6 s; luce locale 1,5 ms |
+| Screenshot affiancati prototipo/Godot | iso vicina, iso lontana, TPS: stesse forme, palette, alberi |
+
+### Limiti aperti dopo M2
+- **Nessuna prova su telefono né misura FPS.** Il rendering software del container (3–12 FPS con
+  ~400k fili d'erba) non è indicativo. L'erba è la voce più pesante: da misurare su dispositivo.
+- Acqua provvisoria (dithering) fino alla mesh dei fluidi di M3; la simulazione non gira ancora in gioco.
+- Contorni sui ciuffi d'erba e bordo retinato dei raggi X (D-015, D-016).
+- TPS senza camera adattiva e con orizzonte fisso; giocatore ancora capsula (avatar in M4).
+- Startup da fixture: mesh+erba ~10 s in questo container con 4 core e rendering software.
+
+### Punto di ripresa: M3 — Acqua e locomozione
+1. `meshFluid` (superficie, lati, fondo, cascate) e `waterFS` con impulsi e schiuma.
+2. Simulazione in gioco: tick 0,25 s con budget, edit dell'acqua dai blocchi, tile 16×16 sporche.
+3. Nuoto, guado, correnti, galleggiamento e uscita dall'acqua (`Game.stepWater`).
+4. Effetti essenziali (schizzi) e comando "Al lago" del prototipo.
+
+## M1 — Percorso giocabile minimo · completata (senza prova su telefono)
 
 Sessione del 27/09/2026 (stessa di M0).
 

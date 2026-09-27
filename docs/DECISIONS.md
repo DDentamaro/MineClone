@@ -148,3 +148,44 @@ reversibile salvo dove indicato. Formato: contesto → decisione → conseguenze
   `tools/verify_generator.gd` (troppo lenti per la suite).
 - **Limiti noti:** `rem_pio2` per |x| > 2^19·π/2 non è portato (mai usato dal generatore);
   `-0` può diventare `+0` in alcuni clamp (irrilevante per i risultati).
+
+## D-015 — Pipeline di resa: render target a 360 righe e illuminazione in `light()`
+- **Render target:** il mondo 3D è in una `SubViewport` alta 360 righe (270/450 dal pannello),
+  come `RT_H` del prototipo, scalata a schermo con filtro nearest. Ha un pixel di bordo per lato:
+  la camera isometrica è agganciata alla griglia dei pixel e l'immagine viene spostata del resto
+  sub-pixel (uSub del prototipo).
+- **Post-processing:** un quad a tutto schermo figlio della camera (`post.gdshader`, priorità 127)
+  legge `hint_screen_texture` e `hint_depth_texture`: contorni, spigoli, raggi, nebbia TPS, notte,
+  grading e cielo (`skyFS`) sui pixel senza profondità.
+- **Luce:** gli shader dei blocchi, degli alberi e dell'erba calcolano il colore "di schermo" del
+  prototipo e lo scrivono in `DIFFUSE_LIGHT` dentro `light()`, convertito in lineare. Con luce
+  ambiente e tonemap disattivati il risultato a schermo coincide con la formula del prototipo;
+  `ATTENUATION` della luce direzionale di Godot sostituisce la shadow map del prototipo
+  (l'ombra copre tutta la vista, non solo 34 unità attorno al giocatore).
+- **Acqua provvisoria:** disegnata nel passo opaco con dithering Bayer, altrimenti il quad di post
+  (che legge lo schermo prima del passo trasparente) la cancellerebbe. La mesh dei fluidi è M3.
+- **Parametri condivisi:** uniform globali (`[shader_globals]` in `project.godot`), aggiornati
+  da `DayCycle` (porting di `skyState`) e dalla camera.
+- **Differenza nota:** il prototipo esclude i pixel d'erba dai contorni usando l'alfa del render
+  target; nel passo opaco di Godot l'alfa non è scrivibile, quindi i ciuffi sui bordi hanno un
+  contorno più scuro.
+
+## D-016 — Raggi X a passata singola
+- Il prototipo rende la scena due volte e sfuma verso la seconda passata senza occlusori. Qui gli
+  shader scartano i frammenti davanti al giocatore dentro la capsula piedi–testa con una soglia
+  Bayer che sale verso il centro. Copertura (`coverage`) e smorzamento sono quelli del prototipo,
+  alberi inclusi. Costa una passata sola, ma il bordo del buco è retinato invece che sfumato.
+
+## D-017 — Fixture numeriche in binario
+- Il parser JSON di Godot non arrotonda correttamente i decimali lunghi (differenze di 1 ulp): i
+  riferimenti a virgola mobile (posizioni degli alberi, template, fili d'erba) sono salvati come
+  Float32/Float64 binari gzip. Il JSON resta per hash e conteggi.
+- `tools/run_tests.sh` fallisce anche se il log contiene `SCRIPT ERROR`, `ERROR:` o `WARNING:`,
+  perché in GDScript un errore a runtime non interrompe il test.
+
+## D-018 — Mondo all'avvio e nuovi semi
+- All'avvio si usa la fixture verificata del seme 1931 (niente generazione né calcolo della
+  luce). "Nuovo seme" genera un mondo con `WorldGenerator` + `LightEngine` su un thread di lavoro
+  (~4,4 s su un thread in questo container) mentre si continua a giocare nel mondo attuale; poi
+  runtime e vegetazione ripartono con una nuova sessione. Seme casuale come il prototipo
+  (`Math.random()*1e6`).

@@ -11,6 +11,12 @@ const MODE_LABELS := {ActionMode.EXPLORE: "Esplora", ActionMode.BUILD: "Costruis
 const MODE_BUTTON := {ActionMode.EXPLORE: "Esplora", ActionMode.BUILD: "Costr.", ActionMode.DIG_DEBUG: "Scava"}
 ## Portata di costruzione: game.reach + 1 dal punto occhi (riga 7099).
 const REACH := 7.5
+## Pannello sviluppatore: gli interruttori attivi del prototipo (riga 7855–7870).
+const DEV_BUTTONS := [
+	[&"dev_seed", "Nuovo seme"], [&"dev_time", "Ora +3h"], [&"dev_res", "Righe"], [&"dev_outline", "Contorni"],
+	[&"dev_edges", "Spigoli"], [&"dev_paint", "Dipinto"], [&"dev_dither", "Dither"], [&"dev_rays", "Raggi"],
+	[&"dev_grass", "Erba"], [&"dev_shadow", "Ombre"], [&"dev_clouds", "Nubi"],
+]
 
 @onready var _status: Label = %Status
 @onready var _view: SubViewport = $WorldView
@@ -19,6 +25,7 @@ const REACH := 7.5
 @onready var _camera_rig: CameraRig = $WorldView/CameraRig
 @onready var _avatar: PlayerAvatar = $WorldView/Player
 @onready var _day: DayCycle = $WorldView/DayCycle
+@onready var _vegetation: VegetationRuntime = $WorldView/Vegetation
 @onready var _touch: TouchControls = %TouchControls
 
 var world: WorldData
@@ -29,6 +36,11 @@ var action_mode: ActionMode = ActionMode.EXPLORE
 var block_index := 0
 var last_edit := ""
 
+var toggles := {"outline": true, "edges": true, "paint": true, "dither": false, "rays": true,
+	"grass": true, "shadow": true, "clouds": true}
+var _gen_task := -1
+var _gen_result: WorldData
+var _gen_seed := 0
 var _move_world := Vector2.ZERO
 var _jump_key := false
 var _args := {}
@@ -39,28 +51,22 @@ var _build_ms := 0
 func _ready() -> void:
 	_args = _parse_user_args()
 	catalog = BlockCatalog.load_default()
-	var fx := WorldFixture.load_dir(WorldFixture.SEED1931_DIR, catalog)
-	if not fx.ok():
-		_status.text = "Fixture NON valida:\n" + "\n".join(fx.errors)
-		push_error(_status.text)
+	var w: WorldData
+	if _args.has("seed"):
+		w = WorldFactory.generate(int(_args["seed"]), catalog)
+	else:
+		w = WorldFactory.from_fixture(catalog)
+	if w == null:
+		_status.text = "Fixture NON valida"
 		return
-	world = fx.world
-	_load_climate()
-	RenderingServer.global_shader_parameter_set(&"world_xz", Vector2(world.size_x, world.size_z))
-	RenderingServer.global_shader_parameter_set(&"slice_y", float(world.size_y))
 	get_viewport().size_changed.connect(_fit_view)
 	_fit_view()
-	edits = WorldEditService.new(world, catalog)
-	edits.light = LightEngine.new(world, catalog)
-	edits.chunks_changed.connect(_runtime.mark_dirty)
-	motor = PlayerMotor.new(world)
-	motor.place_at(world.spawn_point())
-	_avatar.position = motor.position
-	_runtime.focus = motor.position
 	_runtime.initial_build_finished.connect(_on_initial_build)
-	_runtime.setup(world, catalog)
-	_camera_rig.world = world
+	motor = PlayerMotor.new(w)
+	_swap_world(w)
 	_camera_rig.opaque = catalog.opaque_table()
+	for d: Array in DEV_BUTTONS:
+		_touch.add_button(d[0], d[1], false, &"dev")
 	var cam_mode: int = Settings.load_value("camera", "mode", CameraRig.Mode.ISO)
 	if _args.get("cam", "") == "tps":
 		cam_mode = CameraRig.Mode.TPS
@@ -75,12 +81,38 @@ func _ready() -> void:
 		_camera_rig.yaw_target += deg_to_rad(float(_args["yaw"]))
 		_camera_rig.yaw = _camera_rig.yaw_target
 	_touch.left_handed = bool(Settings.load_value("input", "left_handed", false))
+	if _args.has("dev"):
+		_touch.dev_open = true
 	_touch.camera_dragged.connect(_camera_rig.drag)
 	_touch.zoom_scaled.connect(func(f: float) -> void: _camera_rig.set_zoom(_camera_rig.get_zoom() * f))
 	_touch.world_tapped.connect(_on_world_tap)
 	_touch.button_pressed.connect(_on_button)
 	_refresh_labels()
 	_camera_rig.update_camera(1.0, motor.position)
+
+
+## Sostituisce il mondo corrente (avvio o nuovo seme): nuova sessione per
+## runtime e vegetazione, giocatore allo spawn.
+func _swap_world(w: WorldData) -> void:
+	world = w
+	edits = WorldEditService.new(world, catalog)
+	edits.light = LightEngine.new(world, catalog)
+	edits.chunks_changed.connect(_runtime.mark_dirty)
+	edits.chunks_changed.connect(_vegetation.mark_dirty)
+	var ct := WorldFactory.climate_texture(world)
+	if ct != null:
+		RenderingServer.global_shader_parameter_set(&"climate_tex", ct)
+	RenderingServer.global_shader_parameter_set(&"world_xz", Vector2(world.size_x, world.size_z))
+	RenderingServer.global_shader_parameter_set(&"slice_y", float(world.size_y))
+	motor.world = world
+	motor.place_at(world.spawn_point())
+	_avatar.position = motor.position
+	_runtime.focus = motor.position
+	_build_ms = 0
+	_runtime.setup(world, catalog)
+	_vegetation.setup(world, catalog, world.world_seed)
+	motor.tree_grid = _vegetation.tree_grid
+	_camera_rig.world = world
 
 
 func _physics_process(dt: float) -> void:
@@ -101,11 +133,12 @@ func _process(dt: float) -> void:
 	_place_screen()
 	_runtime.focus = p
 	_update_xray(dt, p)
+	_poll_generation()
 	_status.text = "%d FPS · %s · %s · chunk in coda %d%s\nposizione %.1f %.1f %.1f%s" % [
 		Engine.get_frames_per_second(), MODE_LABELS[action_mode], catalog.get_def(PLACEABLE[block_index]).display_name,
 		_runtime.pending_count(), (" · mondo pronto in %d ms" % _build_ms) if _build_ms > 0 else "",
 		motor.position.x, motor.position.y, motor.position.z, ("\n" + last_edit) if last_edit != "" else ""]
-	if _frames_after_build >= 0:
+	if _frames_after_build >= 0 and _vegetation.is_idle():
 		_frames_after_build += 1
 		if _frames_after_build >= int(_args.get("frames", "30")):
 			_take_screenshot()
@@ -160,6 +193,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				_select_block(BlockCatalog.STONE)
 			KEY_3:
 				_select_block(BlockCatalog.WOOD)
+			KEY_N:
+				_on_button(&"dev_seed")
 			KEY_Q:
 				_camera_rig.rotate_step(-1)
 			KEY_E:
@@ -179,6 +214,18 @@ func _notification(what: int) -> void:
 
 func _on_button(id: StringName) -> void:
 	match id:
+		&"dev_seed":
+			regenerate(randi() % 1000000)
+		&"dev_time":
+			_day.time = fmod(_day.time + 3.0 / 24.0, 1.0)
+		&"dev_res":
+			var opts := [270, 360, 450]
+			rt_height = opts[(opts.find(rt_height) + 1) % opts.size()]
+			_fit_view()
+		&"dev_outline", &"dev_edges", &"dev_paint", &"dev_dither", &"dev_rays", &"dev_grass", &"dev_shadow", &"dev_clouds":
+			var key := String(id).substr(4)
+			toggles[key] = not bool(toggles[key])
+			_apply_toggles()
 		&"mode":
 			action_mode = ((action_mode + 1) % ActionMode.size()) as ActionMode
 		&"block":
@@ -189,15 +236,61 @@ func _on_button(id: StringName) -> void:
 	_refresh_labels()
 
 
+static func _dev_label(key: String) -> String:
+	for d: Array in DEV_BUTTONS:
+		if d[0] == StringName("dev_" + key):
+			return d[1]
+	return key
+
+
 func _select_block(id: int) -> void:
 	block_index = maxi(0, PLACEABLE.find(id))
 	_refresh_labels()
+
+
+func _apply_toggles() -> void:
+	var rs := RenderingServer
+	rs.global_shader_parameter_set(&"outline_on", 1.0 if toggles["outline"] else 0.0)
+	rs.global_shader_parameter_set(&"edges_on", 1.0 if toggles["edges"] else 0.0)
+	rs.global_shader_parameter_set(&"paint_mode", 1.0 if toggles["paint"] else 0.0)
+	rs.global_shader_parameter_set(&"dither_amount", 1.0 if toggles["dither"] else 0.0)
+	rs.global_shader_parameter_set(&"rays_on", 1.0 if toggles["rays"] else 0.0)
+	rs.global_shader_parameter_set(&"cloud_shadow_on", 1.0 if toggles["clouds"] else 0.0)
+	_day.shadows_on = toggles["shadow"]
+	_vegetation.set_grass_visible(toggles["grass"])
+	_refresh_labels()
+
+
+## Genera un mondo nuovo in background; quello attuale resta giocabile finche'
+## il nuovo non e' pronto.
+func regenerate(seed_value: int) -> void:
+	if _gen_task >= 0:
+		return
+	_gen_seed = seed_value
+	var cat := catalog
+	_gen_task = WorkerThreadPool.add_task(func() -> void:
+		_gen_result = WorldFactory.generate(seed_value, cat))
+	last_edit = "generazione mondo, seme %d…" % seed_value
+
+
+func _poll_generation() -> void:
+	if _gen_task < 0 or not WorkerThreadPool.is_task_completed(_gen_task):
+		return
+	WorkerThreadPool.wait_for_task_completion(_gen_task)
+	_gen_task = -1
+	if _gen_result != null:
+		_swap_world(_gen_result)
+		last_edit = "mondo del seme %d" % _gen_seed
+	_gen_result = null
 
 
 func _refresh_labels() -> void:
 	_touch.labels[&"mode"] = MODE_BUTTON[action_mode]
 	_touch.labels[&"block"] = catalog.get_def(PLACEABLE[block_index]).display_name.capitalize()
 	_touch.labels[&"camera"] = "Iso" if _camera_rig.mode == CameraRig.Mode.ISO else "3ª p."
+	_touch.labels[&"dev_res"] = "Righe %d" % rt_height
+	for key: String in toggles:
+		_touch.labels[StringName("dev_" + key)] = "%s %s" % [_dev_label(key), "ON" if toggles[key] else "OFF"]
 	_touch.queue_redraw()
 
 
@@ -284,15 +377,30 @@ func view_to_screen(p: Vector2) -> Vector2:
 	return p * _view_scale() + _screen.position
 
 
-## Frazione dei punti del corpo nascosti alla camera (coverage del prototipo,
-## senza gli alberi finche' non arrivano).
+## Frazione dei punti del corpo nascosti alla camera da blocchi o alberi
+## (coverage del prototipo, riga 7929).
 func coverage(p: Vector3) -> float:
 	var d := _camera_rig.view_dir()
 	var hit := 0
 	var opaque := catalog.opaque_table()
+	var near := _vegetation.trees_near(p.x, p.z, 2)
 	for b in BODY:
 		var o := p + b + d * 0.35
-		if VoxelQuery.raycast(world, opaque, o, d, 40.0) != null:
+		var h := VoxelQuery.raycast(world, opaque, o, d, 40.0) != null
+		if not h:
+			for t in near:
+				var hh := 4.0 * t.scale
+				var tx := t.x - o.x
+				var tz := t.z - o.z
+				var along := (tx * d.x + tz * d.z) / maxf(1e-4, d.x * d.x + d.z * d.z)
+				if along < 0.2:
+					continue
+				var q := o + d * along
+				var rr := (q.x - t.x) * (q.x - t.x) + (q.z - t.z) * (q.z - t.z)
+				if rr < 0.35 * 0.35 * t.scale and q.y > t.y and q.y < t.y + hh * 0.7:
+					h = true
+					break
+		if h:
 			hit += 1
 	return float(hit) / BODY.size()
 
@@ -316,19 +424,6 @@ func _update_xray(dt: float, p: Vector3) -> void:
 	rs.global_shader_parameter_set(&"xray_floor", p.y + 0.35)
 
 
-## Clima (RGBA per colonna) per i colori dell'erba. Per il mondo fixture viene
-## dalla fixture di resa; il generatore lo produrra' per i mondi nuovi.
-func _load_climate() -> void:
-	var path := "res://tests/fixtures/seed1931_v064_render/climate.u8.gz"
-	var gz := FileAccess.get_file_as_bytes(path)
-	var raw := gz.decompress(world.size_x * world.size_z * 4, FileAccess.COMPRESSION_GZIP)
-	if raw.size() != world.size_x * world.size_z * 4:
-		push_warning("clima non disponibile")
-		return
-	var img := Image.create_from_data(world.size_x, world.size_z, false, Image.FORMAT_RGBA8, raw)
-	RenderingServer.global_shader_parameter_set(&"climate_tex", ImageTexture.create_from_image(img))
-
-
 func _on_initial_build(ms: int) -> void:
 	_build_ms = ms
 	print("Mondo costruito: %d chunk in %d ms (%s)" % [world.chunk_count(), ms, _runtime.stats])
@@ -348,10 +443,15 @@ func _take_screenshot() -> void:
 
 ## Argomenti dopo "--" sulla riga di comando:
 ## --screenshot=file.png --cam=tps --frames=N --zoom=0.55 --yaw=gradi --time=0..1
+## --seed=N (genera il mondo invece di usare la fixture) --dev (pannello aperto)
 static func _parse_user_args() -> Dictionary:
 	var out := {}
 	for a in OS.get_cmdline_user_args():
-		if a.begins_with("--") and a.contains("="):
+		if not a.begins_with("--"):
+			continue
+		if a.contains("="):
 			var kv := a.substr(2).split("=", true, 1)
 			out[kv[0]] = kv[1]
+		else:
+			out[a.substr(2)] = "1"
 	return out

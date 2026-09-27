@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://src/game_root.gd" id="1_root"]
 [ext_resource type="Script" path="res://src/world/runtime/world_runtime.gd" id="2_runtime"]
@@ -7,6 +7,7 @@
 [ext_resource type="Script" path="res://src/ui/touch_controls.gd" id="5_touch"]
 [ext_resource type="Script" path="res://src/presentation/day_cycle.gd" id="6_day"]
 [ext_resource type="Shader" path="res://src/presentation/shaders/post.gdshader" id="7_post"]
+[ext_resource type="Script" path="res://src/world/vegetation/vegetation_runtime.gd" id="8_veg"]
 
 [sub_resource type="Environment" id="env"]
 background_mode = 1
@@ -64,6 +65,9 @@ light = NodePath("../Sun")
 
 [node name="WorldRuntime" type="Node3D" parent="WorldView"]
 script = ExtResource("2_runtime")
+
+[node name="Vegetation" type="Node3D" parent="WorldView"]
+script = ExtResource("8_veg")
 
 [node name="Player" type="Node3D" parent="WorldView"]
 script = ExtResource("3_avatar")

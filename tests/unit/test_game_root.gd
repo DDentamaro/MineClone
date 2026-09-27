@@ -66,3 +66,38 @@ func test_roccia_madre_non_scavabile() -> void:
 	g.motor.position = Vector3(96.5, 1, 96.5)
 	check(not g.apply_action(hit), "y=0 protetto")
 	g.free()
+
+
+func test_nuovo_seme_sostituisce_il_mondo() -> void:
+	var g := _scene()
+	var old := g.world
+	var session: int = g._runtime._session
+	g.regenerate(42)
+	var t0 := Time.get_ticks_msec()
+	while g._gen_task >= 0 and Time.get_ticks_msec() - t0 < 60000:
+		OS.delay_msec(50)
+		g._poll_generation()
+	check(g.world != old, "mondo sostituito")
+	check_eq(g.world.world_seed, 42, "seme")
+	check_eq(g.motor.world, g.world, "il giocatore usa il nuovo mondo")
+	check_eq(g.motor.position, g.world.spawn_point(), "giocatore allo spawn")
+	check(g._runtime._session > session, "nuova sessione dei chunk")
+	check(g.world.climate.size() == 192 * 192 * 4, "clima dal generatore")
+	g.free()
+
+
+func test_interruttori_del_pannello() -> void:
+	var g := _scene()
+	g._on_button(&"dev_outline")
+	check(not bool(g.toggles["outline"]), "contorni spenti")
+	check_eq(g._touch.labels[&"dev_outline"], "Contorni OFF", "etichetta contorni")
+	g._on_button(&"dev_outline")
+	check(bool(g.toggles["outline"]), "contorni accesi")
+	g._on_button(&"dev_shadow")
+	check(not g._day.shadows_on, "ombre spente")
+	g._on_button(&"dev_grass")
+	check(not g._vegetation.grass_visible, "erba nascosta")
+	g._on_button(&"dev_res")
+	check_eq(g._view.size.y, 450 + 2, "righe 450 + bordo")
+	check_eq(g._touch.labels[&"dev_res"], "Righe 450", "etichetta")
+	g.free()
