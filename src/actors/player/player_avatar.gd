@@ -50,7 +50,7 @@ func turn_to(target: float, dt: float, rate: float) -> void:
 
 
 ## Aggiorna posa e scia; `dt` = 0 durante l'hitstop (posa congelata).
-func animate(dt: float, motor: PlayerMotor, combat: CombatController) -> void:
+func animate(dt: float, motor: PlayerMotor, combat: CombatController, magic: MagicSystem = null) -> void:
 	var s := anim_state
 	s.speed = Vector2(motor.velocity.x, motor.velocity.z).length()
 	s.on_ground = motor.on_ground
@@ -67,6 +67,14 @@ func animate(dt: float, motor: PlayerMotor, combat: CombatController) -> void:
 	s.u = combat.phase_u()
 	s.charge = combat.charge_fraction() if combat.charging else -1.0
 	s.dodge = combat.dodge_u()
+	s.gather = -1.0
+	s.release = -1.0
+	if magic != null:
+		if magic.phase == MagicSystem.Phase.GATHER:
+			s.gather = magic.w
+		elif magic.phase == MagicSystem.Phase.RECOVER:
+			s.release = clampf(magic.t / magic.spell().recover, 0.0, 1.0)
+	rig.ik_enabled = s.gather < 0.0 and s.release < 0.0
 	if s.dodge >= 0.0 or s.attack != null:
 		s.speed = 0.0 if s.attack != null else s.speed * 0.2
 	if dt > 0.0:

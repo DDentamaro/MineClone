@@ -83,8 +83,10 @@ func _init() -> void:
 	add_button(&"attack", "Colpo", false)
 	add_button(&"heavy", "Forte", true)
 	add_button(&"dodge", "Schiva", false)
+	add_button(&"magic", "Magia", true)
 	add_button(&"mode", "Modo", false)
 	add_button(&"weapon", "Arma", false)
+	add_button(&"spell", "Fuoco", false)
 	add_button(&"hero", "Eroe", false)
 	add_button(&"block", "Blocco", false)
 	add_button(&"camera", "Camera", false)
@@ -167,7 +169,7 @@ func _layout() -> void:
 	var m := dp(20.0)
 	var med := big * 0.78
 	# Riga in alto dal bordo verso il centro: camera, blocco, modo, arma, eroe.
-	var row: Array[StringName] = [&"camera", &"block", &"mode", &"weapon", &"hero"]
+	var row: Array[StringName] = [&"camera", &"block", &"mode", &"weapon", &"spell", &"hero"]
 	var dw := dp(DEV_BUTTON_W_DP)
 	var dh := dp(DEV_BUTTON_H_DP)
 	var cursor := {}
@@ -190,6 +192,8 @@ func _layout() -> void:
 			r = Rect2(attack_x + (big - med) * 0.5, s.y - m - big - m * 0.4 - med, med, med)
 		elif b.id == &"dodge":
 			r = Rect2(s.x - m - big + (big - med) * 0.5, s.y - m - big - m * 0.4 - med, med, med)
+		elif b.id == &"magic":
+			r = Rect2(attack_x - m * 0.4 - med, s.y - m - med, med, med)
 		elif b.id == &"dev":
 			r = Rect2(m, m + small * 0.9, small * 0.8, small * 0.8)
 		else:

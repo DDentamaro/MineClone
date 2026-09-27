@@ -30,6 +30,9 @@ class State:
 	var charge := -1.0
 	## Capriola: avanzamento 0..1, -1 se non in corso.
 	var dodge := -1.0
+	## Magia (mano sinistra): raccolta 0..1 e rilascio 0..1, -1 se assenti.
+	var gather := -1.0
+	var release := -1.0
 
 
 var stride_phase := 0.0
@@ -177,6 +180,11 @@ func target_pose(dt: float, s: State) -> Dictionary:
 	if s.attack != null:
 		_apply_attack(p, s)
 
+	# Magia con la mano sinistra: il palmo si carica davanti al viso, poi
+	# spinge in avanti a braccio teso; l'arma resta nella destra.
+	if s.gather >= 0.0 or s.release >= 0.0:
+		_apply_cast(p, s)
+
 	# Capriola: giro completo in avanti attorno al centro del corpo, raccolto.
 	if s.dodge >= 0.0:
 		var u := s.dodge
@@ -249,6 +257,44 @@ func _apply_attack(p: Dictionary, s: State) -> void:
 	# Giro del corpo.
 	if at.spin != 0.0 and s.phase == 1:
 		p[&"body"] += Vector3(0, deg_to_rad(at.spin) * _smooth(u), 0)
+
+
+func _apply_cast(p: Dictionary, s: State) -> void:
+	var gather := {&"chest": d(0, -28), &"spine": d(0, -8), &"head": d(-4, 22), &"arm_l": d(62, -12, -22),
+		&"fore_l": d(98), &"hand_l": d(-30), &"body_pos": Vector3(0, -0.05, 0)}
+	var thrust := {&"chest": d(-8, 24), &"spine": d(0, 8), &"head": d(0, -16), &"arm_l": d(88, -4, 0),
+		&"fore_l": d(0), &"hand_l": d(-80), &"body_pos": Vector3(0, -0.02, 0)}
+	var from := {}
+	var to := {}
+	var k := 0.0
+	if s.gather >= 0.0:
+		to = gather
+		k = _smooth(minf(1.0, s.gather * 2.5))
+	else:
+		var u := s.release
+		if u < 0.3:
+			from = gather
+			to = thrust
+			k = 1.0 - pow(1.0 - u / 0.3, 3.0)
+		else:
+			from = thrust
+			k = _smooth((u - 0.3) / 0.7)
+	for key: StringName in gather:
+		var base: Vector3 = p.get(key, Vector3.ZERO)
+		var a: Vector3 = from.get(key, base)
+		var b: Vector3 = to.get(key, base)
+		if key == &"body_pos" or key == &"chest" or key == &"spine" or key == &"head":
+			# Busto e testa si sommano alla posa di sotto (corsa, guardia).
+			var add_a: Vector3 = from.get(key, Vector3.ZERO)
+			var add_b: Vector3 = to.get(key, Vector3.ZERO)
+			p[key] = base + add_a.lerp(add_b, k)
+		else:
+			p[key] = a.lerp(b, k)
+	if s.gather >= 0.0:
+		# Tremito crescente mentre l'elemento si raduna.
+		var q := s.gather
+		p[&"fore_l"] += d(sin(time * 57.0) * 3.0 * q)
+		p[&"arm_l"] += d(0, sin(time * 43.0) * 2.0 * q)
 
 
 static func _smooth(x: float) -> float:

@@ -1,10 +1,10 @@
 # Avanzamento
 
-## Stato corrente: M4 — Action · parte 1 completata (eroe, armi, combattimento); magia in corso
+## Stato corrente: M4 — Action · completata (senza prova su telefono)
 
 Sessione del 27/09/2026. Richiesta del proprietario: animazioni e mesh delle armi da zero, senza
 prendere esempio da IsoTerra, e un combattimento più dinamico (D-022). Nemici rinviati (D-009):
-i colpi si provano sui manichini d'allenamento (D-023).
+i colpi si provano sui manichini d'allenamento (D-023). Magia con le regole del prototipo (D-024).
 
 ### Fatto
 - **Eroe** (`AvatarRig`): 15 ossa rigide con scatole smussate generate in codice, luce a bande
@@ -21,27 +21,33 @@ i colpi si provano sui manichini d'allenamento (D-023).
 - **Manichini** (`TrainingDummy`, `TrainingGround`): volano, oscillano, si rompono e ricompaiono.
 - **Controlli**: Colpo, Forte (tenuto = carica), Schiva, Arma, Eroe; tocco sul mondo = colpo in
   esplorazione; tastiera J, K, L/Maiusc, R, H, M.
+- **Magia** (`MagicSystem`, `SpellDefinition`, `MagicFx`, `FloatingText`): quattro dardi con i
+  numeri del prototipo, mana, raccolta/impegno/rilascio, stati e reazioni, fuoco che si propaga
+  sull'erba e la brucia in terra, bagnato che spegne, crateri, rimbalzo del masso, vento che
+  soffia le braci; lancio con la mano sinistra e l'arma in pugno (D-024). Pulsanti "Magia"
+  (tenuto) ed elemento; tastiera U e Y.
 - **Strumenti**: `tools/pose_sheet.gd` (tavole delle pose per arma e dei movimenti),
-  `tools/e2e_combat.gd` (tocchi reali: catena, carica, capriola, editor).
+  `tools/e2e_combat.gd` (tocchi reali: catena, carica, capriola, editor, quattro magie).
 
-### Test realmente eseguiti (M4, parte 1)
+### Test realmente eseguiti (M4)
 | Prova | Esito |
 |---|---|
-| `tools/run_tests.sh` | 122/122 PASS, log pulito (20 test nuovi: combattimento, manichini, eroe) |
-| `tools/e2e_combat.gd` (tocchi reali, xvfb) | OK: catena di spada 8 colpi a segno (combo 3), cambio arma al martello, carica tenuta e terremoto (colpi su tutti i manichini), capriola, editor dell'eroe |
+| `tools/run_tests.sh` | 132/132 PASS, log pulito (30 test nuovi: combattimento, manichini, eroe, magia) |
+| `tools/e2e_combat.gd` (tocchi reali, xvfb) | OK: catena di spada 8 colpi a segno (combo 3), cambio arma al martello, carica tenuta e terremoto (colpi su tutti i manichini), capriola, editor dell'eroe; magia con i pulsanti: acqua → BAGNATO, fuoco sul bagnato → VAPORE, BRUCIA, masso → LENTO e CRATERE, aria → SPINTO (15 colpi) |
 | `tools/e2e_touch.gd`, `tools/e2e_swim.gd` | OK |
 | `tools/pose_sheet.gd` | tavole controllate a occhio; corrette le pose con la lama nel suolo e la capriola |
 
-### Limiti aperti (parte 1)
+### Limiti aperti dopo M4
 - FPS non misurati: nel container si rende con llvmpipe (7–8 FPS anche senza combattimento);
   nessuna prova su telefono. Le molle dell'animazione vanno a sottopassi da 1/60 s.
 - Le pose sono controllate su tavole statiche e screenshot, non ancora in un video.
-- I manichini non subiscono le reazioni elementali finché non c'è la magia.
+- Magia senza audio, luci puntiformi, vento sull'erba e scossa degli alberi (D-024).
+- Il cambio da IK della mano sinistra alla posa di lancio è istantaneo (piccolo scatto del braccio).
 
-### Punto di ripresa: M4, parte 2
-1. Magie dei quattro elementi (dati del prototipo, inventario §8), mana, lancio con carica.
-2. Reazioni elementali (fuoco/erba/legno, bagnato, cratere, vento) e stati sui manichini.
-3. Poi gate R.
+### Punto di ripresa: gate R, poi M5
+1. Gate R: riepilogo della matrice di parità con il proprietario (differenze volute: D-022–D-024).
+2. M5: inventario a slot (i blocchi dei crateri sono già contati), attrezzi di scavo, costi di
+   costruzione, salvataggio del mondo, grotte.
 
 ## M3 — Acqua e locomozione · completata (senza prova su telefono)
 

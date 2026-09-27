@@ -28,6 +28,8 @@ var bones := {}
 var rest := {}
 var weapon: WeaponDefinition
 var socket: Node3D
+## IK della mano sinistra sull'arma a due mani (spento mentre si lancia una magia).
+var ik_enabled := true
 var _material: ShaderMaterial
 var _instances: Array[GeometryInstance3D] = []
 var _weapon_nodes: Array[MeshInstance3D] = []
@@ -198,7 +200,7 @@ func apply_pose(pose: Dictionary) -> void:
 		n.transform = Transform3D(Basis.from_euler(r), rest[b])
 	var bp: Vector3 = pose.get(&"body_pos", Vector3.ZERO)
 	(bones[&"body"] as Node3D).position = bp
-	if weapon != null and weapon.two_handed:
+	if weapon != null and weapon.two_handed and ik_enabled:
 		solve_off_hand()
 
 
@@ -263,6 +265,12 @@ func blade_segment() -> PackedVector3Array:
 		return PackedVector3Array([x * Vector3(0, -0.02, 0), x * Vector3(0, -0.12, 0)])
 	var g := h.global_transform
 	return PackedVector3Array([g * Vector3(0, weapon.trail_from, 0), g * Vector3(0, weapon.trail_to, 0)])
+
+
+## Punto di lancio della magia: palmo sinistro, in coordinate globali.
+func cast_point() -> Vector3:
+	var x := global_transform * rig_xf(bones[&"hand_l"]) if is_inside_tree() else rig_xf(bones[&"hand_l"])
+	return x * Vector3(0, -HAND - 0.04, 0)
 
 
 func set_light(sun: float, blk: float) -> void:

@@ -56,6 +56,7 @@ func _setup() -> void:
 			rig.set_weapon(cell.get("weapon"))
 			rig.position = right * c * sx - Vector3(0, r * sy, 0)
 			rig.rotation.y = float(cell.get("yaw", 0.0))
+			rig.ik_enabled = not (String(cell["label"]).begins_with("raccolta") or String(cell["label"]).begins_with("lancio"))
 			rig.apply_pose(cell["pose"])
 			var l := Label3D.new()
 			l.text = cell["label"]
@@ -164,6 +165,20 @@ func _move_cells() -> Array:
 		var s := _state(w)
 		s.dodge = (i + 1) / 5.0
 		row.append({"weapon": w, "pose": _pose(s), "label": "capriola %.1f" % s.dodge, "yaw": -PI * 0.5})
+	rows.append(row)
+	row = []
+	for g in [0.3, 1.0]:
+		var s := _state(w)
+		s.gather = g
+		row.append({"weapon": w, "pose": _pose(s), "label": "raccolta %.1f" % g})
+	for r in [0.2, 0.3, 0.7]:
+		var s := _state(w)
+		s.release = r
+		row.append({"weapon": w, "pose": _pose(s), "label": "lancio %.1f" % r})
+	var h := WeaponLibrary.by_id(&"hammer")
+	var sh := _state(h)
+	sh.gather = 1.0
+	row.append({"weapon": h, "pose": _pose(sh), "label": "raccolta (martello)"})
 	rows.append(row)
 	return rows
 

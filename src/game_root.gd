@@ -45,6 +45,10 @@ var action_mode: ActionMode = ActionMode.EXPLORE
 var block_index := 0
 var last_edit := ""
 var combat: CombatController
+var magic := MagicSystem.new(1931)
+var mfx := MagicFx.new()
+var _texts: FloatingText
+var _magic_key := false
 var recipe: AvatarRecipe
 var weapon_index := 1
 var fx := CombatFx.new()
@@ -89,6 +93,12 @@ func _ready() -> void:
 	combat = CombatController.new(WeaponLibrary.by_id(WEAPONS[weapon_index]))
 	_avatar.set_weapon(combat.weapon)
 	fx.grains = _grains
+	mfx.grains = _grains
+	_texts = FloatingText.new()
+	_texts.name = "Texts"
+	_view.add_child(_texts)
+	magic.catalog = catalog
+	magic.spell_index = clampi(int(Settings.load_value("magic", "spell", 0)), 0, 3)
 	_swap_world(w)
 	_camera_rig.opaque = catalog.opaque_table()
 	for d: Array in DEV_BUTTONS:
@@ -125,10 +135,14 @@ func _ready() -> void:
 	_touch.button_pressed.connect(_on_button)
 	_touch.button_down.connect(func(id: StringName) -> void:
 		if id == &"heavy":
-			combat.press_heavy())
+			combat.press_heavy()
+		elif id == &"magic":
+			magic.press())
 	_touch.button_up.connect(func(id: StringName) -> void:
 		if id == &"heavy":
-			combat.release_heavy())
+			combat.release_heavy()
+		elif id == &"magic":
+			magic.release())
 	_refresh_labels()
 	_camera_rig.update_camera(1.0, motor.position)
 
@@ -165,6 +179,11 @@ func _swap_world(w: WorldData) -> void:
 	motor.tree_grid = _vegetation.tree_grid
 	_camera_rig.world = world
 	fx.world = world
+	mfx.world = world
+	magic.world = world
+	magic.edits = edits
+	magic.tree_grid = _vegetation.tree_grid
+	magic.reset()
 	_dummies.setup(world)
 	_dummies.place_around(motor.position, _avatar.facing)
 	if combat != null:
@@ -178,18 +197,34 @@ func _physics_process(dt: float) -> void:
 	_move_world = _camera_rig.stick_to_world(stick)
 	if not combat.is_busy():
 		combat.facing = _avatar.facing
-	combat.step(dt, motor, _dummies.targets(), _move_world)
+	var targets := _dummies.targets()
+	if magic.is_casting():
+		# Durante la magia il corpo a corpo non parte (la capriola si').
+		if combat.buffer != &"dodge":
+			combat.buffer = &""
+	combat.step(dt, motor, targets, _move_world)
 	_handle_combat_events()
 	var frozen := combat.hitstop > 0.0
 	if not frozen:
+		magic.daylight = float(_day.state.get("daylight", 1.0))
+		# La magia mira nella direzione dello stick se spinto, altrimenti davanti.
+		var want := _avatar.facing if _move_world.length() < 0.2 else CombatController.heading(_move_world)
+		magic.step(dt, motor, targets, want, _avatar.rig.cast_point(), not combat.is_busy())
+		if magic.hitstop > 0.0:
+			combat.hitstop = maxf(combat.hitstop, magic.hitstop)
+			magic.hitstop = 0.0
 		motor.drive_on = combat.drive_on
 		motor.drive = combat.drive
 		motor.move_scale = combat.move_scale * combat.weapon.move_mult
+		if magic.phase == MagicSystem.Phase.GATHER:
+			motor.move_scale *= 0.35
 		motor.step(dt, _move_world, (_jump_key or _touch.is_held(&"jump")) and not combat.is_busy())
 		_avatar.position = motor.position
 		_push_out_of_dummies()
 		if combat.is_busy():
 			_avatar.turn_to(combat.facing, dt, PlayerAvatar.ATTACK_TURN)
+		elif magic.phase == MagicSystem.Phase.GATHER:
+			_avatar.turn_to(magic.face, dt, PlayerAvatar.ATTACK_TURN)
 		else:
 			_avatar.face_towards(Vector2(motor.velocity.x, motor.velocity.z), dt)
 	for d in _dummies.step(0.0 if frozen else dt):
@@ -232,7 +267,14 @@ func _process(dt: float) -> void:
 	if motor == null:
 		return
 	var p := _avatar.get_global_transform_interpolated().origin
-	_avatar.animate(0.0 if combat.hitstop > 0.0 else dt, motor, combat)
+	_avatar.animate(0.0 if combat.hitstop > 0.0 else dt, motor, combat, magic)
+	mfx.update(dt, magic, _avatar.rig.cast_point(), p)
+	for e in magic.events:
+		if e["type"] == "text":
+			_texts.spawn(e["p"], e["text"])
+		elif e["type"] == "impact":
+			_camera_rig.shake(0.12 if e["el"] != "earth" else 0.25)
+	magic.events.clear()
 	var lt := TrainingGround._light_at(world, p + Vector3(0, 1.1, 0))
 	_avatar.set_light(lt.x, lt.y)
 	_dummies.sync_views(combat.lock_target if combat.is_busy() else null)
@@ -256,7 +298,10 @@ func _process(dt: float) -> void:
 		motor.position.x, motor.position.y, motor.position.z, ("\n" + last_edit) if last_edit != "" else ""]
 	if motor.water_state != "dry":
 		_status.text += " · acqua: %s" % motor.water_state
-	_status.text += "\n%s%s" % [combat.weapon.display_name, (" · combo %d" % combat.combo) if combat.combo > 1 else ""]
+	_status.text += "\n%s%s · mana %d/%d · %s%s%s" % [combat.weapon.display_name, (" · combo %d" % combat.combo) if combat.combo > 1 else "",
+		int(magic.mana), int(MagicSystem.MANA_MAX), magic.spell().display_name,
+		(" · raduna %d%%%s" % [int(magic.w * 100.0), " ●" if magic.committed else ""]) if magic.phase == MagicSystem.Phase.GATHER else "",
+		(" · fuoco %d celle" % magic.fire.size()) if not magic.fire.is_empty() else ""]
 	if _frames_after_build >= 0 and _vegetation.is_idle() and _water.is_idle():
 		_frames_after_build += 1
 		if _frames_after_build >= int(_args.get("frames", "30")):
@@ -295,6 +340,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		var k := event as InputEventKey
 		if k.physical_keycode == KEY_SPACE:
 			_jump_key = k.pressed
+		if k.physical_keycode == KEY_U and not k.echo:
+			if k.pressed:
+				magic.press()
+			else:
+				magic.release()
 		if k.physical_keycode == KEY_K and not k.echo:
 			if k.pressed:
 				combat.press_heavy()
@@ -325,6 +375,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				combat.press_dodge()
 			KEY_R:
 				_on_button(&"weapon")
+			KEY_Y:
+				_on_button(&"spell")
 			KEY_H:
 				_on_button(&"hero")
 			KEY_M:
@@ -371,6 +423,10 @@ func _on_button(id: StringName) -> void:
 			combat.press_dodge()
 		&"weapon":
 			select_weapon((weapon_index + 1) % WEAPONS.size())
+		&"spell":
+			magic.select(magic.spell_index + 1)
+			Settings.save_value("magic", "spell", magic.spell_index)
+			last_edit = "magia: %s" % magic.spell().display_name
 		&"dev_dummies":
 			_dummies.place_around(motor.position, _avatar.facing)
 			last_edit = "manichini davanti al giocatore"
@@ -519,6 +575,7 @@ func _refresh_labels() -> void:
 	for key: String in toggles:
 		_touch.labels[StringName("dev_" + key)] = "%s %s" % [_dev_label(key), "ON" if toggles[key] else "OFF"]
 	_touch.labels[&"weapon"] = combat.weapon.display_name if combat != null else "Arma"
+	_touch.labels[&"spell"] = ["Fuoco", "Acqua", "Terra", "Aria"][magic.spell_index]
 	for d: Array in HERO_BUTTONS:
 		_touch.labels[d[0]] = recipe.label(d[1]) if d[1] != "" else ("Casuale" if d[0] == &"hero_random" else "Chiudi")
 	_touch.queue_redraw()

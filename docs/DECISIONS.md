@@ -255,3 +255,21 @@ reversibile salvo dove indicato. Formato: contesto → decisione → conseguenze
   `TrainingDummy` vicino allo spawn (pannello ⚙ "Manichini" li rimette davanti al giocatore).
   Volano, oscillano, si rompono a 0 PV e ricompaiono, poi tornano al loro posto. Usano
   l'interfaccia `CombatTarget` che useranno i nemici. Il giocatore non li attraversa.
+
+## D-024 — Magia: regole del prototipo, lancio con la mano sinistra
+- `MagicSystem` porta le regole della magia v0_64 (inventario §8): quattro dardi con gli stessi
+  numeri, mana 100 con rigenerazione 9/s (×0,3 durante il lancio), impegno al 35%, tocco =
+  lancio automatico, mira al bersaglio o 7 unità avanti con compensazione balistica, dardi con
+  collisione su bersagli, voxel e tronchi, rimbalzo del masso, aria che trapassa; stati
+  (bruciatura a pile, bagnato, lento, spinto) e `status_react`; fuoco su erba/legno/foglie con
+  l'automa a tick 0,25 s, bagnato che spegne e protegge, cratere del masso (mai sotto i piedi),
+  vento della spina che soffia le braci, lava → pietra scura.
+- **Diverso dal prototipo:** si lancia con la **mano sinistra** e l'arma resta in pugno, così la
+  magia si alterna ai colpi senza cambiare modalità (il prototipo sostituiva l'arma). Animazione
+  e grani della raccolta e dei dardi sono disegnati da zero (D-022). I blocchi dei crateri si
+  contano (`crater_items`) ma finiscono nell'inventario solo in M5.
+- **Non portato (per ora):** luci puntiformi della sfera e dei lampi, audio sintetizzato,
+  vento sull'erba (`uSpellWind`) e scossa degli alberi, numeri del danno (D-009). Le scritte
+  delle reazioni (VAPORE, SHOCK TERMICO, SPENTO, CRATERE, stati) ci sono (`FloatingText`).
+- **Controlli:** "Magia" (tenuto = carica, rilascio = lancio) e selettore dell'elemento nella
+  riga in alto; tastiera U (tenuto) e Y.
