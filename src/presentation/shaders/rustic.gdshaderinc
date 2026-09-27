@@ -1,7 +1,8 @@
 // Porting di RUSTIC_GLSL e LIGHT_GLSL del prototipo (HTML ~5117–5190).
-// Convenzione: tutti i colori calcolati qui sono valori "di schermo" come nel
-// prototipo (che scrive outColor senza conversioni); chi scrive l'output li
-// converte in lineare con to_linear(), perche' Godot poi ricodifica in sRGB.
+// Convenzione (D-019): come il prototipo, la scena scrive valori "di schermo"
+// senza conversioni. La SubViewport del mondo usa use_hdr_2d, che conserva i
+// valori scritti: cosi' anche le superfici trasparenti (acqua, grani) si
+// fondono in spazio schermo come nel render target del prototipo.
 
 global uniform vec3 sun_dir;
 global uniform vec3 sun_color;
@@ -27,9 +28,9 @@ global uniform float xray_amt;
 global uniform float xray_depth;
 global uniform float xray_floor;
 
-vec3 to_linear(vec3 c) {
-	c = max(c, vec3(0.0));
-	return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
+// Valore scritto nel framebuffer: il colore di schermo cosi' com'e'.
+vec3 out_color(vec3 c) {
+	return max(c, vec3(0.0));
 }
 
 float hash21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }

@@ -71,6 +71,10 @@ func try_apply(edits: Array[Edit], _source: StringName = &"", expected_versions:
 		columns[Vector2i(e.cell.x, e.cell.z)] = true
 		for c in chunks_around(e.cell):
 			touched[c] = true
+		# Come ISO_CORE.applyEdit: sorgente d'acqua rimessa o tolta, dintorni svegliati.
+		if world.fluid_active:
+			FluidSystem.edit_fluid(world, e.cell.x, e.cell.y, e.cell.z, e.id)
+			FluidSystem.refresh_water_column(world, e.cell.x, e.cell.z)
 	for col: Vector2i in columns:
 		_refresh_surface(col.x, col.y)
 	if light != null:

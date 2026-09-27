@@ -114,6 +114,6 @@ void light() {
 			bool chk = paint_mode > 0.5 ? mod(floor(v_sp.x * 16.0) + floor(v_sp.y * 16.0), 4.0) < 1.0 : mod(floor(FRAGCOORD.x + FRAGCOORD.y), 4.0) < 1.0;
 			if (chk) c *= 0.80;
 		}
-		DIFFUSE_LIGHT += to_linear(c);
+		DIFFUSE_LIGHT += out_color(c);
 	}
 }

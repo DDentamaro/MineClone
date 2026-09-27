@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3]
+[gd_scene load_steps=20 format=3]
 
 [ext_resource type="Script" path="res://src/game_root.gd" id="1_root"]
 [ext_resource type="Script" path="res://src/world/runtime/world_runtime.gd" id="2_runtime"]
@@ -8,6 +8,9 @@
 [ext_resource type="Script" path="res://src/presentation/day_cycle.gd" id="6_day"]
 [ext_resource type="Shader" path="res://src/presentation/shaders/post.gdshader" id="7_post"]
 [ext_resource type="Script" path="res://src/world/vegetation/vegetation_runtime.gd" id="8_veg"]
+[ext_resource type="Script" path="res://src/world/runtime/fluid_runtime.gd" id="9_water"]
+[ext_resource type="Script" path="res://src/presentation/fx/grains.gd" id="10_grains"]
+[ext_resource type="Script" path="res://src/presentation/fx/water_effects.gd" id="11_wfx"]
 
 [sub_resource type="Environment" id="env"]
 background_mode = 1
@@ -32,7 +35,7 @@ material = SubResource("nose_mat")
 size = Vector3(0.14, 0.14, 0.2)
 
 [sub_resource type="ShaderMaterial" id="post_mat"]
-render_priority = 127
+render_priority = -128
 shader = ExtResource("7_post")
 
 [sub_resource type="QuadMesh" id="post_quad"]
@@ -48,6 +51,7 @@ script = ExtResource("1_root")
 [node name="WorldView" type="SubViewport" parent="."]
 own_world_3d = true
 handle_input_locally = false
+use_hdr_2d = true
 size = Vector2i(640, 360)
 render_target_update_mode = 4
 
@@ -65,6 +69,15 @@ light = NodePath("../Sun")
 
 [node name="WorldRuntime" type="Node3D" parent="WorldView"]
 script = ExtResource("2_runtime")
+
+[node name="Water" type="Node3D" parent="WorldView"]
+script = ExtResource("9_water")
+
+[node name="Grains" type="Node3D" parent="WorldView"]
+script = ExtResource("10_grains")
+
+[node name="WaterEffects" type="Node" parent="WorldView"]
+script = ExtResource("11_wfx")
 
 [node name="Vegetation" type="Node3D" parent="WorldView"]
 script = ExtResource("8_veg")

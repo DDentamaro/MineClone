@@ -59,7 +59,7 @@ void light() {
 			vec3 gc = paint_grass_color(v_origin, 0.5, 0.5);
 			float tone = leaf.r > 0.92 ? 1.07 : (leaf.r > 0.76 ? 1.0 : 0.94); tone *= mix(1.0, 0.80, v_hang);
 			vec3 gl = rustic_light_m(vec3(0.0, 1.0, 0.0), v_light, 0.0, vec3(v_origin.x, v_gy + 0.04, v_origin.y), vec3(0.34, 0.52, 0.47), 3.0, ATTENUATION);
-			DIFFUSE_LIGHT += to_linear(gc * tone * gl);
+			DIFFUSE_LIGHT += out_color(gc * tone * gl);
 		} else {
 			float cls = patch_class(v_origin); vec3 col = rustic_patch_color(cls);
 			float rv = hash21(floor(v_origin * 7.0) + v_seed);
@@ -68,7 +68,7 @@ void light() {
 			vec3 N = normalize(vec3(cos(a) * lean, 1.0, sin(a) * lean));
 			vec3 lt = rustic_light_m(N, v_light, 0.0, v_wpos, vec3(0.34, 0.52, 0.47), 3.0, ATTENUATION);
 			lt = quantize(lt, FRAGCOORD.xy);
-			DIFFUSE_LIGHT += to_linear(col * lt);
+			DIFFUSE_LIGHT += out_color(col * lt);
 		}
 	}
 }

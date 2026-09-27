@@ -6,6 +6,7 @@ shader_type spatial;
 render_mode unshaded, depth_test_disabled, depth_draw_never, cull_disabled, fog_disabled, shadows_disabled;
 
 #include "res://src/presentation/shaders/rustic.gdshaderinc"
+#include "res://src/presentation/shaders/post_common.gdshaderinc"
 
 uniform sampler2D screen_tex : hint_screen_texture, filter_nearest, repeat_disable;
 uniform sampler2D depth_tex : hint_depth_texture, filter_nearest, repeat_disable;
@@ -16,19 +17,12 @@ global uniform vec2 sun_uv;
 global uniform float sun_vis;
 global uniform float sun_elev;
 global uniform float horizon_v;
-global uniform vec3 grade_s;
-global uniform vec3 grade_h;
 global uniform vec3 fog_color;
 global uniform float px_h;
 global uniform float persp;
 global uniform float outline_on;
 global uniform float edges_on;
 global uniform float rays_on;
-
-vec3 to_srgb(vec3 c) {
-	c = clamp(c, vec3(0.0), vec3(1.0));
-	return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), c));
-}
 
 float raw_depth(vec2 uv) { return texture(depth_tex, uv).r; }
 
@@ -80,7 +74,7 @@ void fragment() {
 	mat4 ip = INV_PROJECTION_MATRIX;
 	float dc = raw_depth(uv);
 	bool sky = is_sky(dc);
-	vec3 col = sky ? sky_color(v) : to_srgb(texture(screen_tex, uv).rgb);
+	vec3 col = sky ? sky_color(v) : (texture(screen_tex, uv).rgb);
 	if (outline_on > 0.5 && !sky) {
 		float lc = lin_at(uv, dc, ip); float m = 0.0;
 		vec2 oR = vec2(px.x, 0.0), oU = vec2(0.0, px.y);
@@ -106,7 +100,7 @@ void fragment() {
 				if (is_sky(dP2) || is_sky(dM2) || min(flatP, flatM) > k * 0.35) lap = 0.0;
 				if (abs(dP1 - dc) < 1e-7 || abs(dM1 - dc) < 1e-7) lap = 0.0;
 				vec3 W = vec3(0.299, 0.587, 0.114); float y0 = dot(col, W);
-				float yA = dot(to_srgb(texture(screen_tex, uv + ax).rgb), W), yB = dot(to_srgb(texture(screen_tex, uv - ax).rgb), W);
+				float yA = dot((texture(screen_tex, uv + ax).rgb), W), yB = dot((texture(screen_tex, uv - ax).rgb), W);
 				float yN = max(yA, yB), yn = min(yA, yB);
 				if (lap > k && y0 >= yN - 0.004) col = min(col * 1.22 + vec3(0.030, 0.028, 0.018) * (1.0 - night), vec3(1.0));
 				else if (lap < -k && y0 <= yn + 0.004) col *= mix(vec3(1.0), ink * 1.55, 0.55);
@@ -122,12 +116,6 @@ void fragment() {
 		}
 		acc /= wsum; float fall = exp(-dist * 2.4); col += sun_color * fall * acc * sun_vis * 0.3;
 	}
-	if (night > 0.001) {
-		float lum = dot(col, vec3(0.299, 0.587, 0.114)); vec3 cold = mix(vec3(lum) * vec3(0.62, 0.72, 1.0), col, 0.45);
-		float warmn = smoothstep(0.05, 0.35, col.r - col.b); col = mix(col, cold, night * (1.0 - warmn * 0.8));
-		col = mix(col, (col - 0.5) * 1.08 + 0.5, night * 0.5);
-		vec2 vv = v * 2.0 - 1.0; col *= 1.0 - night * 0.22 * smoothstep(0.55, 1.45, dot(vv, vv));
-	}
-	float gl = dot(col, vec3(0.299, 0.587, 0.114)); col *= mix(grade_s, grade_h, smoothstep(0.12, 0.62, gl));
-	ALBEDO = to_linear(col);
+	col = post_color(col, v);
+	ALBEDO = out_color(col);
 }

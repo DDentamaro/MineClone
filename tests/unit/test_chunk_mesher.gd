@@ -43,7 +43,7 @@ func test_winding_godot_e_normali() -> void:
 	w.blocks[w.index(9, 5, 5)] = BlockCatalog.TORCH
 	var d := ChunkMesher.build(_snap(w), Vector3i.ZERO, _pal)
 	check_eq(d.opaque_quads(), 6 + 5, "cubo + torcia")
-	var mesh := ChunkMesher.to_array_mesh(d, null, null)
+	var mesh := ChunkMesher.to_array_mesh(d, null)
 	var arr := mesh.surface_get_arrays(0)
 	var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 	var n: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
@@ -78,9 +78,9 @@ func test_greedy_unisce_il_pavimento() -> void:
 	check_eq(tops, 1, "una sola faccia superiore")
 
 
-func test_acqua_superficie_separata() -> void:
+func test_acqua_esclusa_dalla_mesh_dei_blocchi() -> void:
 	var w := _lit(TestWorlds.flat(4))
 	w.blocks[w.index(5, 4, 5)] = BlockCatalog.WATER
-	w.blocks[w.index(6, 4, 5)] = BlockCatalog.WATER
 	var d := ChunkMesher.build(_snap(w), Vector3i.ZERO, _pal)
-	check_eq(d.water_quads(), 8, "quad acqua")
+	var ref := ChunkMesher.build(_snap(_lit(TestWorlds.flat(4))), Vector3i.ZERO, _pal)
+	check_eq(d.opaque_quads(), ref.opaque_quads(), "l'acqua non aggiunge facce ai blocchi")

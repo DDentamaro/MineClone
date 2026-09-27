@@ -7,7 +7,7 @@ config_version=5
 
 config/name="IsoTerra"
 config/description="Sandbox voxel action per telefono (ricostruzione del prototipo IsoTerra)."
-config/version="0.2.0-m2"
+config/version="0.3.0-m3"
 run/main_scene="res://scenes/main.tscn"
 config/icon="res://icon.svg"
 config/features=PackedStringArray("4.7", "Mobile")
@@ -188,4 +188,12 @@ edges_on={
 rays_on={
 "type": "float",
 "value": 1.0
+}
+water_time={
+"type": "float",
+"value": 0.0
+}
+sky_tint={
+"type": "vec3",
+"value": Vector3(0.455, 0.455, 0.525)
 }

@@ -84,6 +84,13 @@ const save = (name, arr) => {
   files[name] = { file: `${name}.gz`, bytes: raw.length, sha256: sha(raw) };
 };
 save('climate.u8', w.climate);
+// Campi del generatore usati dall'acqua in gioco (guide dei fiumi, cascate).
+save('water_guide.i8', w.waterGuide);
+save('river_mask.u8', w.riverMask);
+save('waterfall_mask.u8', w.waterfallMask);
+save('waterfall_base.u8', w.waterfallBase);
+save('waterfall_top.u8', w.waterfallTop);
+save('water_flow.f32', w.waterFlow);
 save('density.u8', w.density);
 save('atlas.rgba', makeAtlas());
 save('leaf.rgba', makeLeaf());
@@ -116,11 +123,45 @@ for (let cz = 0; cz < Z / 16; cz++) for (let cx = 0; cx < X / 16; cx++) {
 const ground = [];
 for (const [x, z] of [[96.5, 96.5], [10.2, 150.7], [100.25, 40.75], [150, 150], [0.3, 191.6]]) ground.push({ x, z, h: C.groundHeight(w, x, z) });
 
+// ---- acqua: meshFluid di ogni tile 16x16 come View.setWater, sul mondo iniziale
+// (initFluid(W, fluid) come il main thread) e dopo uno scenario con un canale.
+const fluidMeshes = (tag) => {
+  const out = [];
+  let quads = 0;
+  const falls = [];
+  for (let cz = 0; cz < Z / 16; cz++) for (let cx = 0; cx < X / 16; cx++) {
+    const m = C.meshFluid(w, cx, cz);
+    quads += m.index.length / 6;
+    out.push({ c: [cx, cz], quads: m.index.length / 6, top: m.topFaces, side: m.sideFaces, bottom: m.bottomFaces,
+      pos: sha(bytes(m.position)), normal: sha(bytes(m.normal)), data: sha(bytes(m.data)), flow: sha(bytes(m.flow)), index: sha(bytes(m.index)) });
+    for (const f of m.falls) falls.push(f.x, f.y, f.z, f.height, f.body);
+  }
+  save(`water_falls_${tag}.f64`, new Float64Array(falls));
+  return { tiles: out, quads, falls: falls.length / 5 };
+};
+C.initFluid(w, w.fluid);
+const waterInitial = fluidMeshes('initial');
+// Scenario: canale di 4 celle dal bordo di un lago, poi 30 tick.
+let chan = null;
+for (let z = 8; z < Z - 8 && !chan; z++) for (let x = 8; x < X - 12 && !chan; x++) {
+  const L = w.waterLevel[z * X + x];
+  if (!L || w.waterLevel[z * X + x + 1] || w.surface[z * X + x + 1] < L - 1) continue;
+  chan = { x, z, y: L - 1 };
+}
+const edits = [];
+for (let k = 1; k <= 4; k++) for (const dy of [0, 1]) edits.push([chan.x + k, chan.y + dy, chan.z]);
+for (const [x, y, z] of edits) C.applyEdit(w, x, y, z, C.B.AIR);
+let ticks = 0;
+for (let t = 0; t < 30; t++) { C.stepFluid(w); ticks++; }
+const waterChannel = fluidMeshes('channel');
+const waterScenario = { channel: chan, edits, ticks, fluid_sha256: sha(bytes(w.fluid)), blocks_sha256: sha(bytes(w.blocks)), waterLevel_sha256: sha(bytes(w.waterLevel)) };
+
 const manifest = {
   source_sha256: sha(Buffer.from(html)), seed, dims: { X, Y, Z },
   notes: 'meshChunk(world,cx,cy,cz,Y-1) dopo computeLight; hash su Float32/Uint8/Uint32 little-endian. grassBlades densita .27 come il worker. Winding Three.js (antiorario).',
   files, totals: { quads: totalQuads, trees: spots.length, blades: totalBlades },
   chunks, templates, grass, ground,
+  water: { initial: waterInitial, channel: waterChannel, scenario: waterScenario },
   tree_spots: spots.map((s) => [s.x, s.y, s.z, s.kind, s.rot, s.scale, s.seed]),
   biome_vegetation: C.BIOMES.map((b) => ({ id: b.id, name: b.name, trees: b.trees, kinds: b.kinds, treeScale: b.treeScale, grassKeep: b.grassKeep, grassH: b.grassH })),
 };

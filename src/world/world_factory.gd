@@ -14,9 +14,20 @@ static func from_fixture(catalog: BlockCatalog) -> WorldData:
 		push_error("fixture non valida: %s" % [fx.errors])
 		return null
 	var w := fx.world
-	var gz := FileAccess.get_file_as_bytes(RENDER_FIXTURE_DIR.path_join("climate.u8.gz"))
-	w.climate = gz.decompress(w.size_x * w.size_z * 4, FileAccess.COMPRESSION_GZIP)
+	var cols := w.size_x * w.size_z
+	w.climate = _load(RENDER_FIXTURE_DIR.path_join("climate.u8.gz"), cols * 4)
+	# Campi del generatore usati dall'acqua (guide dei fiumi, cascate).
+	w.water_guide = _load(RENDER_FIXTURE_DIR.path_join("water_guide.i8.gz"), cols * 2)
+	w.river_mask = _load(RENDER_FIXTURE_DIR.path_join("river_mask.u8.gz"), cols)
+	w.waterfall_mask = _load(RENDER_FIXTURE_DIR.path_join("waterfall_mask.u8.gz"), cols)
+	w.waterfall_base = _load(RENDER_FIXTURE_DIR.path_join("waterfall_base.u8.gz"), cols)
+	w.waterfall_top = _load(RENDER_FIXTURE_DIR.path_join("waterfall_top.u8.gz"), cols)
+	w.water_flow = _load(RENDER_FIXTURE_DIR.path_join("water_flow.f32.gz"), cols * 8).to_float32_array()
 	return w
+
+
+static func _load(path: String, size: int) -> PackedByteArray:
+	return FileAccess.get_file_as_bytes(path).decompress(size, FileAccess.COMPRESSION_GZIP)
 
 
 ## Genera un mondo come il bootstrap del prototipo (caves:false) e ne calcola la luce.

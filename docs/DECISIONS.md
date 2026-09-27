@@ -189,3 +189,38 @@ reversibile salvo dove indicato. Formato: contesto → decisione → conseguenze
   (~4,4 s su un thread in questo container) mentre si continua a giocare nel mondo attuale; poi
   runtime e vegetazione ripartono con una nuova sessione. Seme casuale come il prototipo
   (`Math.random()*1e6`).
+
+## D-019 — Scena in valori "di schermo" e acqua fusa in spazio schermo
+- **Contesto:** il prototipo scrive nel render target i colori così come li calcola e fonde lì
+  l'acqua trasparente; Godot fonde in lineare. Con acqua scura sopra un fondale chiaro la
+  fusione lineare fa prevalere il fondale e l'acqua risultava grigia (confronto misurato).
+- **Decisione:** la `SubViewport` del mondo usa `use_hdr_2d`, che conserva i valori scritti
+  senza conversioni (verificato: 0,5/0,5 fusi a metà danno esattamente 0,25/0,75). Tutti gli
+  shader scrivono il colore di schermo del prototipo (`out_color`, niente `to_linear`).
+- **Ordine:** il quad di post ha `render_priority = -128` e gira prima delle superfici
+  trasparenti. Acqua (5) e grani (8/9) si fondono dopo e applicano da sé la parte di colore del
+  blit (`post_color`: notte, vignetta, grading), condivisa in `post_common.gdshaderinc`.
+  Differenza residua: i contorni del fondale sotto l'acqua vengono prima della fusione invece
+  che dopo; i raggi del sole non si sommano sui pixel d'acqua.
+- **Verifica:** confronto a pixel con il prototipo al lago (ora bloccata 0,35): acqua entro
+  pochi valori su 255, terreno entro 0–3.
+- **Da verificare:** con il renderer Compatibility (fallback senza Vulkan) `use_hdr_2d` va provato.
+
+## D-020 — L'acqua riproduce l'ombra "sempre piena" del prototipo
+- Nel prototipo il materiale dell'acqua non riceve la shadow map (HTML 6758): `worldShadow`
+  legge una texture vuota e restituisce `1 - uShadowStrength` in tutto il riquadro d'ombra
+  attorno al giocatore. È questo che rende l'acqua blu scura nella reference. Lo shader
+  dell'acqua usa quindi ombra 0 (luce diretta al 16% di giorno) invece di `ATTENUATION`.
+- Nota per i confronti: nel browser headless il prototipo gira a pochi FPS con dt limitato a
+  0,05 s, quindi il suo orologio resta vicino alle 8:24; i confronti vanno fatti con l'ora
+  bloccata (`--time=0.35` qui, `ISO.game.time=0.35` e `dayLen` enorme là).
+
+## D-021 — Acqua in gioco, grani ed effetti
+- `FluidRuntime`: tick di 0,25 s sul main thread come il prototipo (peggiore ~13,5 ms con acqua
+  in moto in questo container), mesh per tile 16×16 su thread da una finestra 18×48×18 copiata
+  (~2,4 ms), ricostruzioni al massimo ogni 100 ms; identica al prototipo (test di parità).
+- Gli edit dei blocchi chiamano `editFluid` e `refreshWaterColumn` come `applyEdit`.
+- `Grains` porta il pool del prototipo (2.600 grani, additivo/opaco, pixel agganciati); lo userà
+  anche la magia (M4). Gli schizzi delle bracciate usano una posizione della mano stimata finché
+  l'avatar (M4) non espone le mani.
+- Camera: Q/E ruotano in continuo a 1,6 rad/s e Z/X zoomano come il prototipo (in M1 erano scatti).

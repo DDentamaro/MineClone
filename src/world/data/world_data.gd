@@ -88,8 +88,8 @@ func _init(sx: int, sy: int, sz: int, solid_table: PackedByteArray = PackedByteA
 	_solid = solid_table
 
 
-## Copia indipendente dei dati letti da mesher e vegetazione (blocchi, luce,
-## superficie, bioma), da passare ai thread di lavoro.
+## Copia indipendente dei dati letti da mesher, vegetazione e mesh dell'acqua
+## (blocchi, luce, superficie, bioma, fluidi), da passare ai thread di lavoro.
 func render_snapshot() -> WorldData:
 	var w := WorldData.new(0, 0, 0, _solid)
 	w.size_x = size_x
@@ -100,6 +100,9 @@ func render_snapshot() -> WorldData:
 	w.blk = blk.duplicate()
 	w.surface = surface.duplicate()
 	w.biome = biome.duplicate()
+	w.fluid = fluid.duplicate()
+	w.water_bodies = water_bodies.duplicate()
+	w.water_guide = water_guide.duplicate()
 	w.world_seed = world_seed
 	return w
 

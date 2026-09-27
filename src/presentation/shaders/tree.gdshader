@@ -38,6 +38,6 @@ void light() {
 			lt += sun_color * vec3(1.0, 1.05, 0.55) * (sun_intensity * 0.26 * back * leaf * pow(v_light, 1.35) * (1.0 - night));
 		}
 		lt = quantize(lt, FRAGCOORD.xy);
-		DIFFUSE_LIGHT += to_linear(v_color * lt);
+		DIFFUSE_LIGHT += out_color(v_color * lt);
 	}
 }

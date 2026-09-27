@@ -17,7 +17,6 @@ signal initial_build_finished(ms: int)
 var world: WorldData
 var palette: ChunkMesher.Palette
 var opaque_material: ShaderMaterial
-var water_material: ShaderMaterial
 ## Punto di interesse (player): i chunk vicini vengono costruiti per primi.
 var focus := Vector3.ZERO
 
@@ -38,8 +37,6 @@ func _init() -> void:
 	opaque_material = ShaderMaterial.new()
 	opaque_material.shader = preload("res://src/presentation/shaders/chunk.gdshader")
 	opaque_material.set_shader_parameter(&"atlas", ProtoTextures.atlas_texture())
-	water_material = ShaderMaterial.new()
-	water_material.shader = preload("res://src/presentation/shaders/water_simple.gdshader")
 
 
 func setup(w: WorldData, catalog: BlockCatalog) -> void:
@@ -168,7 +165,7 @@ func _apply(ci: int, data: ChunkMesher.MeshData) -> void:
 			inst.name = "Chunk_%d_%d_%d" % [data.chunk.x, data.chunk.y, data.chunk.z]
 			add_child(inst)
 			_instances[ci] = inst
-		inst.mesh = ChunkMesher.to_array_mesh(data, opaque_material, water_material)
+		inst.mesh = ChunkMesher.to_array_mesh(data, opaque_material)
 	if _initial_pending > 0:
 		_initial_pending -= 1
 		if _initial_pending == 0:

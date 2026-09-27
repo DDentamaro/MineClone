@@ -8,7 +8,7 @@ extends RefCounted
 ##
 ## Funzione pura: legge solo gli array passati, quindi gira sui thread di lavoro
 ## purche' riceva snapshot immutabili (WorldRuntime passa copie `duplicate()`).
-## L'acqua usa ancora le facce semplici di M1 (la mesh dei fluidi arriva con M3).
+## L'acqua non fa parte della mesh dei chunk: la disegna FluidMesher (come il prototipo).
 
 const CS := WorldData.CHUNK_SIZE
 ## Lato del volume imbottito (chunk + 1 cella per parte).
@@ -41,18 +41,12 @@ class MeshData:
 	var opaque_data := PackedByteArray()
 	## Indici nel winding del prototipo (antiorario).
 	var opaque_indices := PackedInt32Array()
-	var water_vertices := PackedVector3Array()
-	var water_normals := PackedVector3Array()
-	var water_indices := PackedInt32Array()
 
 	func opaque_quads() -> int:
 		return opaque_indices.size() / 6
 
-	func water_quads() -> int:
-		return water_indices.size() / 6
-
 	func is_empty() -> bool:
-		return opaque_indices.is_empty() and water_indices.is_empty()
+		return opaque_indices.is_empty()
 
 
 ## Tabelle per ID precalcolate sul main thread.
@@ -276,31 +270,6 @@ static func build(s: Snapshot, chunk: Vector3i, pal: Palette, slice: int = -1) -
 					continue
 				nv = _add_torch(out, x, y, z, nv)
 
-	# Acqua: facce verso celle non opache e non d'acqua (provvisorio fino a M3).
-	for y in range(org[1], y1):
-		for z in range(org[2], z1):
-			for x in range(org[0], x1):
-				var i := (y * sz + z) * sx + x
-				if bl[i] != BlockCatalog.WATER:
-					continue
-				for fi in 6:
-					var nn: Vector3i = NORMALS[fi]
-					var nx := x + nn.x
-					var ny := y + nn.y
-					var nz := z + nn.z
-					var nb := 0
-					if ny < 0:
-						nb = BlockCatalog.BEDROCK
-					elif nx >= 0 and nz >= 0 and nx < sx and ny < sy and nz < sz:
-						nb = bl[(ny * sz + nz) * sx + nx]
-					if nb == BlockCatalog.WATER or opaque[nb] == 1:
-						continue
-					var base := out.water_vertices.size()
-					var o := Vector3(x, y, z)
-					for corner in FACE_CORNERS[fi]:
-						out.water_vertices.append(o + corner)
-						out.water_normals.append(Vector3(nn))
-					out.water_indices.append_array(PackedInt32Array([base, base + 1, base + 2, base, base + 2, base + 3]))
 	return out
 
 
@@ -343,9 +312,8 @@ static func _add_torch(out: MeshData, x: int, y: int, z: int, nv: int) -> int:
 	return nv
 
 
-## ArrayMesh per Godot (main thread): superficie 0 = blocchi (dati in CUSTOM0,
-## RGBA8 normalizzato), superficie 1 = acqua. Il winding viene invertito.
-static func to_array_mesh(data: MeshData, opaque_mat: Material, water_mat: Material) -> ArrayMesh:
+## ArrayMesh per Godot (main thread): blocchi con i dati in CUSTOM0 (RGBA8 normalizzato).
+static func to_array_mesh(data: MeshData, opaque_mat: Material) -> ArrayMesh:
 	var mesh := ArrayMesh.new()
 	if not data.opaque_indices.is_empty():
 		var normals := PackedVector3Array()
@@ -372,12 +340,4 @@ static func to_array_mesh(data: MeshData, opaque_mat: Material, water_mat: Mater
 		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, a, [], {},
 			Mesh.ARRAY_CUSTOM_RGBA8_UNORM << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT)
 		mesh.surface_set_material(mesh.get_surface_count() - 1, opaque_mat)
-	if not data.water_indices.is_empty():
-		var w := []
-		w.resize(Mesh.ARRAY_MAX)
-		w[Mesh.ARRAY_VERTEX] = data.water_vertices
-		w[Mesh.ARRAY_NORMAL] = data.water_normals
-		w[Mesh.ARRAY_INDEX] = data.water_indices
-		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, w)
-		mesh.surface_set_material(mesh.get_surface_count() - 1, water_mat)
 	return mesh

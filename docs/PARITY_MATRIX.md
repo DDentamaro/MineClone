@@ -18,11 +18,11 @@ verificato) · `verificato` (verificato anche su dispositivo).
 | Luce sole + blocchi (flood-fill) | 4613–4633 | attivo | `LightEngine` (calcolo completo + aggiornamento locale) | M2 | fatto | `compute_all` = fixture per SHA; aggiornamento locale = calcolo completo su 160 edit casuali; ~1,5 ms per un blocco (il prototipo ricalcolava tutto il mondo) |
 | Greedy meshing + AO + cutaway | 4638–4709, 6811 | attivo | `ChunkMesher`, `WorldRuntime` (`ArrayMesh` per chunk) | M2 | fatto | Identico al prototipo per hash su tutti i 432 chunk (41.172 quad): vertici, UV, dati, indici. Sezione (`slice`) supportata, nessun comando attivo la usa |
 | Vegetazione: alberi (3 archetipi) ed erba | 4893–4957, 6819–6854 | attivo | `Vegetation`, `VegetationRuntime`, `tree`/`grass.gdshader` | M2 | fatto | 498 alberi, 6 template e 402.080 fili identici al prototipo (hash/float64). Tronchi respingono il giocatore; alberi nella copertura dei raggi X. Abbattimento dormiente anche nel prototipo |
-| Acqua a livelli, correnti, cascate | 4965–5103, 6799–6808, 6943–6982 | attivo | `FluidSystem`, mesh acqua per tile 16×16 | M3 | parziale | Simulazione portata (D-014, senza `meshFluid`): initFluid, stepFluid, editFluid, sampleWater identici al prototipo nello scenario registrato; mancano mesh e gameplay |
+| Acqua a livelli, correnti, cascate | 4965–5103, 6799–6808, 6943–6982 | attivo | `FluidSystem`, `FluidMesher`, `FluidRuntime`, `water.gdshader` | M3 | fatto | Simulazione e mesh identiche al prototipo (iniziale e canale + 30 tick); shader `waterFS` completo con impulsi, schiuma, cascate; resa confrontata a pixel al lago (D-019, D-020) |
 | Estetica (pixel RT, outline, dipinto, dithering, cielo, ombre, x-ray) | 5112–5665, 6718–6922 | attivo | `chunk`/`post`/`tree`/`grass.gdshader`, `DayCycle`, pannello sviluppatore | M2 | parziale | Screenshot affiancati al prototipo (Chromium headless) in iso e TPS: stesse forme, palette e posizioni. Differenze note: acqua provvisoria (M3), contorni anche sui ciuffi d'erba, raggi X a passata singola (D-016), orizzonte TPS fisso |
-| Camera ISO + TPS | 6718–6922 | attivo | `CameraRig` | M1/M2 | parziale | Iso con aggancio ai pixel e spostamento sub-pixel (fatto); TPS senza il contesto adattivo (corsa, soffitto) del prototipo |
+| Camera ISO + TPS | 6718–6922 | attivo | `CameraRig` | M1–M3 | parziale | Iso con aggancio ai pixel; Q/E rotazione continua e Z/X zoom come il prototipo; TPS senza il contesto adattivo |
 | Movimento (gradini, rampa, salto) | 6929, 6987–7039 | attivo | `PlayerMotor` con query voxel (D-011) | M1/M2 | fatto | 12 test: velocità, rampa, muro, salto, soffitto, galleria, caduta, tronchi |
-| Nuoto / guado | 6941–6982 | attivo | stati di locomozione | M3 | — | Soglie ingresso/uscita in inventario §3 |
+| Nuoto / guado | 6941–6982 | attivo | `PlayerMotor.step_water` | M3 | fatto | Soglie, galleggiamento, correnti, salto fuori dall'acqua, rallentamento nel guado: 4 test + e2e con tocchi. Posa acquatica dell'avatar in M4 |
 | Avatar CHARGEN + editor eroe | 4246–4481, 6629–6677, 7898–7917 | attivo | `AvatarRecipe`, editor, persistenza | M4 | — | Ricetta `isoterra.hero.dna` |
 | Corpo a corpo: pugni + spada, lancia, martello, spadone | 7107, 7490–7834 | attivo | `CombatController`, `WeaponDefinition`, `AttackDefinition` | M4 | — | Hitstop, sweep, un colpo per bersaglio. Il giocatore parte con la spada sguainata (7871) |
 | Combo spada L, LL, LLL, LLLL, H, LH, LLH | 7543–7550, 7616–7620 | attivo | tabella dati combo | M4 | — | Tutti i rami |
@@ -60,6 +60,14 @@ verificato) · `verificato` (verificato anche su dispositivo).
 - [x] Fixture caricata in Godot con SHA per buffer, istogramma, layout, spawn
 - [x] Catalogo blocchi come `Resource`, coincidente col prototipo
 - [ ] Parità visiva e di gameplay: da M1 in poi
+
+## Stato verifiche M3
+
+- [x] Mesh dell'acqua identica al prototipo (40 tile, 2.463 quad, 34 cascate) e dopo uno scenario dinamico
+- [x] Nessun teletrasporto uscendo dall'acqua: salto dal pelo, atterraggio sulla riva (test)
+- [x] Resa dell'acqua confrontata a pixel con il prototipo al lago e alle cascate
+- [x] Effetti: schizzi, scia/anelli, gocce delle cascate (grani)
+- [ ] Profilo su telefono durante la propagazione dell'acqua
 
 ## Stato verifiche M2
 

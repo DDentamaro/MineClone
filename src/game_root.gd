@@ -13,7 +13,7 @@ const MODE_BUTTON := {ActionMode.EXPLORE: "Esplora", ActionMode.BUILD: "Costr.",
 const REACH := 7.5
 ## Pannello sviluppatore: gli interruttori attivi del prototipo (riga 7855–7870).
 const DEV_BUTTONS := [
-	[&"dev_seed", "Nuovo seme"], [&"dev_time", "Ora +3h"], [&"dev_res", "Righe"], [&"dev_outline", "Contorni"],
+	[&"dev_seed", "Nuovo seme"], [&"dev_lake", "Al lago"], [&"dev_time", "Ora +3h"], [&"dev_res", "Righe"], [&"dev_outline", "Contorni"],
 	[&"dev_edges", "Spigoli"], [&"dev_paint", "Dipinto"], [&"dev_dither", "Dither"], [&"dev_rays", "Raggi"],
 	[&"dev_grass", "Erba"], [&"dev_shadow", "Ombre"], [&"dev_clouds", "Nubi"],
 ]
@@ -26,6 +26,9 @@ const DEV_BUTTONS := [
 @onready var _avatar: PlayerAvatar = $WorldView/Player
 @onready var _day: DayCycle = $WorldView/DayCycle
 @onready var _vegetation: VegetationRuntime = $WorldView/Vegetation
+@onready var _water: FluidRuntime = $WorldView/Water
+@onready var _grains: Grains = $WorldView/Grains
+@onready var _water_fx: WaterEffects = $WorldView/WaterEffects
 @onready var _touch: TouchControls = %TouchControls
 
 var world: WorldData
@@ -38,6 +41,8 @@ var last_edit := ""
 
 var toggles := {"outline": true, "edges": true, "paint": true, "dither": false, "rays": true,
 	"grass": true, "shadow": true, "clouds": true}
+## Direzione verso l'acqua dall'ultimo "Al lago" (per strumenti e prove).
+var lake_dir := Vector2.ZERO
 var _gen_task := -1
 var _gen_result: WorldData
 var _gen_seed := 0
@@ -83,6 +88,14 @@ func _ready() -> void:
 	_touch.left_handed = bool(Settings.load_value("input", "left_handed", false))
 	if _args.has("dev"):
 		_touch.dev_open = true
+	if _args.has("lake"):
+		go_to_lake()
+	if _args.has("at"):
+		var xz := String(_args["at"]).split(",")
+		motor.place_at(Vector3(float(xz[0]), world.size_y, float(xz[1])))
+		_avatar.position = motor.position
+	if _args.has("nowater"):
+		_water.visible = false
 	_touch.camera_dragged.connect(_camera_rig.drag)
 	_touch.zoom_scaled.connect(func(f: float) -> void: _camera_rig.set_zoom(_camera_rig.get_zoom() * f))
 	_touch.world_tapped.connect(_on_world_tap)
@@ -95,6 +108,8 @@ func _ready() -> void:
 ## runtime e vegetazione, giocatore allo spawn.
 func _swap_world(w: WorldData) -> void:
 	world = w
+	# Come il main thread del prototipo: fluidi ripresi dai dati, code risvegliate.
+	FluidSystem.init_fluid(world, world.fluid)
 	edits = WorldEditService.new(world, catalog)
 	edits.light = LightEngine.new(world, catalog)
 	edits.chunks_changed.connect(_runtime.mark_dirty)
@@ -111,6 +126,13 @@ func _swap_world(w: WorldData) -> void:
 	_build_ms = 0
 	_runtime.setup(world, catalog)
 	_vegetation.setup(world, catalog, world.world_seed)
+	_water.setup(world)
+	_grains.world = world
+	_grains.clear()
+	_water_fx.motor = motor
+	_water_fx.water = _water
+	_water_fx.grains = _grains
+	_water_fx.reset()
 	motor.tree_grid = _vegetation.tree_grid
 	_camera_rig.world = world
 
@@ -134,11 +156,22 @@ func _process(dt: float) -> void:
 	_runtime.focus = p
 	_update_xray(dt, p)
 	_poll_generation()
+	_water_fx.update(dt, _avatar.facing)
+	# Q/E ruotano e Z/X zoomano in continuo come il prototipo (riga 7946).
+	var rot := (1.0 if Input.is_physical_key_pressed(KEY_E) else 0.0) - (1.0 if Input.is_physical_key_pressed(KEY_Q) else 0.0)
+	if rot != 0.0:
+		_camera_rig.spin(rot * 1.6 * dt, 0.0)
+	if Input.is_physical_key_pressed(KEY_Z):
+		_camera_rig.set_zoom(_camera_rig.get_zoom() * exp(dt * 0.8))
+	if Input.is_physical_key_pressed(KEY_X):
+		_camera_rig.set_zoom(_camera_rig.get_zoom() * exp(-dt * 0.8))
 	_status.text = "%d FPS · %s · %s · chunk in coda %d%s\nposizione %.1f %.1f %.1f%s" % [
 		Engine.get_frames_per_second(), MODE_LABELS[action_mode], catalog.get_def(PLACEABLE[block_index]).display_name,
 		_runtime.pending_count(), (" · mondo pronto in %d ms" % _build_ms) if _build_ms > 0 else "",
 		motor.position.x, motor.position.y, motor.position.z, ("\n" + last_edit) if last_edit != "" else ""]
-	if _frames_after_build >= 0 and _vegetation.is_idle():
+	if motor.water_state != "dry":
+		_status.text += " · acqua: %s" % motor.water_state
+	if _frames_after_build >= 0 and _vegetation.is_idle() and _water.is_idle():
 		_frames_after_build += 1
 		if _frames_after_build >= int(_args.get("frames", "30")):
 			_take_screenshot()
@@ -195,10 +228,6 @@ func _unhandled_input(event: InputEvent) -> void:
 				_select_block(BlockCatalog.WOOD)
 			KEY_N:
 				_on_button(&"dev_seed")
-			KEY_Q:
-				_camera_rig.rotate_step(-1)
-			KEY_E:
-				_camera_rig.rotate_step(1)
 	elif event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_UP:
@@ -216,6 +245,8 @@ func _on_button(id: StringName) -> void:
 	match id:
 		&"dev_seed":
 			regenerate(randi() % 1000000)
+		&"dev_lake":
+			go_to_lake()
 		&"dev_time":
 			_day.time = fmod(_day.time + 3.0 / 24.0, 1.0)
 		&"dev_res":
@@ -259,6 +290,52 @@ func _apply_toggles() -> void:
 	_day.shadows_on = toggles["shadow"]
 	_vegetation.set_grass_visible(toggles["grass"])
 	_refresh_labels()
+
+
+## "Al lago" (water-trip, riga ~8045): riva asciutta accanto ad acqua profonda
+## almeno 1,5, a quota simile al pelo dell'acqua, lontana dagli alberi, la piu'
+## vicina al centro della mappa.
+func go_to_lake() -> bool:
+	var w := world
+	var best := Vector3.ZERO
+	var heading := 0.0
+	var score := INF
+	var dirs: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
+	for z in range(2, w.size_z - 2):
+		for x in range(2, w.size_x - 2):
+			if w.water_level[z * w.size_x + x] == 0:
+				continue
+			var q := FluidSystem.sample_water(w, x + 0.5, FluidSystem.field_height(w, x + 0.5, z + 0.5), z + 0.5)
+			if not bool(q["wet"]) or float(q["depth"]) < 1.5:
+				continue
+			for d in dirs:
+				var xx := x + d.x
+				var zz := z + d.y
+				if w.water_level[zz * w.size_x + xx] != 0:
+					continue
+				var g := float(FluidSystem.field_height(w, xx + 0.5, zz + 0.5))
+				if absf(g - float(q["level"])) > 1.3:
+					continue
+				if not _vegetation.trees_near(xx + 0.5, zz + 0.5, 1).all(func(t: Vegetation.TreeSpot) -> bool:
+						return Vector2(t.x - (xx + 0.5), t.z - (zz + 0.5)).length() >= 1.0):
+					continue
+				var dd := Vector2(xx - w.size_x / 2.0, zz - w.size_z / 2.0).length()
+				if dd < score:
+					score = dd
+					best = Vector3(xx + 0.5, g, zz + 0.5)
+					heading = atan2(-d.x, -d.y)
+					lake_dir = Vector2(-d.x, -d.y)
+	if score == INF:
+		last_edit = "nessun lago adatto"
+		return false
+	motor.place_at(best)
+	motor.reset_water()
+	_avatar.position = best
+	_avatar.facing = heading
+	_avatar.rotation.y = heading
+	_water_fx.reset()
+	last_edit = "al lago %s" % best
+	return true
 
 
 ## Genera un mondo nuovo in background; quello attuale resta giocabile finche'
@@ -443,7 +520,7 @@ func _take_screenshot() -> void:
 
 ## Argomenti dopo "--" sulla riga di comando:
 ## --screenshot=file.png --cam=tps --frames=N --zoom=0.55 --yaw=gradi --time=0..1
-## --seed=N (genera il mondo invece di usare la fixture) --dev (pannello aperto)
+## --seed=N (genera il mondo invece di usare la fixture) --dev (pannello aperto) --lake
 static func _parse_user_args() -> Dictionary:
 	var out := {}
 	for a in OS.get_cmdline_user_args():

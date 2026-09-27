@@ -55,6 +55,7 @@ func apply(dt: float) -> void:
 	rs.global_shader_parameter_set(&"sky_horizon", state["horizon"])
 	rs.global_shader_parameter_set(&"sky_top", state["top"])
 	rs.global_shader_parameter_set(&"fog_color", state["horizon"])
+	rs.global_shader_parameter_set(&"sky_tint", (state["horizon"] as Vector3) * 0.5 + (state["top"] as Vector3) * 0.5)
 	rs.global_shader_parameter_set(&"sun_uv", state["sun_uv"])
 	rs.global_shader_parameter_set(&"sun_elev", state["elev"])
 	var dk: float = state["dusk"] * state["daylight"]

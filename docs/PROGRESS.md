@@ -1,6 +1,44 @@
 # Avanzamento
 
-## Stato corrente: M2 — Mondo e resa · completata (senza prova su telefono)
+## Stato corrente: M3 — Acqua e locomozione · completata (senza prova su telefono)
+
+Sessione del 27/09/2026. Richiesta del proprietario: acqua il più possibile simile alla reference.
+
+### Fatto
+- **Mesh dell'acqua** (`FluidMesher`, porting di `meshFluid`): identica al prototipo per hash su
+  tutte le tile, anche dopo uno scavo con 30 tick di simulazione; finestra 18×48×18 per i thread.
+- **Acqua in gioco** (`FluidRuntime`): tick 0,25 s, tile sporche ricostruite su thread ogni
+  ≥100 ms, impulsi dello shader, piedi delle cascate. Gli edit risvegliano l'acqua come `applyEdit`.
+- **Shader** `water.gdshader`: porting completo di `waterFS` (correnti trasportate, riflesso,
+  schiuma a riva, nastri e impatto delle cascate, anelli d'impulso, fresnel).
+- **Fedeltà alla reference** (D-019, D-020): scena in valori di schermo con `use_hdr_2d`, acqua
+  fusa in spazio schermo dopo il post, ombra dell'acqua come nel prototipo. Confronto a pixel al
+  lago: acqua entro pochi valori su 255, terreno entro 0–3.
+- **Nuoto e guado** (`PlayerMotor.step_water`), eventi d'ingresso.
+- **Grani ed effetti d'acqua**: schizzi, scia, anelli, gocce delle cascate.
+- **Comandi**: "Al lago" nel pannello ⚙; Q/E rotazione continua, Z/X zoom.
+
+### Test realmente eseguiti (M3)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 102/102 PASS, log pulito |
+| `tools/e2e_swim.gd` (tocchi reali) | "Al lago", stick verso l'acqua → nuoto, 18 grani, anelli |
+| `tools/e2e_touch.gd` | stick, costruzione, raggi X: OK dopo il cambio di pipeline |
+| `tools/bench_fluid.gd` (1 thread) | mesh 144 tile 2,5 s (peggiore 84 ms, su thread); tick in moto ≤13,5 ms; finestra 2,4 ms |
+| Confronti prototipo/Godot (ora 0,35) | lago, cascate, terza persona |
+
+### Limiti aperti dopo M3
+- Nessuna prova su telefono; il primo tick dopo il caricamento smaltisce tutta la coda (~50 ms una volta).
+- Differenze residue: contorni sotto l'acqua applicati prima della fusione; niente raggi del sole
+  sull'acqua; bordo retinato dei raggi X; posizione della mano stimata per le bracciate.
+- `use_hdr_2d` con il renderer Compatibility non verificato.
+
+### Punto di ripresa: M4 — Action originale (senza nemici, D-009)
+1. Avatar modulare CHARGEN + editor eroe e ricetta persistente; pose di nuoto.
+2. Pugni e quattro armi, combo della spada, hitstop, contatti a sweep.
+3. Magie dei quattro elementi (i grani sono pronti) e tabella delle reazioni.
+
+## M2 — Mondo e resa · completata (senza prova su telefono)
 
 Sessione del 27/09/2026 (stessa di M0–M1).
 
@@ -37,12 +75,6 @@ Sessione del 27/09/2026 (stessa di M0–M1).
 - Contorni sui ciuffi d'erba e bordo retinato dei raggi X (D-015, D-016).
 - TPS senza camera adattiva e con orizzonte fisso; giocatore ancora capsula (avatar in M4).
 - Startup da fixture: mesh+erba ~10 s in questo container con 4 core e rendering software.
-
-### Punto di ripresa: M3 — Acqua e locomozione
-1. `meshFluid` (superficie, lati, fondo, cascate) e `waterFS` con impulsi e schiuma.
-2. Simulazione in gioco: tick 0,25 s con budget, edit dell'acqua dai blocchi, tile 16×16 sporche.
-3. Nuoto, guado, correnti, galleggiamento e uscita dall'acqua (`Game.stepWater`).
-4. Effetti essenziali (schizzi) e comando "Al lago" del prototipo.
 
 ## M1 — Percorso giocabile minimo · completata (senza prova su telefono)
 

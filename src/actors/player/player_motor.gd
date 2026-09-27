@@ -46,6 +46,20 @@ var down_v := 0.0
 var air_time := 0.0
 var fall_from := 0.0
 
+# --- acqua (Game.stepWater, righe 6941–6982)
+const SWIM_SPEED := 2.65
+var swimming := false
+## "dry", "wade", "swim", "fall".
+var water_state := "dry"
+var wade_depth := 0.0
+var water: Dictionary = {}
+var water_clock := 0.0
+var swim_phase := 0.0
+var swim_blend := 0.0
+## Ingressi in acqua da trasformare in schizzi: {x, y, z, body, power}.
+var water_events: Array[Dictionary] = []
+var _water_contact := false
+
 
 func _init(w: WorldData) -> void:
 	world = w
@@ -62,6 +76,110 @@ func place_at(p: Vector3) -> void:
 	land_t = 0.0
 	down_v = 0.0
 	fall_from = 0.0
+	reset_water()
+
+
+func reset_water() -> void:
+	swimming = false
+	water_state = "dry"
+	wade_depth = 0.0
+	water = {}
+	water_clock = 0.0
+	swim_phase = 0.0
+	swim_blend = 0.0
+	water_events.clear()
+	_water_contact = false
+
+
+func water_query(x: float = NAN, y: float = NAN, z: float = NAN) -> Dictionary:
+	if world.water_level.is_empty():
+		return {"wet": false, "level": 0.0, "depth": 0.0, "immersion": 0.0, "flowX": 0.0, "flowY": 0.0, "flowZ": 0.0, "body": 0, "falling": false}
+	return FluidSystem.sample_water(world, position.x if is_nan(x) else x, position.y if is_nan(y) else y, position.z if is_nan(z) else z)
+
+
+## Nuoto e guado. Restituisce true se il passo e' stato gestito in acqua.
+func step_water(dt: float, move: Vector2, jump: bool) -> bool:
+	water_clock += dt
+	var w := water_query()
+	water = w
+	var wet := bool(w["wet"])
+	var immersion := float(w["immersion"])
+	var depth := float(w["depth"])
+	var contact := wet and immersion > 0.06
+	if contact and not _water_contact:
+		water_events.append({"x": position.x, "z": position.z, "y": float(w["level"]), "body": int(w["body"]),
+			"power": minf(2.5, 0.35 + absf(velocity.y) * 0.15)})
+	_water_contact = contact
+	wade_depth = immersion if contact else 0.0
+	var keep := swimming and wet and depth > 0.65 and immersion > 0.18
+	var enter := wet and depth > 0.9 and immersion > 0.76 and velocity.y < 2.0
+	swimming = keep or enter
+	water_state = "swim" if swimming else ("wade" if contact else "dry")
+	# Un solo salto a terra e sul pelo dell'acqua: slancio, poi gravita'.
+	if swimming and jump and immersion <= 1.05:
+		start_jump()
+		swimming = false
+		water_state = "fall"
+	swim_blend += (float(swimming) - swim_blend) * (1.0 - exp(-dt * 8.0))
+	if not swimming:
+		return false
+	on_ground = false
+	ramp_on = false
+	land_t = 0.0
+	down_v = 0.0
+	air_time = 0.0
+	fall_from = 0.0
+	var im := move.length()
+	var m := maxf(1.0, im)
+	var k := 1.0 - exp(-dt * 3.8)
+	var tx := move.x / m * SWIM_SPEED + float(w["flowX"])
+	var tz := move.y / m * SWIM_SPEED + float(w["flowZ"])
+	velocity.x += (tx - velocity.x) * k
+	velocity.z += (tz - velocity.z) * k
+	if not _swim_move(position.x + velocity.x * dt, position.z):
+		velocity.x = 0.0
+	if not _swim_move(position.x, position.z + velocity.z * dt):
+		velocity.z = 0.0
+	var q := water_query()
+	water = q
+	if bool(q["wet"]) and float(q["depth"]) > 0.65 and float(q["level"]) - position.y > 0.18:
+		var target := float(q["level"]) - 0.72 + sin(water_clock * 2.8) * 0.025
+		if bool(q["falling"]):
+			velocity.y += (float(q["flowY"]) - velocity.y) * (1.0 - exp(-dt * 4.0))
+		else:
+			velocity.y = clampf(velocity.y + ((target - position.y) * 28.0 - velocity.y * 9.0) * dt, -6.0, 3.0)
+		position.y += velocity.y * dt
+		var floor_y := ground(position.x, position.z)
+		if position.y < floor_y:
+			position.y = floor_y
+			velocity.y = maxf(0.0, velocity.y)
+	else:
+		swimming = false
+		water_state = "fall"
+		velocity.y -= GRAVITY * dt
+		position.y += velocity.y * dt
+	wade_depth = maxf(0.0, float(q["level"]) - position.y) if bool(q["wet"]) else 0.0
+	swim_phase += dt * (0.65 + minf(1.0, im) * 0.7)
+	return true
+
+
+## Le sponde restano solide finche' la traiettoria di salto non le supera.
+func _swim_move(nx: float, nz: float) -> bool:
+	nx = clampf(nx, 1.0, world.size_x - 1.0)
+	nz = clampf(nz, 1.0, world.size_z - 1.0)
+	if ground(nx, nz) > position.y + 0.12:
+		return false
+	if not tree_grid.is_empty():
+		var cx := int(nx / 8.0)
+		var cz := int(nz / 8.0)
+		for gz in range(cz - 1, cz + 2):
+			for gx in range(cx - 1, cx + 2):
+				for t: Vegetation.TreeSpot in tree_grid.get(Vector2i(gx, gz), []):
+					if not t.dead and position.y < t.y + 4.2 * t.scale and Vector2(nx - t.x, nz - t.z).length() < 0.30 * t.scale + RADIUS:
+						return false
+	position.x = nx
+	position.z = nz
+	return true
 
 
 func ground(x: float, z: float, y_ref: float = NAN) -> float:
@@ -99,6 +217,8 @@ func start_jump() -> void:
 
 ## `move` e' la direzione voluta nel piano XZ (x -> X, y -> Z), lunghezza 0..1.
 func step(dt: float, move: Vector2, jump: bool) -> void:
+	if step_water(dt, move, jump):
+		return
 	var speed := SPEED
 	blocked = false
 	if land_t > 0.0:
@@ -108,6 +228,8 @@ func step(dt: float, move: Vector2, jump: bool) -> void:
 		speed *= AIR_CTL
 	if ramp_on:
 		speed *= 0.72
+	if wade_depth > 0.12:
+		speed *= maxf(0.52, 1.0 - wade_depth * 0.42)
 	var acc := 40.0 if on_ground else 14.0
 	var target := move * speed
 	var cur := Vector2(velocity.x, velocity.z)
