@@ -24,6 +24,44 @@ var biome := PackedByteArray()
 ## Livello d'acqua per colonna dopo la generazione.
 var water_level := PackedByteArray()
 
+## --- Campi scritti dal generatore (WorldGenerator), vuoti finche' non servono. ---
+## Un array vuoto equivale a "campo assente" nel prototipo (es. `if(W.waterGuide)`).
+## Clima per colonna, 4 byte: temperatura, umidita', neve (255 = vetta), 255.
+var climate := PackedByteArray()
+## Direzione della corrente per colonna (x, z), float32 come Float32Array.
+var water_flow := PackedFloat32Array()
+## 1 dove e' passato un fiume.
+var river_mask := PackedByteArray()
+## Cascate disegnate dal generatore: maschera, quota base (prima cella) e cima (esclusa).
+var waterfall_mask := PackedByteArray()
+var waterfall_base := PackedByteArray()
+var waterfall_top := PackedByteArray()
+## Guida della corrente (x, z) in -127..127, int8 in complemento a due (Int8Array in JS):
+## leggere con water_guide_at().
+var water_guide := PackedByteArray()
+## Etichetta del corpo d'acqua per colonna (labelWater), 0 = asciutto.
+var water_bodies := PackedInt32Array()
+
+## Statistiche della generazione (ISO_CORE: genLog, biomeShare, massif, waterInfo, bankBlocks).
+var gen_log: Array = []
+var biome_share := PackedInt32Array()
+## Centro del massiccio: {"x": float, "z": float} (double, non Vector2 a 32 bit).
+var massif: Dictionary = {}
+## {"lakes": int, "rivers": Array[{"len", "falls"}], "cells": int}
+var water_info: Dictionary = {}
+var bank_blocks: int = 0
+
+## --- Stato della simulazione dei fluidi (FluidSystem). ---
+## true dopo FluidSystem.init_fluid (in JS: esistono W.fluid e W.fluidQueue).
+var fluid_active: bool = false
+## Coda delle celle da aggiornare: Dictionary usato come Set ordinato (chiave = indice
+## cella, valore true). Come il Set di JS conserva l'ordine d'inserimento.
+var fluid_queue: Dictionary = {}
+## Chunk colonna da rimesciare: chiavi Vector2i(cx, cz) (in JS stringhe "cx,cz").
+var fluid_dirty: Dictionary = {}
+var fluid_clock: float = 0.0
+var fluid_renew_sources: bool = true
+
 var world_seed: int = 0
 ## Incrementata a ogni edit riuscito.
 var revision: int = 0
@@ -78,6 +116,11 @@ func is_solid_at(x: int, y: int, z: int) -> bool:
 		return true
 	var id := get_block_xyz(x, y, z)
 	return id < _solid.size() and _solid[id] == 1
+
+
+## Componente con segno di water_guide (k = colonna*2 + asse).
+func water_guide_at(k: int) -> int:
+	return water_guide.decode_s8(k)
 
 
 func surface_height(x: int, z: int) -> int:

@@ -29,6 +29,8 @@ zoom, clic = tap, F modo, B o 1/2/3/T blocco, V camera, Q/E rotazione a scatti.
 tools/setup_env.sh                          # Godot 4.7.2 + template + SDK (Linux)
 tools/run_tests.sh                          # test headless
 node tools/extract_fixture.mjs 1931         # rigenera la fixture del seme 1931
+node tools/extract_gen_stages.mjs           # fixture di parità generatore/fluidi (gen_v064)
+godot --headless --path . --script res://tools/verify_generator.gd   # parità mondi grandi + tempi
 godot --headless --path . --script res://tools/godot_gen_block_catalog.gd
 godot --headless --path . --export-debug Android build/android/isoterra-debug.apk
 godot --headless --path . --export-debug Linux build/linux/isoterra.x86_64

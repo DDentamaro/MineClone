@@ -1,0 +1,464 @@
+{
+ "source": {
+  "file": "reference/isoterra_proto_v0_64_humanoids.html",
+  "sha256": "2f2f771f3a83af9b016de9e024cc38a3ce8282bb97d289809a4edc9474a5c76a",
+  "core_sha256": "4b6e4d095fce9834070ddc607851efaa18f9522a813b33f0d997fbc60c5c256a"
+ },
+ "tool": "tools/extract_gen_stages.mjs",
+ "cfg": {
+  "X": 192,
+  "Y": 48,
+  "Z": 192,
+  "seed": 42,
+  "caves": true,
+  "full": false,
+  "gameplay": false
+ },
+ "passes": [
+  {
+   "name": "Campi",
+   "blocks": "f0a0e8d753bbee26646b9cedd3cad510258b922274c4085b8da7d4f08e4cca3f",
+   "hh": "484eaa327eae22dd9073858b0599e43fb5e06cabfbc8de88c83763edcb8d2446",
+   "f_cont": "c8e54c75da1d0c177a81abf41d47a8f93b4657f6bdb47691f07a4d4524794737",
+   "f_eros": "5e836e1c335b1e29c2c2bec80a33599ab40ddba840b19c571a8b618fe07705eb",
+   "f_ridge": "e7d2b978427ea30c6aa3bc4bc1ce6956dffc03bed2afe4cf2e398eb6db78a845",
+   "f_temp": "3628c26cd722d06c6062e7b31587409b04cde580d72002e02d8281302e8647a8",
+   "f_hum": "42e993895e19fb7a8d3273e93c1dbe9e7532253d5bff2b6db00e25e53527db5d",
+   "massif": [
+    "edf0c1a017444d40",
+    "88b34082134d4740"
+   ]
+  },
+  {
+   "name": "Quote",
+   "blocks": "f0a0e8d753bbee26646b9cedd3cad510258b922274c4085b8da7d4f08e4cca3f",
+   "hh": "eb705f7ecf9419547e9582733d3a06de67c4ab7bde80561c74034fa9838bb1bf"
+  },
+  {
+   "name": "Laghi",
+   "blocks": "f0a0e8d753bbee26646b9cedd3cad510258b922274c4085b8da7d4f08e4cca3f",
+   "hh": "a9e635c8f989f2da72f41d5d396d450bbd51f97ef2fb96f4eaea8f807555ec5d",
+   "wl": "5100229b10634836d50727d67e5b95bac48283c8bd6735c7b2c4cfe8ed823b12",
+   "lakes": [
+    [
+     "dd25cd08bd7e5d40",
+     "5484ef1f8f4e5640",
+     "00008c1c64042140",
+     28,
+     237
+    ],
+    [
+     "00005a2734fb5d40",
+     "00801cc329126440",
+     "0000e08238e91f40",
+     25,
+     207
+    ],
+    [
+     "0000fafe5f435740",
+     "00003afd5abf4340",
+     "00009ce60e091940",
+     30,
+     128
+    ],
+    [
+     "0000686e3ec53d40",
+     "00806ff8c7eb6440",
+     "00005cab46571840",
+     31,
+     120
+    ],
+    [
+     "0000908641dc3440",
+     "0000d084aca33240",
+     "000090e9d24f2540",
+     25,
+     372
+    ],
+    [
+     "0000b5ce6acb5240",
+     "000092626eab6140",
+     "0000a84fbde22440",
+     23,
+     357
+    ],
+    [
+     "0000f3d398a86340",
+     "00004419e0173940",
+     "00008c993bf71940",
+     24,
+     138
+    ],
+    [
+     "0080a8660e106540",
+     "0000c39d2b8a6440",
+     "00006e473d892240",
+     27,
+     278
+    ],
+    [
+     "0000245057354440",
+     "00002793fa625640",
+     "0000bc826d1f1f40",
+     24,
+     196
+    ]
+   ]
+  },
+  {
+   "name": "Fiumi",
+   "blocks": "f0a0e8d753bbee26646b9cedd3cad510258b922274c4085b8da7d4f08e4cca3f",
+   "hh": "d8542e6163e981867db41b424237edcedf579309e6dc2c803c2783a86f6f9419",
+   "wl": "728f2d2320e7ae239886a4219525ae5ee2518f28d40e051fbbd32c0470d45f61",
+   "rivers": [
+    {
+     "len": 71,
+     "falls": 16
+    },
+    {
+     "len": 70,
+     "falls": 18
+    }
+   ],
+   "river_mask": "7396897300216dec57620490118d814eba21d7c5a9020ea386f9f1d5c6c3deb9",
+   "water_flow": "b2d000525bfc1775fd6180265c07c136fb539a992a9afc9cd45223c49dad0aa8",
+   "water_guide": "cf2782f212133d88e9d6d683cb4efe9e66f856ae212dd51be164c3bfb916dba2",
+   "waterfall_mask": "298212a7eec6a4ea6df34716649aa68702611ef69acec22f5b0aae68254776f0",
+   "waterfall_base": "286c0c52bbcf1795b6cad725307267ca9cd0eef2c8d76e4bb84c67b14b271fe8",
+   "waterfall_top": "aefddd5094ecff3704c69098ab85c58395b34870a8238ea3c63444d069ff1726"
+  },
+  {
+   "name": "Terrazze",
+   "blocks": "f0a0e8d753bbee26646b9cedd3cad510258b922274c4085b8da7d4f08e4cca3f",
+   "hh": "88b1776e7517531076f36db77de36f4f002ef6587dec95d117d7c62d7625dacc",
+   "wl": "728f2d2320e7ae239886a4219525ae5ee2518f28d40e051fbbd32c0470d45f61"
+  },
+  {
+   "name": "Argini",
+   "blocks": "f0a0e8d753bbee26646b9cedd3cad510258b922274c4085b8da7d4f08e4cca3f",
+   "hh": "bbceae505b74113c5514e5b8ad82fed28e1c4722458e72dda15d8b6aa216f458",
+   "wl": "728f2d2320e7ae239886a4219525ae5ee2518f28d40e051fbbd32c0470d45f61"
+  },
+  {
+   "name": "Biomi",
+   "blocks": "f0a0e8d753bbee26646b9cedd3cad510258b922274c4085b8da7d4f08e4cca3f",
+   "hh": "bbceae505b74113c5514e5b8ad82fed28e1c4722458e72dda15d8b6aa216f458",
+   "wl": "728f2d2320e7ae239886a4219525ae5ee2518f28d40e051fbbd32c0470d45f61",
+   "biome": "95aee710018598237e382886c3f33d26282fe4a7862cfc21e174a21a04dc4c72",
+   "climate": "671a075e05358d4af59ccac755b33298b6d7e2bb4faf85d0ca8096cbd56f7118"
+  },
+  {
+   "name": "Strati",
+   "blocks": "8665e708e3c3bb8ca7c0f81d1b38ea72d07f57fca1f51305e2e63e6c3a2a73a3",
+   "hh": "bbceae505b74113c5514e5b8ad82fed28e1c4722458e72dda15d8b6aa216f458",
+   "wl": "728f2d2320e7ae239886a4219525ae5ee2518f28d40e051fbbd32c0470d45f61",
+   "surface": "34c57c483adb778ac34c685752f1bb7315e578485951fe4651ec3adecb51e3e2",
+   "water_level": "fa7fcdac28fe76e5cb173e18206fb59f77ba6a3e78e31e8c01325bca33c87c78"
+  },
+  {
+   "name": "Grotte",
+   "blocks": "1fd6f2860bf40dedac0cffc52c5317dde3852393054a55c2789d1d2a579fc167",
+   "hh": "bbceae505b74113c5514e5b8ad82fed28e1c4722458e72dda15d8b6aa216f458",
+   "wl": "728f2d2320e7ae239886a4219525ae5ee2518f28d40e051fbbd32c0470d45f61"
+  },
+  {
+   "name": "Minerali",
+   "blocks": "970793f5bd7a55dba126fd24b007e84525b5286e9ec6fd4e3000febbfc1fedd2",
+   "hh": "bbceae505b74113c5514e5b8ad82fed28e1c4722458e72dda15d8b6aa216f458",
+   "wl": "728f2d2320e7ae239886a4219525ae5ee2518f28d40e051fbbd32c0470d45f61"
+  },
+  {
+   "name": "Rifinitura",
+   "blocks": "970793f5bd7a55dba126fd24b007e84525b5286e9ec6fd4e3000febbfc1fedd2",
+   "hh": "bbceae505b74113c5514e5b8ad82fed28e1c4722458e72dda15d8b6aa216f458",
+   "wl": "728f2d2320e7ae239886a4219525ae5ee2518f28d40e051fbbd32c0470d45f61"
+  }
+ ],
+ "stages": {
+  "pre_fluid": {
+   "blocks": "970793f5bd7a55dba126fd24b007e84525b5286e9ec6fd4e3000febbfc1fedd2",
+   "biome": "95aee710018598237e382886c3f33d26282fe4a7862cfc21e174a21a04dc4c72",
+   "surface": "34c57c483adb778ac34c685752f1bb7315e578485951fe4651ec3adecb51e3e2",
+   "waterLevel": "fa7fcdac28fe76e5cb173e18206fb59f77ba6a3e78e31e8c01325bca33c87c78",
+   "climate": "671a075e05358d4af59ccac755b33298b6d7e2bb4faf85d0ca8096cbd56f7118",
+   "riverMask": "7396897300216dec57620490118d814eba21d7c5a9020ea386f9f1d5c6c3deb9",
+   "waterfallMask": "298212a7eec6a4ea6df34716649aa68702611ef69acec22f5b0aae68254776f0",
+   "waterfallBase": "286c0c52bbcf1795b6cad725307267ca9cd0eef2c8d76e4bb84c67b14b271fe8",
+   "waterfallTop": "aefddd5094ecff3704c69098ab85c58395b34870a8238ea3c63444d069ff1726",
+   "waterGuide": "cf2782f212133d88e9d6d683cb4efe9e66f856ae212dd51be164c3bfb916dba2",
+   "waterFlow": "b2d000525bfc1775fd6180265c07c136fb539a992a9afc9cd45223c49dad0aa8"
+  },
+  "banks": {
+   "blocks": "6c7f9971c8eae0c9352573cc1c8b29f21eff8c62173c436f020da95b65383837",
+   "surface": "0d08cfeb87b433a592bd08ab5d2489dc4947564c903484bf1928eb66dc4b8144",
+   "bank_blocks": 287
+  },
+  "init_fluid": {
+   "blocks": "6c7f9971c8eae0c9352573cc1c8b29f21eff8c62173c436f020da95b65383837",
+   "fluid": "adee0f5f60acef22f022ce19f8c56da13ae03368b69a370eee4c9035a957e1af",
+   "waterLevel": "f3aadb8278bae8d2acb0e005d966fd3697fdfef2c24e68cd91c36514bb6ce8bd",
+   "waterFlow": "975840b85261b0d4020ca4fcf30569c5d610e7e1f4d34993bc92a3645e592854",
+   "waterBodies": "f9ae8d1325dd7477a48cfef5ce74f7cc2ac0d358445ea5e1de781be2601ba735",
+   "queue_size": 12338,
+   "queue_head": [
+    799948,
+    799949,
+    799947,
+    800140,
+    799756,
+    836812,
+    763084,
+    799950,
+    800141,
+    799757,
+    836813,
+    763085,
+    799951,
+    800142,
+    799758,
+    836814,
+    763086,
+    800139,
+    800138,
+    800331
+   ],
+   "queue_tail": [
+    1595962,
+    1559291,
+    1595963,
+    1559292,
+    1595964,
+    1559293,
+    1595965,
+    1559103,
+    1559294,
+    1595966,
+    1559481,
+    1596153,
+    1559482,
+    1596154,
+    1559483,
+    1596155,
+    1559484,
+    1596156,
+    1559485,
+    1596157
+   ],
+   "dirty": [
+    "4,8",
+    "5,8",
+    "4,9",
+    "5,9",
+    "9,1",
+    "10,1",
+    "0,4",
+    "2,5",
+    "1,0",
+    "0,0",
+    "0,1",
+    "1,1",
+    "9,2",
+    "2,6",
+    "4,7",
+    "5,7",
+    "3,8",
+    "3,9",
+    "7,9",
+    "7,10",
+    "2,4",
+    "1,5",
+    "3,5",
+    "1,2",
+    "1,4",
+    "6,5",
+    "6,4",
+    "7,5",
+    "7,4",
+    "5,5",
+    "6,9",
+    "8,9",
+    "6,10",
+    "8,10",
+    "10,9",
+    "10,10",
+    "5,4",
+    "9,9",
+    "11,9",
+    "9,10",
+    "11,10",
+    "8,5",
+    "7,6",
+    "6,6",
+    "5,2",
+    "6,2",
+    "1,10",
+    "5,1",
+    "6,1",
+    "5,3",
+    "2,10",
+    "2,3",
+    "1,3",
+    "4,3",
+    "4,2",
+    "3,3",
+    "2,2",
+    "3,2"
+   ]
+  }
+ },
+ "final": {
+  "blocks": "bc100097d3f579d0846649c2905bfffada9659aa4f60a7293f9f16fcc3eb0103",
+  "fluid": "4ec54ed752c45f40d70a1c60775d803068b755d9bb66da6ea601ef2b38cd86dd",
+  "surface": "0d08cfeb87b433a592bd08ab5d2489dc4947564c903484bf1928eb66dc4b8144",
+  "biome": "95aee710018598237e382886c3f33d26282fe4a7862cfc21e174a21a04dc4c72",
+  "waterLevel": "e8fad690d450590629a56b87868a8999f9ac1c049ed4fe31b0250807bf32ae8c",
+  "waterFlow": "975840b85261b0d4020ca4fcf30569c5d610e7e1f4d34993bc92a3645e592854",
+  "waterBodies": "f9ae8d1325dd7477a48cfef5ce74f7cc2ac0d358445ea5e1de781be2601ba735",
+  "climate": "671a075e05358d4af59ccac755b33298b6d7e2bb4faf85d0ca8096cbd56f7118",
+  "riverMask": "7396897300216dec57620490118d814eba21d7c5a9020ea386f9f1d5c6c3deb9",
+  "waterGuide": "cf2782f212133d88e9d6d683cb4efe9e66f856ae212dd51be164c3bfb916dba2",
+  "queue_size": 0,
+  "dirty": [
+   "4,8",
+   "5,8",
+   "4,9",
+   "5,9",
+   "9,1",
+   "10,1",
+   "0,4",
+   "2,5",
+   "1,0",
+   "0,0",
+   "0,1",
+   "1,1",
+   "9,2",
+   "2,6",
+   "4,7",
+   "5,7",
+   "3,8",
+   "3,9",
+   "7,9",
+   "7,10",
+   "2,4",
+   "1,5",
+   "3,5",
+   "1,2",
+   "1,4",
+   "6,5",
+   "6,4",
+   "7,5",
+   "7,4",
+   "5,5",
+   "6,9",
+   "8,9",
+   "6,10",
+   "8,10",
+   "10,9",
+   "10,10",
+   "5,4",
+   "9,9",
+   "11,9",
+   "9,10",
+   "11,10",
+   "8,5",
+   "7,6",
+   "6,6",
+   "5,2",
+   "6,2",
+   "1,10",
+   "5,1",
+   "6,1",
+   "5,3",
+   "2,10",
+   "2,3",
+   "1,3",
+   "4,3",
+   "4,2",
+   "3,3",
+   "2,2",
+   "3,2"
+  ]
+ },
+ "stats": {
+  "ticks": 3,
+  "spawn": {
+   "x": 96.5,
+   "y": 28,
+   "z": 96.5
+  },
+  "biome_share": [
+   38,
+   20,
+   13,
+   6,
+   17,
+   6
+  ],
+  "massif": [
+   "edf0c1a017444d40",
+   "88b34082134d4740"
+  ],
+  "lakes": 9,
+  "rivers": [
+   {
+    "len": 71,
+    "falls": 16
+   },
+   {
+    "len": 70,
+    "falls": 18
+   }
+  ],
+  "cells": 2685,
+  "bank_blocks": 287,
+  "gen_log": [
+   [
+    "Campi",
+    297
+   ],
+   [
+    "Quote",
+    79
+   ],
+   [
+    "Laghi",
+    17
+   ],
+   [
+    "Fiumi",
+    10
+   ],
+   [
+    "Terrazze",
+    192
+   ],
+   [
+    "Argini",
+    5
+   ],
+   [
+    "Biomi",
+    32
+   ],
+   [
+    "Strati",
+    46
+   ],
+   [
+    "Grotte",
+    1795
+   ],
+   [
+    "Minerali",
+    835
+   ],
+   [
+    "Rifinitura",
+    4
+   ]
+  ],
+  "gen_ms": 3395
+ },
+ "gameplay": null,
+ "files": {}
+}
