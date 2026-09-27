@@ -14,11 +14,11 @@ verificato) · `verificato` (verificato anche su dispositivo).
 | Sistema | Fonte v0_64 | Prototipo | Destinazione Godot | Milestone | Godot | Verifica / criterio |
 |---|---|---|---|---|---|---|
 | Mondo e blocchi | 4489–4520 | attivo | `WorldData`, `BlockDefinition`, `BlockCatalog`, `WorldEditService` | M0/M1 | fatto | Test: 16 ID/flag = `ISO_CORE`; layout `(y*Z+z)*X+x`; 432 chunk |
-| Generazione (6 biomi, laghi, fiumi, strati, minerali) | 4522–4608 | attivo | `world/generation`, passate versionate | M2 | dati | Fixture seme 1931 `caves:false`: blocchi `ce0d3766…` = hash del piano; spawn 96,5/28/96,5 verificato in GDScript |
+| Generazione (6 biomi, laghi, fiumi, strati, minerali) | 4522–4608 | attivo | `WorldGenerator` (`world/generation`), passate versionate | M2 | fatto | Porting bit a bit (D-014): sha per passata/fase = prototipo su 64×32×64 (grotte), 96×40×80, 192×48×192 semi 1931 e 42; fixture seme 1931 rigenerata identica (`tools/verify_generator.gd`) |
 | Luce sole + blocchi (flood-fill) | 4613–4633 | attivo | `world/simulation` luce locale | M2 | dati | Buffer `sun`/`blk` nella fixture con SHA; manca il calcolo |
 | Greedy meshing + AO + cutaway | 4638–4709, 6811 | attivo | `ChunkMesher`, `WorldRuntime` (`ArrayMesh` per chunk) | M1 (facce visibili) / M2 (greedy, AO, cutaway) | parziale | Chunk (6,1,6): 62 quad / 248 vertici nel prototipo |
 | Vegetazione: alberi (3 archetipi) ed erba | 4893–4957, 6819–6854 | attivo | `TreeInstance`, MultiMesh erba | M2 | — | Alberi = collider cilindrici per player/nemici/proiettili |
-| Acqua a livelli, correnti, cascate | 4965–5103, 6799–6808, 6943–6982 | attivo | `FluidSystem`, mesh acqua per tile 16×16 | M3 | dati | `fluid` e `waterLevel` nella fixture (5.875 celle acqua, 2.381 colonne) |
+| Acqua a livelli, correnti, cascate | 4965–5103, 6799–6808, 6943–6982 | attivo | `FluidSystem`, mesh acqua per tile 16×16 | M3 | parziale | Simulazione portata (D-014, senza `meshFluid`): initFluid, stepFluid, editFluid, sampleWater identici al prototipo nello scenario registrato; mancano mesh e gameplay |
 | Estetica (pixel RT, outline, dipinto, dithering, cielo, ombre, x-ray) | 5112–5665, 6718–6922 | attivo | shader/materiali, preset "riferimento" e "mobile" | M2 | — | Confronto per scene campione |
 | Camera ISO + TPS | 6718–6922 | attivo | `CameraRig` | M1 | parziale | Iso principale, TPS facoltativa (D-010). Mancano pixel snap e auto-follow della TPS |
 | Movimento (gradini, rampa, salto) | 6929, 6987–7039 | attivo | `PlayerMotor` con query voxel (D-011) | M1 | fatto | 11 test: velocità, rampa, muro, salto, soffitto, galleria, caduta. Mancano gli alberi (M2) |

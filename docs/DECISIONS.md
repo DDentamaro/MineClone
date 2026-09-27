@@ -118,3 +118,33 @@ reversibile salvo dove indicato. Formato: contesto → decisione → conseguenze
   2 ms/frame in gioco, 12 ms/frame durante il caricamento iniziale.
 - M1 usa facce visibili senza greedy (85.865 quad per il mondo fixture). Greedy meshing, AO e
   luce voxel arrivano in M2.
+
+## D-014 — Generatore e fluidi v0_64 in GDScript con parità bit a bit
+- **Contesto:** il mondo va generato in Godot (non solo caricato dalla fixture) e deve
+  coincidere col prototipo; l'acqua (M3) usa la stessa simulazione.
+- **Decisione:** porting 1:1 in `src/world/generation/` (`WorldGenerator`, `IsoNoise`,
+  `Mulberry32`, `Biomes`, `JsMath`) e `src/world/simulation/fluid_system.gd` (`FluidSystem`,
+  funzioni statiche su `WorldData`).
+  - Interi JS emulati (`|0`, `>>>`, `Math.imul`); il secondo prodotto di `hash3` resta in double
+    come in JS. `Math.round`/`hypot` con l'algoritmo di V8.
+  - `Math.sin/cos/exp/atan2` di V8 sono fdlibm e **non** coincidono con la libm di sistema
+    (glibc differisce nel 3–18% dei campioni; su Android c'è bionic): `JsMath` porta fdlibm.
+    Le costanti sono costruite dai bit IEEE perché il tokenizer di GDScript arrotonda male i
+    letterali a 21 cifre (14 costanti su 54 sbagliate di 1 ulp); i letterali brevi sono corretti.
+  - `Float32Array`/`Int8Array` → `PackedFloat32Array`/byte in complemento a due; `Int16Array`
+    → `PackedInt32Array` (valori piccoli); coordinate e vettori in double (niente `Vector2/3`,
+    che sono a 32 bit).
+  - Stato dei fluidi su `WorldData` (`fluid_active`, `fluid_queue`, `fluid_dirty`,
+    `fluid_clock`, `fluid_renew_sources`) invece di un oggetto separato: rispecchia i campi di
+    `World` nel prototipo. I `Set`/`Map` JS diventano `Dictionary` (ordine d'inserimento
+    conservato, anche dopo `erase` e reinserimento); le chiavi stringa `"cx,cz"` diventano `Vector2i`.
+  - Array vuoto = campo assente nel prototipo (`if(W.waterGuide)` ecc.).
+- **Prestazioni:** stesse operazioni ma `hash3` precalcolato su griglie (`Fbm2Lattice`,
+  `Noise3Lattice`) e scansioni `find()` delle sole celle d'acqua. Mondo 192×48×192 seme 1931:
+  ~2,7 s in GDScript headless contro ~1,9 s in Node (era 8,4 s senza griglie).
+- **Verifica:** `tools/extract_gen_stages.mjs` (copia rattoppata di `ISO_CORE`, HTML intatto)
+  scrive `tests/fixtures/gen_v064`: campioni di rumore/Math, sha per passata e per fase,
+  scenario di gioco dei fluidi. Test unitari sul mondo 64×32×64 con grotte; i mondi grandi con
+  `tools/verify_generator.gd` (troppo lenti per la suite).
+- **Limiti noti:** `rem_pio2` per |x| > 2^19·π/2 non è portato (mai usato dal generatore);
+  `-0` può diventare `+0` in alcuni clamp (irrilevante per i risultati).
