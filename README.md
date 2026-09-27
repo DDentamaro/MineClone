@@ -4,7 +4,12 @@ Ricostruzione in **Godot 4.7.2** del prototipo HTML *IsoTerra* e sua evoluzione 
 piccolo sandbox voxel action per telefono (orizzontale). Il piano di lavoro è diviso in
 milestone M0–M8 (traguardo **R** = parità col prototipo, traguardo **G** = gioco).
 
-Stato attuale: **M0 — Baseline** (vedi `docs/PROGRESS.md`).
+Stato attuale: **M1 — percorso giocabile minimo** (vedi `docs/PROGRESS.md`): mondo del seme
+1931 a chunk, giocatore con collisioni voxel, camera isometrica (terza persona facoltativa),
+controlli touch, costruzione e scavo di debug.
+
+Controlli desktop: WASD/frecce, Spazio salto, trascinamento del mouse per ruotare, rotella
+zoom, clic = tap, F modo, B o 1/2/3/T blocco, V camera, Q/E rotazione a scatti.
 
 ## Struttura
 
@@ -27,4 +32,7 @@ node tools/extract_fixture.mjs 1931         # rigenera la fixture del seme 1931
 godot --headless --path . --script res://tools/godot_gen_block_catalog.gd
 godot --headless --path . --export-debug Android build/android/isoterra-debug.apk
 godot --headless --path . --export-debug Linux build/linux/isoterra.x86_64
+godot --headless --path . --script res://tools/bench_mesh.gd   # tempo di meshing
+xvfb-run -a godot --path . --script res://tools/e2e_touch.gd -- --out=/tmp/e2e.png
+godot --path . -- --screenshot=shot.png --zoom=0.55 --cam=tps  # screenshot automatico
 ```

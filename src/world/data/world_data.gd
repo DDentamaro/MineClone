@@ -25,6 +25,8 @@ var biome := PackedByteArray()
 var water_level := PackedByteArray()
 
 var world_seed: int = 0
+## Incrementata a ogni edit riuscito.
+var revision: int = 0
 var generator_version: String = ""
 ## Versione per chunk: incrementata da ogni edit (WorldEditService, M1).
 var chunk_versions := PackedInt32Array()

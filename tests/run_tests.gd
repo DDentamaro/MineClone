@@ -7,7 +7,18 @@ extends SceneTree
 const UNIT_DIR := "res://tests/unit"
 
 
-func _initialize() -> void:
+var _started := false
+
+
+## I test partono al primo frame, quando il root e' gia' nell'albero.
+func _process(_delta: float) -> bool:
+	if not _started:
+		_started = true
+		_run_all()
+	return false
+
+
+func _run_all() -> void:
 	var failures := 0
 	var total := 0
 	var files := DirAccess.get_files_at(UNIT_DIR)

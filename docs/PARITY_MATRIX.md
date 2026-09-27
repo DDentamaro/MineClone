@@ -13,28 +13,33 @@ verificato) · `verificato` (verificato anche su dispositivo).
 
 | Sistema | Fonte v0_64 | Prototipo | Destinazione Godot | Milestone | Godot | Verifica / criterio |
 |---|---|---|---|---|---|---|
-| Mondo e blocchi | 4489–4520 | attivo | `WorldData`, `BlockDefinition`, `BlockCatalog` | M0/M1 | dati | Test: 16 ID/flag = `ISO_CORE`; layout `(y*Z+z)*X+x`; 432 chunk |
+| Mondo e blocchi | 4489–4520 | attivo | `WorldData`, `BlockDefinition`, `BlockCatalog`, `WorldEditService` | M0/M1 | fatto | Test: 16 ID/flag = `ISO_CORE`; layout `(y*Z+z)*X+x`; 432 chunk |
 | Generazione (6 biomi, laghi, fiumi, strati, minerali) | 4522–4608 | attivo | `world/generation`, passate versionate | M2 | dati | Fixture seme 1931 `caves:false`: blocchi `ce0d3766…` = hash del piano; spawn 96,5/28/96,5 verificato in GDScript |
 | Luce sole + blocchi (flood-fill) | 4613–4633 | attivo | `world/simulation` luce locale | M2 | dati | Buffer `sun`/`blk` nella fixture con SHA; manca il calcolo |
-| Greedy meshing + AO + cutaway | 4638–4709, 6811 | attivo | `world/meshing`, `ArrayMesh` per chunk | M1 (facce visibili) / M2 (greedy, AO) | — | Chunk (6,1,6): 62 quad / 248 vertici nel prototipo |
+| Greedy meshing + AO + cutaway | 4638–4709, 6811 | attivo | `ChunkMesher`, `WorldRuntime` (`ArrayMesh` per chunk) | M1 (facce visibili) / M2 (greedy, AO, cutaway) | parziale | Chunk (6,1,6): 62 quad / 248 vertici nel prototipo |
 | Vegetazione: alberi (3 archetipi) ed erba | 4893–4957, 6819–6854 | attivo | `TreeInstance`, MultiMesh erba | M2 | — | Alberi = collider cilindrici per player/nemici/proiettili |
 | Acqua a livelli, correnti, cascate | 4965–5103, 6799–6808, 6943–6982 | attivo | `FluidSystem`, mesh acqua per tile 16×16 | M3 | dati | `fluid` e `waterLevel` nella fixture (5.875 celle acqua, 2.381 colonne) |
 | Estetica (pixel RT, outline, dipinto, dithering, cielo, ombre, x-ray) | 5112–5665, 6718–6922 | attivo | shader/materiali, preset "riferimento" e "mobile" | M2 | — | Confronto per scene campione |
-| Camera ISO + TPS | 6718–6922 | attivo | `CameraRig` | M1 | — | Parametri in inventario §3 |
-| Movimento (gradini, rampa, salto) | 6929, 6987–7039 | attivo | `CharacterBody3D` + controller | M1 | — | speed 5,5, stepUp 1,05, jumpH 2,1, g 28, raggio 0,26 |
+| Camera ISO + TPS | 6718–6922 | attivo | `CameraRig` | M1 | parziale | Iso principale, TPS facoltativa (D-010). Mancano pixel snap e auto-follow della TPS |
+| Movimento (gradini, rampa, salto) | 6929, 6987–7039 | attivo | `PlayerMotor` con query voxel (D-011) | M1 | fatto | 11 test: velocità, rampa, muro, salto, soffitto, galleria, caduta. Mancano gli alberi (M2) |
 | Nuoto / guado | 6941–6982 | attivo | stati di locomozione | M3 | — | Soglie ingresso/uscita in inventario §3 |
 | Avatar CHARGEN + editor eroe | 4246–4481, 6629–6677, 7898–7917 | attivo | `AvatarRecipe`, editor, persistenza | M4 | — | Ricetta `isoterra.hero.dna` |
 | Corpo a corpo: pugni + spada, lancia, martello, spadone | 7107, 7490–7834 | attivo | `CombatController`, `WeaponDefinition`, `AttackDefinition` | M4 | — | Hitstop, sweep, un colpo per bersaglio. Il giocatore parte con la spada sguainata (7871) |
 | Combo spada L, LL, LLL, LLLL, H, LH, LLH | 7543–7550, 7616–7620 | attivo | tabella dati combo | M4 | — | Tutti i rami |
-| Nemici: slime, scheletro, goblin | 7183–7431 | attivo | scene per archetipo + componenti comuni | M4 | — | Fino a 9 nemici (raggi 8/21/34); leash 13; respawn 25 s |
-| Vita giocatore | 7188–7207 | attivo (HUD nascosto dal CSS, riga 14) | `Vitals` + HUD visibile | M4 | — | 100 HP, invul. 0,65 s, morte 2,6 s, rigenerazione 5 HP/s dopo 7 s |
-| Lock-on, strafe, numeri danno, barre HP | 7061–7089, 7442–7469, 7776–7783 | attivo | `TargetingService`, UI, VFX | M4 | — | Portata 7,5, rilascio 9,5 |
 | Magia: fuoco, acqua, terra, aria | 7977–8322 | attivo | `SpellDefinition`, proiettili, pool VFX, audio | M4 | — | Mana, raccolta/rilascio (inventario §8) |
 | Reazioni elementali | 8171–8255 | attivo | `ElementReactionSystem` (tabella unica) | M4 | — | Numeri in inventario §8 |
-| Costruzione (terra, pietra, sabbia, legno, torcia) | 4885, 7098–7102, 7858–7860 | attivo, gratuita | `WorldEditService` | M1 (edit debug) / M5 (costo) | — | Portata 7,5; rifiuto se sovrapposta al player |
+| Costruzione (terra, pietra, sabbia, legno, torcia) | 4885, 7098–7102, 7858–7860 | attivo, gratuita | `WorldEditService`, `GameRoot.apply_action` | M1 (edit debug) / M5 (costo) | fatto (gratuita) | Portata 7,5; rifiuto se sovrapposta al player |
 | Inventario (contatore) | 7109–7110 | parziale | `InventoryService` a slot | M5 | — | Si riempie solo dai crateri; nascosto |
 | Persistenza impostazioni/avatar/camera | 8 chiavi `isoterra.*` | parziale | `SaveService` / impostazioni | M4/M5 | — | Nessun salvataggio del mondo |
-| UI touch (stick flottante, drag, pinch, pulsanti) | 7835–7870 | attivo | UI a contesti con ownership delle dita | M1 | — | Tap in modalità scavo non fa nulla (7849) |
+| UI touch (stick flottante, drag, pinch, pulsanti) | 7835–7870 | attivo | `TouchControls` con ownership delle dita (D-012) | M1 | fatto | 6 test + prova e2e con tocchi iniettati. Pannello strumenti grafici del prototipo non portato |
+
+## Rinviate dal proprietario (fuori dal gate R, D-009)
+
+| Sistema | Fonte v0_64 | Prototipo | Destinazione Godot | Milestone | Godot | Note |
+|---|---|---|---|---|---|---|
+| Lock-on, strafe, numeri danno, barre HP | 7061–7089, 7442–7469, 7776–7783 | attivo | `TargetingService`, UI, VFX | da decidere | — | Portata 7,5, rilascio 9,5 |
+| Vita giocatore | 7188–7207 | attivo (HUD nascosto dal CSS, riga 14) | `Vitals` + HUD visibile | da decidere | — | 100 HP, invul. 0,65 s, morte 2,6 s, rigenerazione 5 HP/s dopo 7 s |
+| Nemici: slime, scheletro, goblin | 7183–7431 | attivo | scene per archetipo + componenti comuni | da decidere | — | Fino a 9 nemici (raggi 8/21/34); leash 13; respawn 25 s |
 
 ## Funzionalità dormienti o legacy (censite, non contate come giocabili)
 
@@ -55,3 +60,13 @@ verificato) · `verificato` (verificato anche su dispositivo).
 - [x] Fixture caricata in Godot con SHA per buffer, istogramma, layout, spawn
 - [x] Catalogo blocchi come `Resource`, coincidente col prototipo
 - [ ] Parità visiva e di gameplay: da M1 in poi
+
+## Stato verifiche M1
+
+- [x] Chunk a facce visibili da snapshot su thread, nessuna faccia doppia ai bordi (test)
+- [x] Edit su faccia/spigolo/angolo di chunk: vicini rimeshati (test 8 chunk)
+- [x] Risultati obsoleti e cambio di mondo scartati (test)
+- [x] Camminare, gradini, muri, soffitti, gallerie sul mondo fixture (test)
+- [x] Costruire/scavare in debug; niente blocco dentro il giocatore (test + e2e)
+- [x] Multitouch: stick + camera + pulsanti, rilascio in ordine diverso, annullamento, reset (test)
+- [ ] Prova su telefono reale

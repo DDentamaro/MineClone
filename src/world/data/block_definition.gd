@@ -12,3 +12,7 @@ extends Resource
 @export var solid: bool = false
 ## Livello di luce emessa 0..15 (ISO_CORE.EMIT).
 @export_range(0, 15) var emit: int = 0
+## Colore base della faccia superiore (atlante del prototipo, riga 0; makeAtlas ~5704).
+@export var top_color: Color = Color.MAGENTA
+## Colore base di lati e fondo (atlante del prototipo, riga 1).
+@export var side_color: Color = Color.MAGENTA

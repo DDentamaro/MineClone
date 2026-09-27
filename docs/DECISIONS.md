@@ -73,3 +73,48 @@ reversibile salvo dove indicato. Formato: contesto → decisione → conseguenze
   codice ≠ 0 se qualcosa fallisce. Nessun addon esterno (GUT/gdUnit) finché non serve.
 - `tools/extract_fixture.mjs` (Node ≥ 18) estrae `ISO_CORE` dall'HTML senza modificarlo,
   lo esegue in un contesto `vm` isolato e scrive buffer gzip + manifest con SHA-256.
+
+## D-009 — Nemici rinviati (decisione del proprietario, 27/09/2026)
+- I nemici (slime, scheletro, goblin, `BasicEnemy`, `spawnBasicEnemies`) escono dal gate R.
+  Restano censiti nella matrice come "rinviati", con le righe sorgente, per poterli
+  riprendere più avanti. Vita del giocatore, lock-on e numeri del danno, che servono
+  soprattutto contro i nemici, seguono la stessa sorte finché non si decide diversamente.
+- La v0_66 non viene aggiunta: il proprietario conferma che cambia poco rispetto alla v0_64.
+
+## D-010 — Camera: isometrica principale, terza persona facoltativa (proprietario)
+- Si avvia in isometrica ortografica (yaw 45°, pitch 38°, zoom 0,55–2,4, parametri del
+  prototipo). La terza persona (FOV 52°, distanza 6,5, arretramento davanti ai muri) è
+  un'opzione dal pulsante "Camera" o dal tasto V; la scelta resta salvata in `user://settings.cfg`.
+- Il dispositivo minimo non è vincolante (proprietario): i budget del piano §9 restano
+  indicativi.
+
+## D-011 — Collisioni del giocatore autorevoli sui voxel, senza collider fisici
+- **Contesto:** il piano propone `CharacterBody3D` e segnala il rischio di collider in
+  ritardo rispetto agli edit.
+- **Decisione:** il giocatore usa `PlayerMotor`, porting delle regole di `Game.step`
+  (rampa sui gradini, discesa a passo, salto, atterraggio) che interroga direttamente
+  `WorldData`. Nessun `CollisionShape` per i chunk in M1. Così un blocco appena posato
+  blocca il giocatore dal frame successivo, senza finestre di incoerenza.
+- **Aggiunte rispetto al prototipo:** corpo alto 1,4 (lo stesso valore del controllo di
+  sovrapposizione per piazzare, riga 7101). Testa ferma sotto i soffitti, sporgenze all'altezza
+  della testa trattate come muri, ricerca del suolo dopo un salto fatta dalla quota di partenza.
+  Nel prototipo, saltando sotto un soffitto, ci si ritrovava sul tetto (piano §4).
+- **Da rivedere:** se nemici o proiettili fisici richiederanno Godot Physics, si
+  aggiungeranno collider per chunk, ma il giocatore resterà su query voxel.
+
+## D-012 — Controlli touch disegnati a mano, non Button di Godot
+- I `Button` reagiscono agli eventi mouse emulati, quindi solo al primo dito.
+  `TouchControls` gestisce direttamente `InputEventScreenTouch/Drag` per indice e assegna a
+  ogni dito un ruolo (stick, camera, pulsante) fino al rilascio.
+- `emulate_mouse_from_touch=false`, `emulate_touch_from_mouse=true`: sul desktop il mouse usa
+  lo stesso percorso di un dito. Le dimensioni sono in dp: pulsanti da 52–83 dp.
+- Reset di tutti gli input mantenuti alla perdita del focus o alla pausa dell'app.
+
+## D-013 — Meshing su WorkerThreadPool con snapshot copiati
+- In Godot 4 i `Packed*Array` sono condivisi per riferimento: il runtime passa ai job una
+  copia `duplicate()` dei blocchi, rifatta solo quando cambia `world.revision` (1,77 MB).
+- Ogni risultato porta versione del chunk e sessione del mondo: se non corrispondono viene
+  scartato e il chunk rimesso in coda. Le mesh si applicano sul main thread entro un budget:
+  2 ms/frame in gioco, 12 ms/frame durante il caricamento iniziale.
+- M1 usa facce visibili senza greedy (85.865 quad per il mondo fixture). Greedy meshing, AO e
+  luce voxel arrivano in M2.

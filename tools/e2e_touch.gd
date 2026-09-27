@@ -1,0 +1,77 @@
+extends SceneTree
+## Prova end-to-end con finestra (xvfb-run): carica la scena principale, inietta
+## tocchi reali (stick + tap di costruzione) tramite Input.parse_input_event e
+## salva uno screenshot. Uso:
+##   xvfb-run -a godot --path . --script res://tools/e2e_touch.gd -- --out=/tmp/e2e.png
+
+var _game: GameRoot
+var _frame := 0
+var _phase := 0
+var _start_pos := Vector3.ZERO
+var _out := "user://e2e.png"
+var _ok := true
+
+
+func _initialize() -> void:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--out="):
+			_out = a.substr(6)
+	_game = (load("res://scenes/main.tscn") as PackedScene).instantiate()
+	root.add_child(_game)
+
+
+func _touch(i: int, p: Vector2, pressed: bool) -> void:
+	var e := InputEventScreenTouch.new()
+	e.index = i
+	e.position = p
+	e.pressed = pressed
+	Input.parse_input_event(e)
+
+
+func _drag(i: int, p: Vector2) -> void:
+	var e := InputEventScreenDrag.new()
+	e.index = i
+	e.position = p
+	Input.parse_input_event(e)
+
+
+func _process(_dt: float) -> bool:
+	_frame += 1
+	var size := root.get_visible_rect().size
+	match _phase:
+		0:
+			if _game._runtime.is_idle() and _game._build_ms > 0:
+				_start_pos = _game.motor.position
+				_touch(0, Vector2(size.x * 0.15, size.y * 0.8), true)
+				_drag(0, Vector2(size.x * 0.15, size.y * 0.8 - 60))
+				_phase = 1
+				_frame = 0
+		1:
+			if _frame == 60:
+				_touch(0, Vector2(size.x * 0.15, size.y * 0.8 - 60), false)
+				var moved := _game.motor.position.distance_to(_start_pos)
+				print("stick: spostamento %.2f in 60 frame (posizione %s)" % [moved, _game.motor.position])
+				_ok = _ok and moved > 1.0
+				_game._on_button(&"mode") # Esplora -> Costruisci
+				_game._select_block(BlockCatalog.STONE)
+				_phase = 2
+				_frame = 0
+		2:
+			if _frame == 10:
+				# Tap poco a destra del giocatore sullo schermo.
+				var cam := _game._camera_rig.camera
+				var target := cam.unproject_position(_game.motor.position + Vector3(0, 0.2, 0))
+				_start_pos = Vector3(_game.world.revision, 0, 0)
+				var p := target + Vector2(70, 10)
+				_touch(1, p, true)
+				_touch(1, p, false)
+			if _frame == 12:
+				var edited := _game.world.revision > int(_start_pos.x)
+				print("tap costruzione: %s (%s)" % ["OK" if edited else "nessun edit", _game.last_edit])
+				_ok = _ok and edited
+			if _frame == 40:
+				var img := root.get_texture().get_image()
+				img.save_png(_out)
+				print("screenshot %s · e2e %s" % [_out, "OK" if _ok else "FALLITO"])
+				quit(0 if _ok else 1)
+	return false

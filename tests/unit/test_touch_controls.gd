@@ -1,0 +1,136 @@
+extends TestCase
+## Ownership delle dita e gesti del TouchControls.
+
+var _drags: Array[Vector2] = []
+var _taps: Array[Vector2] = []
+var _zooms: Array[float] = []
+var _buttons: Array[StringName] = []
+
+
+func _make() -> TouchControls:
+	var tc := TouchControls.new()
+	(Engine.get_main_loop() as SceneTree).root.add_child(tc)
+	tc.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	tc.size = Vector2(1280, 720)
+	tc._layout()
+	_drags.clear()
+	_taps.clear()
+	_zooms.clear()
+	_buttons.clear()
+	tc.camera_dragged.connect(func(d: Vector2) -> void: _drags.append(d))
+	tc.world_tapped.connect(func(p: Vector2) -> void: _taps.append(p))
+	tc.zoom_scaled.connect(func(f: float) -> void: _zooms.append(f))
+	tc.button_pressed.connect(func(id: StringName) -> void: _buttons.append(id))
+	return tc
+
+
+func _down(tc: TouchControls, i: int, p: Vector2) -> void:
+	var e := InputEventScreenTouch.new()
+	e.index = i
+	e.position = p
+	e.pressed = true
+	tc._input(e)
+
+
+func _up(tc: TouchControls, i: int, p: Vector2, cancel := false) -> void:
+	var e := InputEventScreenTouch.new()
+	e.index = i
+	e.position = p
+	e.pressed = false
+	e.canceled = cancel
+	tc._input(e)
+
+
+func _move(tc: TouchControls, i: int, p: Vector2) -> void:
+	var e := InputEventScreenDrag.new()
+	e.index = i
+	e.position = p
+	tc._input(e)
+
+
+func test_stick_e_camera_insieme() -> void:
+	var tc := _make()
+	_down(tc, 0, Vector2(200, 600))
+	_move(tc, 0, Vector2(300, 600))
+	check(tc.stick_vector.x > 0.99, "stick a destra (%s)" % tc.stick_vector)
+	_down(tc, 1, Vector2(900, 300))
+	_move(tc, 1, Vector2(950, 300))
+	check_eq(_drags.size(), 1, "trascinamento camera")
+	check(tc.stick_vector.x > 0.99, "lo stick non cambia")
+	# Rilascio in ordine inverso.
+	_up(tc, 0, Vector2(300, 600))
+	check_eq(tc.stick_vector, Vector2.ZERO, "stick azzerato")
+	_move(tc, 1, Vector2(1000, 300))
+	check_eq(_drags.size(), 2, "la camera continua dopo il rilascio dello stick")
+	_up(tc, 1, Vector2(1000, 300))
+	check_eq(_taps.size(), 0, "un trascinamento non e' un tap")
+	check_eq(tc.active_finger_count(), 0, "nessun dito attivo")
+	tc.free()
+
+
+func test_il_ruolo_non_cambia_attraversando_le_zone() -> void:
+	var tc := _make()
+	_down(tc, 3, Vector2(900, 200))
+	_move(tc, 3, Vector2(200, 600))
+	check_eq(tc.stick_vector, Vector2.ZERO, "un dito camera nella zona stick resta camera")
+	check(_drags.size() >= 1, "ha ruotato la camera")
+	_up(tc, 3, Vector2(200, 600))
+	tc.free()
+
+
+func test_tap_e_annullamento() -> void:
+	var tc := _make()
+	_down(tc, 0, Vector2(800, 300))
+	_up(tc, 0, Vector2(803, 302))
+	check_eq(_taps.size(), 1, "tap")
+	_down(tc, 0, Vector2(800, 300))
+	_up(tc, 0, Vector2(800, 300), true)
+	check_eq(_taps.size(), 1, "un tocco annullato non e' un tap")
+	tc.free()
+
+
+func test_pinch_zoom_senza_tap() -> void:
+	var tc := _make()
+	_down(tc, 0, Vector2(700, 300))
+	_down(tc, 1, Vector2(900, 300))
+	_move(tc, 1, Vector2(950, 300))
+	_move(tc, 1, Vector2(1000, 300))
+	check(_zooms.size() >= 1 and _zooms[-1] > 1.0, "zoom in allargando (%s)" % [_zooms])
+	check_eq(_drags.size(), 0, "il pinch non ruota la camera")
+	_up(tc, 0, Vector2(700, 300))
+	_up(tc, 1, Vector2(1000, 300))
+	check_eq(_taps.size(), 0, "nessun tap dopo un pinch")
+	tc.free()
+
+
+func test_pulsanti() -> void:
+	var tc := _make()
+	var jump := tc.button_rect(&"jump").get_center()
+	var mode := tc.button_rect(&"mode").get_center()
+	_down(tc, 2, jump)
+	check(tc.is_held(&"jump"), "salto mantenuto")
+	_down(tc, 5, Vector2(200, 600))
+	_move(tc, 5, Vector2(200, 650))
+	check(tc.stick_vector.y > 0.9, "stick attivo mentre si tiene il salto")
+	_up(tc, 2, jump)
+	check(not tc.is_held(&"jump"), "salto rilasciato")
+	_down(tc, 1, mode)
+	check_eq(_buttons, [&"mode"] as Array[StringName], "modo premuto una volta")
+	_up(tc, 1, mode)
+	check_eq(_taps.size(), 0, "i pulsanti non generano tap sul mondo")
+	tc.free()
+
+
+func test_reset_su_perdita_focus() -> void:
+	var tc := _make()
+	_down(tc, 0, Vector2(200, 600))
+	_move(tc, 0, Vector2(300, 600))
+	_down(tc, 1, tc.button_rect(&"jump").get_center())
+	tc._notification(Control.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	check_eq(tc.stick_vector, Vector2.ZERO, "stick azzerato")
+	check(not tc.is_held(&"jump"), "salto rilasciato")
+	check_eq(tc.active_finger_count(), 0, "dita dimenticate")
+	# Un rilascio tardivo non produce azioni.
+	_up(tc, 1, Vector2(1200, 650))
+	check_eq(_buttons.size(), 0, "nessuna azione")
+	tc.free()

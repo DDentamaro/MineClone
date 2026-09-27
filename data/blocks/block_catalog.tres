@@ -15,6 +15,8 @@ key = &"grass"
 display_name = "erba"
 opaque = true
 solid = true
+top_color = Color(0.3529412, 0.6509804, 0.23137255, 1)
+side_color = Color(0.5411765, 0.41568628, 0.27058825, 1)
 
 [sub_resource type="Resource" id="Resource_ckbvm"]
 script = ExtResource("1_ldg4v")
@@ -23,6 +25,8 @@ key = &"dirt"
 display_name = "terra"
 opaque = true
 solid = true
+top_color = Color(0.5411765, 0.41568628, 0.27058825, 1)
+side_color = Color(0.5411765, 0.41568628, 0.27058825, 1)
 
 [sub_resource type="Resource" id="Resource_83crb"]
 script = ExtResource("1_ldg4v")
@@ -31,6 +35,8 @@ key = &"stone"
 display_name = "pietra"
 opaque = true
 solid = true
+top_color = Color(0.43529412, 0.45490196, 0.47058824, 1)
+side_color = Color(0.43529412, 0.45490196, 0.47058824, 1)
 
 [sub_resource type="Resource" id="Resource_1l43l"]
 script = ExtResource("1_ldg4v")
@@ -39,6 +45,8 @@ key = &"sand"
 display_name = "sabbia"
 opaque = true
 solid = true
+top_color = Color(0.8509804, 0.76862746, 0.49411765, 1)
+side_color = Color(0.8509804, 0.76862746, 0.49411765, 1)
 
 [sub_resource type="Resource" id="Resource_8n1o7"]
 script = ExtResource("1_ldg4v")
@@ -47,6 +55,8 @@ key = &"copper"
 display_name = "rame"
 opaque = true
 solid = true
+top_color = Color(0.56, 0.4737255, 0.39764705, 1)
+side_color = Color(0.56, 0.4737255, 0.39764705, 1)
 
 [sub_resource type="Resource" id="Resource_mjn56"]
 script = ExtResource("1_ldg4v")
@@ -55,6 +65,8 @@ key = &"iron"
 display_name = "ferro"
 opaque = true
 solid = true
+top_color = Color(0.5588235, 0.54784316, 0.5235294, 1)
+side_color = Color(0.5588235, 0.54784316, 0.5235294, 1)
 
 [sub_resource type="Resource" id="Resource_fp4qa"]
 script = ExtResource("1_ldg4v")
@@ -63,6 +75,8 @@ key = &"gold"
 display_name = "oro"
 opaque = true
 solid = true
+top_color = Color(0.5894118, 0.56784314, 0.39764705, 1)
+side_color = Color(0.5894118, 0.56784314, 0.39764705, 1)
 
 [sub_resource type="Resource" id="Resource_j8a6c"]
 script = ExtResource("1_ldg4v")
@@ -71,6 +85,8 @@ key = &"bedrock"
 display_name = "roccia madre"
 opaque = true
 solid = true
+top_color = Color(0.18039216, 0.19607843, 0.21176471, 1)
+side_color = Color(0.18039216, 0.19607843, 0.21176471, 1)
 
 [sub_resource type="Resource" id="Resource_er5k3"]
 script = ExtResource("1_ldg4v")
@@ -79,6 +95,8 @@ key = &"lava"
 display_name = "lava"
 opaque = true
 emit = 12
+top_color = Color(0.9411765, 0.47058824, 0.16470589, 1)
+side_color = Color(0.9411765, 0.47058824, 0.16470589, 1)
 
 [sub_resource type="Resource" id="Resource_mwbq1"]
 script = ExtResource("1_ldg4v")
@@ -86,6 +104,8 @@ id = 10
 key = &"torch"
 display_name = "torcia"
 emit = 14
+top_color = Color(0.7882353, 0.5921569, 0.22745098, 1)
+side_color = Color(0.7882353, 0.5921569, 0.22745098, 1)
 
 [sub_resource type="Resource" id="Resource_p624i"]
 script = ExtResource("1_ldg4v")
@@ -94,6 +114,8 @@ key = &"wood"
 display_name = "legno"
 opaque = true
 solid = true
+top_color = Color(0.6392157, 0.4862745, 0.30980393, 1)
+side_color = Color(0.6392157, 0.4862745, 0.30980393, 1)
 
 [sub_resource type="Resource" id="Resource_apgba"]
 script = ExtResource("1_ldg4v")
@@ -102,6 +124,8 @@ key = &"leaves"
 display_name = "foglie"
 opaque = true
 solid = true
+top_color = Color(0.24705882, 0.49019608, 0.18431373, 1)
+side_color = Color(0.24705882, 0.49019608, 0.18431373, 1)
 
 [sub_resource type="Resource" id="Resource_mnfvw"]
 script = ExtResource("1_ldg4v")
@@ -110,6 +134,8 @@ key = &"sandstone"
 display_name = "arenaria"
 opaque = true
 solid = true
+top_color = Color(0.7882353, 0.65882355, 0.41568628, 1)
+side_color = Color(0.7882353, 0.65882355, 0.41568628, 1)
 
 [sub_resource type="Resource" id="Resource_ud587"]
 script = ExtResource("1_ldg4v")
@@ -118,12 +144,16 @@ key = &"darkstone"
 display_name = "pietra scura"
 opaque = true
 solid = true
+top_color = Color(0.27058825, 0.28235295, 0.3019608, 1)
+side_color = Color(0.27058825, 0.28235295, 0.3019608, 1)
 
 [sub_resource type="Resource" id="Resource_vuypc"]
 script = ExtResource("1_ldg4v")
 id = 15
 key = &"water"
 display_name = "acqua"
+top_color = Color(0.23921569, 0.49803922, 0.76862746, 1)
+side_color = Color(0.23921569, 0.49803922, 0.76862746, 1)
 
 [resource]
 script = ExtResource("2_nq45q")
