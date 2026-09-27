@@ -17,6 +17,9 @@ signal camera_dragged(delta: Vector2)
 signal zoom_scaled(factor: float)
 signal world_tapped(position: Vector2)
 signal button_pressed(id: StringName)
+## Inizio e fine della pressione di qualsiasi pulsante (per i tasti tenuti).
+signal button_down(id: StringName)
+signal button_up(id: StringName)
 
 const TAP_MAX_MOVE := 8.0
 const TAP_MAX_MS := 450
@@ -46,7 +49,8 @@ class VButton:
 	var rect := Rect2()
 	var hold := false
 	var held := false
-	## &"main" sempre visibile, &"dev" solo con il pannello sviluppatore aperto.
+	## &"main" sempre visibile, &"dev" col pannello sviluppatore aperto,
+	## &"hero" con l'editor dell'eroe aperto.
 	var group: StringName = &"main"
 
 
@@ -58,6 +62,11 @@ var labels := {}
 var dev_open := false:
 	set(v):
 		dev_open = v
+		queue_redraw()
+## Editor dell'eroe aperto.
+var hero_open := false:
+	set(v):
+		hero_open = v
 		queue_redraw()
 const DEV_BUTTON_W_DP := 118.0
 const DEV_BUTTON_H_DP := 48.0
@@ -71,7 +80,12 @@ var _font: Font
 
 func _init() -> void:
 	add_button(&"jump", "Salto", true)
+	add_button(&"attack", "Colpo", false)
+	add_button(&"heavy", "Forte", true)
+	add_button(&"dodge", "Schiva", false)
 	add_button(&"mode", "Modo", false)
+	add_button(&"weapon", "Arma", false)
+	add_button(&"hero", "Eroe", false)
 	add_button(&"block", "Blocco", false)
 	add_button(&"camera", "Camera", false)
 	add_button(&"dev", "⚙", false)
@@ -97,7 +111,12 @@ func add_button(id: StringName, label: String, hold: bool, group: StringName = &
 
 
 func _visible(b: VButton) -> bool:
-	return b.group == &"main" or dev_open
+	match b.group:
+		&"dev":
+			return dev_open
+		&"hero":
+			return hero_open
+	return true
 
 
 func set_button_label(id: StringName, text: String) -> void:
@@ -146,24 +165,31 @@ func _layout() -> void:
 	var big := dp(BUTTON_DP) * 1.3
 	var small := dp(SMALL_BUTTON_DP)
 	var m := dp(20.0)
-	# Riga in alto dal bordo verso il centro: camera, blocco, modo.
-	var row: Array[StringName] = [&"camera", &"block", &"mode"]
+	var med := big * 0.78
+	# Riga in alto dal bordo verso il centro: camera, blocco, modo, arma, eroe.
+	var row: Array[StringName] = [&"camera", &"block", &"mode", &"weapon", &"hero"]
 	var dw := dp(DEV_BUTTON_W_DP)
 	var dh := dp(DEV_BUTTON_H_DP)
-	var dx := m
-	var dy := m + small + m + dh
+	var cursor := {}
 	for b in _buttons:
 		var r := Rect2()
-		if b.group == &"dev":
-			if dx + dw > s.x - m:
-				dx = m
-				dy += dh + m * 0.4
-			r = Rect2(dx, dy, dw, dh)
-			dx += dw + m * 0.4
+		if b.group != &"main":
+			var c: Vector2 = cursor.get(b.group, Vector2(m, m + small + m + dh))
+			if c.x + dw > s.x - m:
+				c = Vector2(m, c.y + dh + m * 0.4)
+			r = Rect2(c.x, c.y, dw, dh)
+			cursor[b.group] = Vector2(c.x + dw + m * 0.4, c.y)
 			b.rect = r
 			continue
+		var attack_x := s.x - m - big - m * 0.4 - big
 		if b.id == &"jump":
 			r = Rect2(s.x - m - big, s.y - m - big, big, big)
+		elif b.id == &"attack":
+			r = Rect2(attack_x, s.y - m - big, big, big)
+		elif b.id == &"heavy":
+			r = Rect2(attack_x + (big - med) * 0.5, s.y - m - big - m * 0.4 - med, med, med)
+		elif b.id == &"dodge":
+			r = Rect2(s.x - m - big + (big - med) * 0.5, s.y - m - big - m * 0.4 - med, med, med)
 		elif b.id == &"dev":
 			r = Rect2(m, m + small * 0.9, small * 0.8, small * 0.8)
 		else:
@@ -209,6 +235,7 @@ func _touch_down(index: int, p: Vector2) -> bool:
 			f.role = Role.BUTTON
 			f.button = b.id
 			b.held = true
+			button_down.emit(b.id)
 			if not b.hold:
 				button_pressed.emit(b.id)
 			_fingers[index] = f
@@ -275,6 +302,8 @@ func _touch_up(index: int, p: Vector2, canceled: bool) -> bool:
 			for b in _buttons:
 				if b.id == f.button:
 					b.held = _button_still_held(b.id)
+					if not b.held:
+						button_up.emit(b.id)
 	queue_redraw()
 	return true
 
@@ -286,7 +315,9 @@ func reset() -> void:
 	_pinch_used = false
 	_pinch_d0 = 0.0
 	for b in _buttons:
-		b.held = false
+		if b.held:
+			b.held = false
+			button_up.emit(b.id)
 	queue_redraw()
 
 
@@ -328,7 +359,7 @@ func _draw() -> void:
 			continue
 		var c := b.rect.get_center()
 		var r := b.rect.size.x * 0.5
-		if b.group == &"dev":
+		if b.group != &"main":
 			draw_rect(b.rect, Color(0.08, 0.1, 0.12, 0.72 if not b.held else 0.9))
 			draw_rect(b.rect, Color(0.63, 0.89, 0.78, 0.8), false, dp(1.5))
 			r = b.rect.size.y * 0.5 * 2.2

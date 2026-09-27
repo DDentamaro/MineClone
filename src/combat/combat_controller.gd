@@ -1,0 +1,470 @@
+class_name CombatController
+extends RefCounted
+## Combattimento corpo a corpo del giocatore (M4, disegno nuovo — D-022).
+##
+## - Input bufferizzati 0,3 s: colpo, forte (tenuto = carica), schivata.
+## - Catene per arma: ogni attacco indica il seguito leggero e quello forte;
+##   il seguito parte nel rientro (dopo `chain_at`), senza aspettare la fine.
+## - Aggancio morbido: all'avvio del colpo il giocatore si gira verso il
+##   bersaglio migliore nel cono dello stick e l'affondo copre la distanza.
+## - Schivata a capriola con invulnerabilita' iniziale; annulla il rientro di
+##   un colpo (e la prima meta' della carica); un colpo nell'ultima parte della
+##   capriola diventa l'attacco in corsa dell'arma.
+## - In aria il colpo diventa una picchiata con urto ad area all'atterraggio.
+## - Colpi: arco spazzato, striscia che si allunga (affondi) o area; un colpo
+##   per bersaglio per attacco (salvo `rehit`), hitstop, scossa della camera.
+##
+## Nessun nodo: `step` e' deterministico e gira nei test headless.
+
+enum State { IDLE, ATTACK, DODGE }
+
+const BUFFER := 0.3
+const DODGE_TIME := 0.4
+const DODGE_SPEED := 12.0
+const DODGE_IFRAMES := Vector2(0.02, 0.28)
+const DODGE_COOLDOWN := 0.12
+const DASH_WINDOW := 0.5
+const LOCK_EXTRA := 2.4
+const LOCK_CONE := 1.4
+const PLUNGE_FALL := 22.0
+
+var weapon: WeaponDefinition
+var state: State = State.IDLE
+var attack: AttackDefinition
+## Tempo trascorso nell'attacco o nella schivata in corso.
+var t := 0.0
+## Direzione del giocatore (rotazione Y; avanti = (-sin, -cos) in XZ).
+var facing := 0.0
+var heavy_held := false
+var charging := false
+var charge := 0.0
+var buffer: StringName = &""
+var buffer_t := 0.0
+var dodge_dir := Vector2.ZERO
+var cooldown := 0.0
+var hitstop := 0.0
+var lock_target: CombatTarget
+## Guida del motore: velocita' imposta (scatti, capriole) o scala dello stick.
+var drive_on := false
+var drive := Vector2.ZERO
+var move_scale := 1.0
+## Colpi a segno nella catena corrente (si azzera dopo 1,6 s senza colpi).
+var combo := 0
+var combo_t := 0.0
+var events: Array[Dictionary] = []
+var clock := 0.0
+
+var _hit_log := {}
+var _lunge_speed := 0.0
+var _prev_u := 0.0
+var _impact_done := false
+var _attack_facing := 0.0
+var _last_dodge_end := -99.0
+
+
+func _init(w: WeaponDefinition = null) -> void:
+	weapon = w if w != null else WeaponLibrary.by_id(&"sword")
+
+
+static func forward(f: float) -> Vector2:
+	return Vector2(-sin(f), -cos(f))
+
+
+static func heading(v: Vector2) -> float:
+	return atan2(-v.x, -v.y)
+
+
+func press_light() -> void:
+	_buffer(&"light")
+
+
+func press_heavy() -> void:
+	heavy_held = true
+	_buffer(&"heavy")
+
+
+func release_heavy() -> void:
+	heavy_held = false
+
+
+func press_dodge() -> void:
+	_buffer(&"dodge")
+
+
+func _buffer(a: StringName) -> void:
+	buffer = a
+	buffer_t = BUFFER
+
+
+func set_weapon(w: WeaponDefinition) -> void:
+	weapon = w
+	cancel()
+
+
+func cancel() -> void:
+	state = State.IDLE
+	attack = null
+	charging = false
+	drive_on = false
+	move_scale = 1.0
+	buffer = &""
+
+
+func is_busy() -> bool:
+	return state != State.IDLE
+
+
+func invulnerable() -> bool:
+	return state == State.DODGE and t >= DODGE_IFRAMES.x and t <= DODGE_IFRAMES.y
+
+
+## Fase dell'attacco: 0 carica, 1 colpo, 2 rientro; `u` 0..1 nella fase.
+func phase() -> int:
+	if attack == null:
+		return -1
+	if t < attack.windup:
+		return 0
+	if t < attack.windup + attack.active:
+		return 1
+	return 2
+
+
+func phase_u() -> float:
+	if attack == null:
+		return 0.0
+	match phase():
+		0:
+			return t / maxf(attack.windup, 1e-4)
+		1:
+			return (t - attack.windup) / maxf(attack.active, 1e-4)
+	return clampf((t - attack.windup - attack.active) / maxf(attack.recovery, 1e-4), 0.0, 1.0)
+
+
+func charge_fraction() -> float:
+	if attack == null or attack.charge_max <= 0.0:
+		return 0.0
+	return clampf(charge / attack.charge_max, 0.0, 1.0)
+
+
+func dodge_u() -> float:
+	return clampf(t / DODGE_TIME, 0.0, 1.0) if state == State.DODGE else -1.0
+
+
+## Un passo di simulazione. `stick` e' la direzione voluta nel piano XZ.
+func step(dt: float, motor: PlayerMotor, targets: Array, stick: Vector2) -> void:
+	if hitstop > 0.0:
+		hitstop = maxf(0.0, hitstop - dt)
+		return
+	clock += dt
+	buffer_t -= dt
+	if buffer_t <= 0.0:
+		buffer = &""
+	cooldown = maxf(0.0, cooldown - dt)
+	combo_t += dt
+	if combo_t > 1.6:
+		combo = 0
+	if motor.swimming:
+		cancel()
+		return
+	match state:
+		State.IDLE:
+			drive_on = false
+			move_scale = 1.0
+			_take_buffer(motor, targets, stick)
+		State.ATTACK:
+			_step_attack(dt, motor, targets, stick)
+		State.DODGE:
+			_step_dodge(dt, motor, targets, stick)
+
+
+func _take_buffer(motor: PlayerMotor, targets: Array, stick: Vector2) -> void:
+	match buffer:
+		&"dodge":
+			if motor.on_ground and cooldown <= 0.0:
+				_start_dodge(stick)
+		&"light":
+			if not motor.on_ground:
+				_start_attack(weapon.air_attack, motor, targets, stick)
+			elif clock - _last_dodge_end < 0.12:
+				_start_attack(weapon.dash_attack, motor, targets, stick)
+			else:
+				_start_attack(weapon.light_start, motor, targets, stick)
+		&"heavy":
+			if motor.on_ground:
+				_start_attack(weapon.heavy_start, motor, targets, stick)
+			else:
+				_start_attack(weapon.air_attack, motor, targets, stick)
+
+
+func _start_attack(id: StringName, motor: PlayerMotor, targets: Array, stick: Vector2) -> void:
+	var a := weapon.attack(id)
+	buffer = &""
+	if a == null:
+		return
+	attack = a
+	state = State.ATTACK
+	t = 0.0
+	_prev_u = 0.0
+	_impact_done = false
+	_hit_log.clear()
+	charging = a.charge_max > 0.0 and heavy_held
+	charge = 0.0
+	# Aggancio morbido: il bersaglio migliore nel cono della direzione voluta.
+	var want := facing if stick.length() < 0.2 else heading(stick)
+	lock_target = _pick_target(motor.position, want, targets, a)
+	var dist_goal := a.lunge
+	if lock_target != null:
+		var v := Vector2(lock_target.position.x - motor.position.x, lock_target.position.z - motor.position.z)
+		want = heading(v)
+		var stop := a.radial_ahead if a.shape == AttackDefinition.Shape.RADIAL else a.reach * 0.5
+		dist_goal = clampf(v.length() - stop - lock_target.radius * 0.5, 0.0, maxf(a.lunge, 1.2) * 1.5)
+	facing = want
+	_attack_facing = want
+	var lt := a.windup * 0.6 + a.active * 0.35
+	_lunge_speed = dist_goal / maxf(lt, 1e-3)
+	if a.plunge:
+		motor.velocity.y = maxf(motor.velocity.y, 3.0)
+	events.append({"type": "start", "attack": a})
+
+
+func _pick_target(from: Vector3, want: float, targets: Array, a: AttackDefinition) -> CombatTarget:
+	var best: CombatTarget = null
+	var best_score := INF
+	var max_range := (a.radial_ahead + a.radial if a.shape == AttackDefinition.Shape.RADIAL else a.reach) + LOCK_EXTRA + a.lunge * 0.5
+	for o in targets:
+		var tg := o as CombatTarget
+		if tg == null or not tg.alive:
+			continue
+		var v := Vector2(tg.position.x - from.x, tg.position.z - from.z)
+		var dist := v.length()
+		if dist > max_range or absf(tg.position.y - from.y) > 2.5:
+			continue
+		var ang := absf(wrapf(heading(v) - want, -PI, PI)) if dist > 0.05 else 0.0
+		if ang > LOCK_CONE:
+			continue
+		var score := dist + ang * 2.2
+		if score < best_score:
+			best_score = score
+			best = tg
+	return best
+
+
+func _step_attack(dt: float, motor: PlayerMotor, targets: Array, stick: Vector2) -> void:
+	var a := attack
+	# Carica: la fase di preparazione resta sospesa finche' il tasto e' tenuto.
+	if charging:
+		if heavy_held and charge < a.charge_max:
+			charge += dt
+			if t + dt >= a.windup * 0.98:
+				t = a.windup * 0.98
+				drive_on = false
+				move_scale = 0.0
+				if buffer == &"dodge" and charge < a.charge_max * 0.5:
+					_start_dodge(stick)
+				return
+		else:
+			charging = false
+	var before := t
+	t += dt
+	var in_dodge_cancel := buffer == &"dodge" and (phase() == 2 or before < a.windup * 0.5)
+	if in_dodge_cancel and motor.on_ground and cooldown <= 0.0:
+		_start_dodge(stick)
+		return
+	# Picchiata: il colpo resta attivo fino all'atterraggio.
+	if a.plunge:
+		var mid := a.windup + a.active * 0.5
+		if t < a.windup:
+			motor.velocity.y = maxf(motor.velocity.y, 1.2)
+		elif not _impact_done:
+			if motor.on_ground:
+				_impact_done = true
+				t = a.windup + a.active
+				_radial_hit(motor.position, targets)
+				events.append({"type": "impact", "attack": a, "position": motor.position + Vector3(forward(facing).x, 0, forward(facing).y) * a.radial_ahead})
+			else:
+				t = minf(t, mid)
+				motor.velocity.y = -PLUNGE_FALL
+	# Guida del motore.
+	# Lo scatto finisce presto nel colpo: la lama spazza a distanza giusta.
+	var ls := a.windup * 0.4
+	var le := a.windup + a.active
+	if t >= ls and t <= a.windup + a.active * 0.35 and _lunge_speed > 0.0 and not a.plunge:
+		drive_on = true
+		drive = forward(facing) * _lunge_speed
+	elif a.plunge and t >= a.windup and not _impact_done:
+		drive_on = true
+		drive = forward(facing) * 2.0
+	else:
+		drive_on = false
+		move_scale = a.move_scale if t < le else lerpf(a.move_scale, 0.7, clampf((t - le) / maxf(a.recovery, 1e-3), 0.0, 1.0))
+	# Colpi.
+	var ph := phase()
+	if ph == 1 and not a.plunge:
+		var u := phase_u()
+		match a.shape:
+			AttackDefinition.Shape.ARC:
+				_arc_hits(motor.position, targets, _prev_u, u)
+			AttackDefinition.Shape.THRUST:
+				_thrust_hits(motor.position, targets, u)
+			AttackDefinition.Shape.RADIAL:
+				if not _impact_done:
+					_impact_done = true
+					_radial_hit(motor.position, targets)
+					var f := forward(facing)
+					events.append({"type": "impact", "attack": a, "position": motor.position + Vector3(f.x, 0, f.y) * a.radial_ahead})
+		_prev_u = u
+	elif ph == 2 and before < a.windup + a.active and not a.plunge:
+		# Chiusura del colpo: ultimo tratto dell'arco anche con passi lunghi.
+		if a.shape == AttackDefinition.Shape.ARC:
+			_arc_hits(motor.position, targets, _prev_u, 1.0)
+		elif a.shape == AttackDefinition.Shape.THRUST:
+			_thrust_hits(motor.position, targets, 1.0)
+		_prev_u = 1.0
+	# Catena.
+	if ph == 2 and phase_u() >= a.chain_at and buffer != &"":
+		var next: StringName = &""
+		if buffer == &"light":
+			next = a.next_light
+		elif buffer == &"heavy":
+			next = a.next_heavy if a.next_heavy != &"" else weapon.heavy_start
+		if next != &"" and motor.on_ground:
+			_start_attack(next, motor, targets, stick)
+			return
+	if t >= a.total():
+		state = State.IDLE
+		attack = null
+		drive_on = false
+		move_scale = 1.0
+		if buffer != &"":
+			_take_buffer(motor, targets, stick)
+
+
+func _start_dodge(stick: Vector2) -> void:
+	var dir := stick.normalized() if stick.length() > 0.2 else forward(facing)
+	dodge_dir = dir
+	facing = heading(dir)
+	state = State.DODGE
+	attack = null
+	charging = false
+	t = 0.0
+	buffer = &""
+	events.append({"type": "dodge"})
+
+
+func _step_dodge(dt: float, motor: PlayerMotor, targets: Array, stick: Vector2) -> void:
+	t += dt
+	var u := clampf(t / DODGE_TIME, 0.0, 1.0)
+	drive_on = true
+	drive = dodge_dir * (DODGE_SPEED * pow(1.0 - u, 1.6) + 1.8)
+	if buffer == &"light" and u >= DASH_WINDOW:
+		_last_dodge_end = clock
+		state = State.IDLE
+		_start_attack(weapon.dash_attack, motor, targets, stick)
+		return
+	if u >= 1.0:
+		state = State.IDLE
+		drive_on = false
+		cooldown = DODGE_COOLDOWN
+		_last_dodge_end = clock
+		if buffer != &"" and buffer != &"dodge":
+			_take_buffer(motor, targets, stick)
+
+
+## Angolo dell'arco (gradi, relativo) a una frazione del colpo.
+func arc_angle(u: float) -> float:
+	var e := 1.0 - pow(1.0 - clampf(u, 0.0, 1.0), 3.0)
+	return lerpf(attack.arc_from, attack.arc_to, e)
+
+
+func _can_hit(tg: CombatTarget) -> bool:
+	if not tg.alive:
+		return false
+	if not _hit_log.has(tg):
+		return true
+	return attack.rehit > 0.0 and t - float(_hit_log[tg]) >= attack.rehit
+
+
+func _in_height(from: Vector3, tg: CombatTarget) -> bool:
+	var lo := from.y + attack.y_min
+	var hi := from.y + attack.y_max
+	return tg.position.y < hi and tg.position.y + tg.height > lo
+
+
+func _arc_hits(from: Vector3, targets: Array, u0: float, u1: float) -> void:
+	var a0 := arc_angle(u0)
+	var a1 := arc_angle(u1)
+	var lo := minf(a0, a1)
+	var hi := maxf(a0, a1)
+	var sweep_sign := signf(a1 - a0)
+	for o in targets:
+		var tg := o as CombatTarget
+		if tg == null or not _can_hit(tg) or not _in_height(from, tg):
+			continue
+		var v := Vector2(tg.position.x - from.x, tg.position.z - from.z)
+		var r := v.length()
+		if r < attack.reach_min - tg.radius or r > attack.reach + tg.radius:
+			continue
+		var rel := rad_to_deg(wrapf(heading(v) - _attack_facing, -PI, PI)) if r > 0.05 else 0.0
+		var half := rad_to_deg(atan2(tg.radius, maxf(r, 0.1)))
+		var inside := false
+		for k in [-720.0, -360.0, 0.0, 360.0, 720.0]:
+			var x: float = rel + k
+			if x >= lo - half and x <= hi + half:
+				inside = true
+				break
+		if not inside:
+			continue
+		var radial := v.normalized() if r > 0.05 else forward(_attack_facing)
+		# Tangente nel verso della spazzata (angolo positivo = verso sinistra).
+		var tangent := forward(heading(radial) + sweep_sign * PI * 0.5)
+		_hit(tg, (radial + tangent * 0.55).normalized(), from)
+
+
+func _thrust_hits(from: Vector3, targets: Array, u: float) -> void:
+	var e := 1.0 - pow(1.0 - clampf(u, 0.0, 1.0), 3.0)
+	var extent := lerpf(attack.reach_min, attack.reach, e)
+	var f := forward(_attack_facing)
+	var left := forward(_attack_facing + PI * 0.5)
+	for o in targets:
+		var tg := o as CombatTarget
+		if tg == null or not _can_hit(tg) or not _in_height(from, tg):
+			continue
+		var v := Vector2(tg.position.x - from.x, tg.position.z - from.z)
+		var along := v.dot(f)
+		var side := absf(v.dot(left))
+		if along < -tg.radius or along > extent + tg.radius or side > attack.width + tg.radius:
+			continue
+		_hit(tg, f, from)
+
+
+func _radial_hit(from: Vector3, targets: Array) -> void:
+	var f := forward(_attack_facing)
+	var c := Vector2(from.x, from.z) + f * attack.radial_ahead
+	for o in targets:
+		var tg := o as CombatTarget
+		if tg == null or not _can_hit(tg):
+			continue
+		if absf(tg.position.y - from.y) > 1.6:
+			continue
+		var v := Vector2(tg.position.x, tg.position.z) - c
+		if v.length() > attack.radial + tg.radius:
+			continue
+		var dir := v.normalized() if v.length() > 0.2 else f
+		_hit(tg, dir, from)
+
+
+func _hit(tg: CombatTarget, dir: Vector2, from: Vector3) -> void:
+	_hit_log[tg] = t
+	var cf := charge_fraction()
+	var mult := 1.0 + cf * attack.charge_bonus
+	var dmg := attack.damage * mult
+	var imp := Vector3(dir.x, 0, dir.y) * attack.knockback * (1.0 + cf * 0.5)
+	imp.y = attack.launch * (1.0 + cf * 0.3)
+	tg.take_hit(imp, dmg)
+	hitstop = maxf(hitstop, attack.hitstop * (1.0 + cf * 0.6))
+	combo += 1
+	combo_t = 0.0
+	var p := tg.position + Vector3(0, tg.height * 0.6, 0)
+	var back := Vector3(from.x - p.x, 0, from.z - p.z).normalized() * tg.radius
+	events.append({"type": "hit", "attack": attack, "target": tg, "position": p + back, "dir": Vector3(dir.x, 0, dir.y),
+		"damage": dmg, "shake": attack.shake * (1.0 + cf * 0.6), "charge": cf})

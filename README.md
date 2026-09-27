@@ -4,13 +4,17 @@ Ricostruzione in **Godot 4.7.2** del prototipo HTML *IsoTerra* e sua evoluzione 
 piccolo sandbox voxel action per telefono (orizzontale). Il piano di lavoro è diviso in
 milestone M0–M8 (traguardo **R** = parità col prototipo, traguardo **G** = gioco).
 
-Stato attuale: **M3 — acqua e locomozione** (vedi `docs/PROGRESS.md`): generatore, luce,
+Stato attuale: **M4 — action, parte 1** (vedi `docs/PROGRESS.md`): generatore, luce,
 mesh, vegetazione e acqua identici al prototipo; resa dipinta con contorni, cielo, giorno/notte
 e acqua fusa come nella reference; nuoto e guado, schizzi; camera isometrica (terza persona
 facoltativa), controlli touch, costruzione e scavo di debug, pannello sviluppatore (⚙).
+Eroe animato con editor, cinque armi con catene di colpi, carica, capriola e picchiata,
+manichini d'allenamento (animazioni e armi disegnate da zero, D-022).
 
 Controlli desktop: WASD/frecce, Spazio salto, trascinamento del mouse per ruotare, rotella
 zoom, clic = tap, F modo, B o 1/2/3/T blocco, V camera, Q/E rotazione, Z/X zoom, N nuovo seme.
+Combattimento: J colpo (o clic sul mondo in esplorazione), K forte (tenuto = carica), L o Maiusc
+capriola, R cambia arma, H editor dell'eroe, M rimette i manichini davanti.
 
 ## Struttura
 
@@ -39,6 +43,8 @@ godot --headless --path . --script res://tools/bench_mesh.gd   # tempi di mondo 
 node tools/extract_render_fixture.mjs 1931  # riferimenti di resa dal prototipo
 xvfb-run -a godot --path . --script res://tools/e2e_touch.gd -- --out=/tmp/e2e.png
 xvfb-run -a godot --path . --script res://tools/e2e_swim.gd -- --out=/tmp/swim.png
+xvfb-run -a godot --path . --script res://tools/e2e_combat.gd -- --out=/tmp/combat.png
+xvfb-run -a godot --path . --script res://tools/pose_sheet.gd -- --out=/tmp/pose.png --weapon=sword  # o --moves
 godot --headless --path . --script res://tools/bench_fluid.gd  # tempi dell'acqua
 godot --path . -- --screenshot=shot.png --zoom=0.55 --cam=tps --time=0.9 --seed=42 --dev --lake --at=86.5,142.5 --nowater
 ```

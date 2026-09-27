@@ -53,6 +53,9 @@ var border_px := 1
 ## destra e y in alto): chi mostra l'immagine la sposta di questo resto.
 var subpixel := Vector2.ZERO
 var pixel_snap := true
+## Scossa dei colpi (unita' di mondo circa), smorzata in pochi decimi di secondo.
+var shake_amt := 0.0
+var _shake_t := 0.0
 
 @onready var camera: Camera3D = $Camera3D
 
@@ -85,6 +88,10 @@ func rotate_step(step: int) -> void:
 
 func drag(delta_px: Vector2) -> void:
 	spin(-delta_px.x * DRAG_YAW, delta_px.y * DRAG_PITCH)
+
+
+func shake(amount: float) -> void:
+	shake_amt = maxf(shake_amt, amount)
 
 
 func get_zoom() -> float:
@@ -126,6 +133,13 @@ func update_camera(dt: float, target: Vector3) -> void:
 	zoom += (zoom_target - zoom) * k
 	var look := target + LOOK_OFFSET
 	var dir := view_dir()
+	if shake_amt > 0.002:
+		_shake_t += dt
+		var sb := Basis.looking_at(-dir, Vector3.UP)
+		look += (sb.x * sin(_shake_t * 83.0) + sb.y * cos(_shake_t * 67.0) * 0.8) * shake_amt * 0.2
+		shake_amt *= exp(-dt * 10.0)
+	else:
+		shake_amt = 0.0
 	subpixel = Vector2.ZERO
 	if mode == Mode.ISO:
 		var vp_h := _viewport_height()

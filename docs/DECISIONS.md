@@ -224,3 +224,34 @@ reversibile salvo dove indicato. Formato: contesto → decisione → conseguenze
   anche la magia (M4). Gli schizzi delle bracciate usano una posizione della mano stimata finché
   l'avatar (M4) non espone le mani.
 - Camera: Q/E ruotano in continuo a 1,6 rad/s e Z/X zoomano come il prototipo (in M1 erano scatti).
+
+## D-022 — Eroe, animazioni, armi e combattimento disegnati da zero (M4)
+- **Richiesta del proprietario (27/09/2026):** animazioni e mesh delle armi si fanno da zero,
+  senza prendere esempio da IsoTerra, con un combattimento più dinamico.
+- **Eroe:** anche l'aspetto è nuovo (`AvatarRig`, 15 ossa rigide con scatole smussate
+  generate in codice) invece della CHARGEN del prototipo, per avere proporzioni e assi pensati
+  per le animazioni nuove. La ricetta (`AvatarRecipe`: pelle, capelli, acconciatura, veste,
+  brache, corporatura) si salva in `user://settings.cfg` (sezione `avatar`), non nella chiave
+  `isoterra.hero.dna`. Se servisse la CHARGEN si può aggiungere come altra fonte di mesh.
+- **Animazione procedurale** (`AvatarAnimator`): guardia per arma + ciclo di corsa legato alla
+  distanza percorsa + salto/atterraggio + guado/nuoto a crawl + capriola; i colpi seguono il
+  tempo esatto del `CombatController` (carica → scatto → rientro) tra tre pose chiave per
+  attacco; una molla smorzata per osso dà inerzia e rimbalzo. IK a due ossa per la mano
+  sinistra sulle armi a due mani.
+- **Armi** (`WeaponMeshes`): pugni con fasce, spada, lancia, martello, spadone, tutte a facce
+  piatte con la stessa luce a bande dei blocchi (`actor.gdshader`).
+- **Combattimento** (`CombatController`, dati in `WeaponLibrary`): catene diverse per arma con
+  rami forti, carica tenendo premuto, aggancio morbido con scatto che copre la distanza,
+  capriola con invulnerabilità che annulla il rientro, attacco dopo la capriola, picchiata
+  dall'aria con urto ad area, giri con colpi ripetuti; colpi ad arco spazzato, affondo o area,
+  un colpo per bersaglio per attacco, hitstop, scossa della camera, scia della lama, scintille e
+  polvere con i grani. Le combo della spada del prototipo (L…LLLL, H, LH, LLH) non sono portate:
+  la riga della matrice di parità diventa "sostituita".
+- **Controlli:** Colpo, Forte (tenuto = carica), Schiva, Arma, Eroe; tocco sul mondo in
+  esplorazione = colpo. Tastiera J / K / L o Maiusc / R / H; M rimette i manichini.
+
+## D-023 — Manichini d'allenamento come bersagli
+- Con i nemici rinviati (D-009) i colpi servono a qualcosa solo con un bersaglio: tre
+  `TrainingDummy` vicino allo spawn (pannello ⚙ "Manichini" li rimette davanti al giocatore).
+  Volano, oscillano, si rompono a 0 PV e ricompaiono, poi tornano al loro posto. Usano
+  l'interfaccia `CombatTarget` che useranno i nemici. Il giocatore non li attraversa.

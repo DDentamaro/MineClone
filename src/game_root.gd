@@ -3,6 +3,7 @@ extends Node
 ## Radice della sessione: possiede mondo, attori e sessione.
 ## M1: mondo fixture renderizzato a chunk, giocatore con collisioni voxel,
 ## camera isometrica (terza persona opzionale), stick touch ed edit di debug.
+## M4: eroe animato, cinque armi, combattimento con manichini d'allenamento.
 
 enum ActionMode { EXPLORE, BUILD, DIG_DEBUG }
 
@@ -15,8 +16,12 @@ const REACH := 7.5
 const DEV_BUTTONS := [
 	[&"dev_seed", "Nuovo seme"], [&"dev_lake", "Al lago"], [&"dev_time", "Ora +3h"], [&"dev_res", "Righe"], [&"dev_outline", "Contorni"],
 	[&"dev_edges", "Spigoli"], [&"dev_paint", "Dipinto"], [&"dev_dither", "Dither"], [&"dev_rays", "Raggi"],
-	[&"dev_grass", "Erba"], [&"dev_shadow", "Ombre"], [&"dev_clouds", "Nubi"],
+	[&"dev_grass", "Erba"], [&"dev_shadow", "Ombre"], [&"dev_clouds", "Nubi"], [&"dev_dummies", "Manichini"],
 ]
+## Editor dell'eroe: un pulsante per parametro della ricetta.
+const HERO_BUTTONS := [[&"hero_skin", "skin"], [&"hero_hair", "hair"], [&"hero_hair_style", "hair_style"],
+	[&"hero_shirt", "shirt"], [&"hero_pants", "pants"], [&"hero_build", "build"], [&"hero_random", ""], [&"hero_close", ""]]
+const WEAPONS: Array[StringName] = [&"fists", &"sword", &"spear", &"hammer", &"greatsword"]
 
 @onready var _status: Label = %Status
 @onready var _view: SubViewport = $WorldView
@@ -30,6 +35,7 @@ const DEV_BUTTONS := [
 @onready var _grains: Grains = $WorldView/Grains
 @onready var _water_fx: WaterEffects = $WorldView/WaterEffects
 @onready var _touch: TouchControls = %TouchControls
+@onready var _dummies: TrainingGround = $WorldView/Dummies
 
 var world: WorldData
 var catalog: BlockCatalog
@@ -38,6 +44,13 @@ var motor: PlayerMotor
 var action_mode: ActionMode = ActionMode.EXPLORE
 var block_index := 0
 var last_edit := ""
+var combat: CombatController
+var recipe: AvatarRecipe
+var weapon_index := 1
+var fx := CombatFx.new()
+var _heavy_key := false
+var _zoom_before_hero := -1.0
+var _combo_shown := 0
 
 var toggles := {"outline": true, "edges": true, "paint": true, "dither": false, "rays": true,
 	"grass": true, "shadow": true, "clouds": true}
@@ -68,10 +81,20 @@ func _ready() -> void:
 	_fit_view()
 	_runtime.initial_build_finished.connect(_on_initial_build)
 	motor = PlayerMotor.new(w)
+	recipe = AvatarRecipe.load_saved()
+	_avatar.set_recipe(recipe)
+	weapon_index = maxi(0, WEAPONS.find(StringName(Settings.load_value("combat", "weapon", "sword"))))
+	if _args.has("weapon"):
+		weapon_index = maxi(0, WEAPONS.find(StringName(_args["weapon"])))
+	combat = CombatController.new(WeaponLibrary.by_id(WEAPONS[weapon_index]))
+	_avatar.set_weapon(combat.weapon)
+	fx.grains = _grains
 	_swap_world(w)
 	_camera_rig.opaque = catalog.opaque_table()
 	for d: Array in DEV_BUTTONS:
 		_touch.add_button(d[0], d[1], false, &"dev")
+	for d: Array in HERO_BUTTONS:
+		_touch.add_button(d[0], "", false, &"hero")
 	var cam_mode: int = Settings.load_value("camera", "mode", CameraRig.Mode.ISO)
 	if _args.get("cam", "") == "tps":
 		cam_mode = CameraRig.Mode.TPS
@@ -100,6 +123,12 @@ func _ready() -> void:
 	_touch.zoom_scaled.connect(func(f: float) -> void: _camera_rig.set_zoom(_camera_rig.get_zoom() * f))
 	_touch.world_tapped.connect(_on_world_tap)
 	_touch.button_pressed.connect(_on_button)
+	_touch.button_down.connect(func(id: StringName) -> void:
+		if id == &"heavy":
+			combat.press_heavy())
+	_touch.button_up.connect(func(id: StringName) -> void:
+		if id == &"heavy":
+			combat.release_heavy())
 	_refresh_labels()
 	_camera_rig.update_camera(1.0, motor.position)
 
@@ -135,6 +164,11 @@ func _swap_world(w: WorldData) -> void:
 	_water_fx.reset()
 	motor.tree_grid = _vegetation.tree_grid
 	_camera_rig.world = world
+	fx.world = world
+	_dummies.setup(world)
+	_dummies.place_around(motor.position, _avatar.facing)
+	if combat != null:
+		combat.cancel()
 
 
 func _physics_process(dt: float) -> void:
@@ -142,15 +176,66 @@ func _physics_process(dt: float) -> void:
 		return
 	var stick := _read_stick()
 	_move_world = _camera_rig.stick_to_world(stick)
-	motor.step(dt, _move_world, _jump_key or _touch.is_held(&"jump"))
-	_avatar.position = motor.position
-	_avatar.face_towards(Vector2(motor.velocity.x, motor.velocity.z), dt)
+	if not combat.is_busy():
+		combat.facing = _avatar.facing
+	combat.step(dt, motor, _dummies.targets(), _move_world)
+	_handle_combat_events()
+	var frozen := combat.hitstop > 0.0
+	if not frozen:
+		motor.drive_on = combat.drive_on
+		motor.drive = combat.drive
+		motor.move_scale = combat.move_scale * combat.weapon.move_mult
+		motor.step(dt, _move_world, (_jump_key or _touch.is_held(&"jump")) and not combat.is_busy())
+		_avatar.position = motor.position
+		_push_out_of_dummies()
+		if combat.is_busy():
+			_avatar.turn_to(combat.facing, dt, PlayerAvatar.ATTACK_TURN)
+		else:
+			_avatar.face_towards(Vector2(motor.velocity.x, motor.velocity.z), dt)
+	for d in _dummies.step(0.0 if frozen else dt):
+		fx.broke(d)
+
+
+## I manichini sono solidi: il giocatore ne viene spinto fuori (cilindri).
+func _push_out_of_dummies() -> void:
+	for d in _dummies.dummies:
+		if not d.alive or motor.position.y > d.position.y + d.height or motor.position.y + PlayerMotor.HEIGHT < d.position.y:
+			continue
+		var v := Vector2(motor.position.x - d.position.x, motor.position.z - d.position.z)
+		var r := d.radius * 0.8 + PlayerMotor.RADIUS
+		var l := v.length()
+		if l < r:
+			var n := v / l if l > 1e-4 else CombatController.forward(_avatar.facing) * -1.0
+			var np := Vector2(d.position.x, d.position.z) + n * r
+			# Solo se la nuova posizione non entra in un muro.
+			if motor.ground(np.x, np.y) <= motor.position.y + 0.04:
+				motor.position.x = np.x
+				motor.position.z = np.y
+			_avatar.position = motor.position
+
+
+func _handle_combat_events() -> void:
+	for e in combat.events:
+		match String(e["type"]):
+			"hit":
+				fx.hit(e)
+				_camera_rig.shake(float(e["shake"]))
+			"impact":
+				fx.impact(e)
+				_camera_rig.shake((e["attack"] as AttackDefinition).shake)
+			"dodge":
+				fx.dodge(motor.position, combat.dodge_dir)
+	combat.events.clear()
 
 
 func _process(dt: float) -> void:
 	if motor == null:
 		return
 	var p := _avatar.get_global_transform_interpolated().origin
+	_avatar.animate(0.0 if combat.hitstop > 0.0 else dt, motor, combat)
+	var lt := TrainingGround._light_at(world, p + Vector3(0, 1.1, 0))
+	_avatar.set_light(lt.x, lt.y)
+	_dummies.sync_views(combat.lock_target if combat.is_busy() else null)
 	_camera_rig.update_camera(dt, p)
 	_place_screen()
 	_runtime.focus = p
@@ -171,6 +256,7 @@ func _process(dt: float) -> void:
 		motor.position.x, motor.position.y, motor.position.z, ("\n" + last_edit) if last_edit != "" else ""]
 	if motor.water_state != "dry":
 		_status.text += " · acqua: %s" % motor.water_state
+	_status.text += "\n%s%s" % [combat.weapon.display_name, (" · combo %d" % combat.combo) if combat.combo > 1 else ""]
 	if _frames_after_build >= 0 and _vegetation.is_idle() and _water.is_idle():
 		_frames_after_build += 1
 		if _frames_after_build >= int(_args.get("frames", "30")):
@@ -209,6 +295,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		var k := event as InputEventKey
 		if k.physical_keycode == KEY_SPACE:
 			_jump_key = k.pressed
+		if k.physical_keycode == KEY_K and not k.echo:
+			if k.pressed:
+				combat.press_heavy()
+			else:
+				combat.release_heavy()
 		if not k.pressed or k.echo:
 			return
 		match k.physical_keycode:
@@ -228,6 +319,16 @@ func _unhandled_input(event: InputEvent) -> void:
 				_select_block(BlockCatalog.WOOD)
 			KEY_N:
 				_on_button(&"dev_seed")
+			KEY_J:
+				combat.press_light()
+			KEY_L, KEY_SHIFT:
+				combat.press_dodge()
+			KEY_R:
+				_on_button(&"weapon")
+			KEY_H:
+				_on_button(&"hero")
+			KEY_M:
+				_on_button(&"dev_dummies")
 	elif event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_UP:
@@ -264,6 +365,54 @@ func _on_button(id: StringName) -> void:
 		&"camera":
 			_camera_rig.toggle_mode()
 			Settings.save_value("camera", "mode", _camera_rig.mode)
+		&"attack":
+			combat.press_light()
+		&"dodge":
+			combat.press_dodge()
+		&"weapon":
+			select_weapon((weapon_index + 1) % WEAPONS.size())
+		&"dev_dummies":
+			_dummies.place_around(motor.position, _avatar.facing)
+			last_edit = "manichini davanti al giocatore"
+		&"hero":
+			set_hero_editor(not _touch.hero_open)
+		&"hero_close":
+			set_hero_editor(false)
+		&"hero_random":
+			recipe = AvatarRecipe.random(randi())
+			_apply_recipe()
+		&"hero_skin", &"hero_hair", &"hero_hair_style", &"hero_shirt", &"hero_pants", &"hero_build":
+			recipe.cycle(String(id).substr(5))
+			_apply_recipe()
+	_refresh_labels()
+
+
+func select_weapon(i: int) -> void:
+	weapon_index = i
+	combat.set_weapon(WeaponLibrary.by_id(WEAPONS[i]))
+	_avatar.set_weapon(combat.weapon)
+	Settings.save_value("combat", "weapon", String(WEAPONS[i]))
+	last_edit = "arma: %s" % combat.weapon.display_name
+	_refresh_labels()
+
+
+## Editor dell'eroe: pulsanti della ricetta e camera ravvicinata.
+func set_hero_editor(open: bool) -> void:
+	if open == _touch.hero_open:
+		return
+	_touch.hero_open = open
+	if open:
+		_touch.dev_open = false
+		_zoom_before_hero = _camera_rig.get_zoom()
+		_camera_rig.set_zoom(CameraRig.ISO_ZOOM_MAX if _camera_rig.mode == CameraRig.Mode.ISO else 0.4)
+	elif _zoom_before_hero > 0.0:
+		_camera_rig.set_zoom(_zoom_before_hero)
+	_refresh_labels()
+
+
+func _apply_recipe() -> void:
+	_avatar.set_recipe(recipe)
+	recipe.save()
 	_refresh_labels()
 
 
@@ -333,6 +482,7 @@ func go_to_lake() -> bool:
 	_avatar.position = best
 	_avatar.facing = heading
 	_avatar.rotation.y = heading
+	combat.cancel()
 	_water_fx.reset()
 	last_edit = "al lago %s" % best
 	return true
@@ -368,11 +518,16 @@ func _refresh_labels() -> void:
 	_touch.labels[&"dev_res"] = "Righe %d" % rt_height
 	for key: String in toggles:
 		_touch.labels[StringName("dev_" + key)] = "%s %s" % [_dev_label(key), "ON" if toggles[key] else "OFF"]
+	_touch.labels[&"weapon"] = combat.weapon.display_name if combat != null else "Arma"
+	for d: Array in HERO_BUTTONS:
+		_touch.labels[d[0]] = recipe.label(d[1]) if d[1] != "" else ("Casuale" if d[0] == &"hero_random" else "Chiudi")
 	_touch.queue_redraw()
 
 
 func _on_world_tap(screen_pos: Vector2) -> void:
 	if action_mode == ActionMode.EXPLORE:
+		# In esplorazione un tocco sul mondo e' un colpo.
+		combat.press_light()
 		return
 	var cam := _camera_rig.camera
 	var sub := screen_to_view(screen_pos)
@@ -521,6 +676,7 @@ func _take_screenshot() -> void:
 ## Argomenti dopo "--" sulla riga di comando:
 ## --screenshot=file.png --cam=tps --frames=N --zoom=0.55 --yaw=gradi --time=0..1
 ## --seed=N (genera il mondo invece di usare la fixture) --dev (pannello aperto) --lake
+## --weapon=fists|sword|spear|hammer|greatsword
 static func _parse_user_args() -> Dictionary:
 	var out := {}
 	for a in OS.get_cmdline_user_args():

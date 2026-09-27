@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://src/game_root.gd" id="1_root"]
 [ext_resource type="Script" path="res://src/world/runtime/world_runtime.gd" id="2_runtime"]
@@ -11,6 +11,7 @@
 [ext_resource type="Script" path="res://src/world/runtime/fluid_runtime.gd" id="9_water"]
 [ext_resource type="Script" path="res://src/presentation/fx/grains.gd" id="10_grains"]
 [ext_resource type="Script" path="res://src/presentation/fx/water_effects.gd" id="11_wfx"]
+[ext_resource type="Script" path="res://src/actors/dummy/training_ground.gd" id="12_dummies"]
 
 [sub_resource type="Environment" id="env"]
 background_mode = 1
@@ -18,21 +19,6 @@ background_color = Color(0.043, 0.082, 0.102, 1)
 ambient_light_source = 1
 reflected_light_source = 1
 tonemap_mode = 0
-
-[sub_resource type="StandardMaterial3D" id="player_mat"]
-albedo_color = Color(0.85, 0.35, 0.25, 1)
-
-[sub_resource type="CapsuleMesh" id="player_mesh"]
-material = SubResource("player_mat")
-radius = 0.26
-height = 1.4
-
-[sub_resource type="StandardMaterial3D" id="nose_mat"]
-albedo_color = Color(0.95, 0.85, 0.4, 1)
-
-[sub_resource type="BoxMesh" id="nose_mesh"]
-material = SubResource("nose_mat")
-size = Vector3(0.14, 0.14, 0.2)
 
 [sub_resource type="ShaderMaterial" id="post_mat"]
 render_priority = -128
@@ -85,13 +71,8 @@ script = ExtResource("8_veg")
 [node name="Player" type="Node3D" parent="WorldView"]
 script = ExtResource("3_avatar")
 
-[node name="Body" type="MeshInstance3D" parent="WorldView/Player"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, 0)
-mesh = SubResource("player_mesh")
-
-[node name="Nose" type="MeshInstance3D" parent="WorldView/Player"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, -0.27)
-mesh = SubResource("nose_mesh")
+[node name="Dummies" type="Node3D" parent="WorldView"]
+script = ExtResource("12_dummies")
 
 [node name="CameraRig" type="Node3D" parent="WorldView"]
 script = ExtResource("4_camera")

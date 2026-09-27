@@ -1,16 +1,82 @@
 class_name PlayerAvatar
 extends Node3D
-## Presentazione provvisoria del giocatore (capsula + "naso" verso -Z) finche'
-## l'avatar modulare non arriva in M4. Ruota verso la direzione di marcia.
+## Eroe visibile (M4): scheletro a pezzi (`AvatarRig`), animazione
+## procedurale (`AvatarAnimator`) e scia dell'arma. La logica sta nel motore
+## e nel `CombatController`; qui si traduce il loro stato in una posa.
 
 const TURN_RATE := 14.0
+const ATTACK_TURN := 40.0
 
 var facing := 0.0
+var rig: AvatarRig
+var animator := AvatarAnimator.new()
+var trail: WeaponTrail
+var anim_state := AvatarAnimator.State.new()
+var _turn_prev := 0.0
+
+
+func _ready() -> void:
+	for c in get_children():
+		if c is MeshInstance3D:
+			c.queue_free()
+	rig = AvatarRig.new()
+	rig.name = "Rig"
+	add_child(rig)
+	rig.build(AvatarRecipe.new())
+	trail = WeaponTrail.new()
+	trail.name = "Trail"
+	add_child(trail)
+
+
+func set_recipe(r: AvatarRecipe) -> void:
+	rig.build(r)
+
+
+func set_weapon(w: WeaponDefinition) -> void:
+	rig.set_weapon(w)
+	anim_state.weapon = w
+	trail.clear()
 
 
 func face_towards(dir: Vector2, dt: float) -> void:
 	if dir.length_squared() < 0.0004:
 		return
-	var target := atan2(-dir.x, -dir.y)
-	facing = lerp_angle(facing, target, 1.0 - exp(-dt * TURN_RATE))
+	turn_to(atan2(-dir.x, -dir.y), dt, TURN_RATE)
+
+
+func turn_to(target: float, dt: float, rate: float) -> void:
+	facing = lerp_angle(facing, target, 1.0 - exp(-dt * rate))
 	rotation.y = facing
+
+
+## Aggiorna posa e scia; `dt` = 0 durante l'hitstop (posa congelata).
+func animate(dt: float, motor: PlayerMotor, combat: CombatController) -> void:
+	var s := anim_state
+	s.speed = Vector2(motor.velocity.x, motor.velocity.z).length()
+	s.on_ground = motor.on_ground
+	s.vy = motor.velocity.y
+	s.swimming = motor.swimming
+	s.swim_phase = motor.swim_phase
+	s.wade = motor.wade_depth
+	s.land = motor.land_t / PlayerMotor.LAND_REC if motor.land_t > 0.0 else 0.0
+	if dt > 0.0:
+		s.turn = wrapf(facing - _turn_prev, -PI, PI) / dt
+	_turn_prev = facing
+	s.attack = combat.attack if combat.state == CombatController.State.ATTACK else null
+	s.phase = combat.phase()
+	s.u = combat.phase_u()
+	s.charge = combat.charge_fraction() if combat.charging else -1.0
+	s.dodge = combat.dodge_u()
+	if s.dodge >= 0.0 or s.attack != null:
+		s.speed = 0.0 if s.attack != null else s.speed * 0.2
+	if dt > 0.0:
+		rig.apply_pose(animator.update(dt, s))
+	var emit := s.attack != null and s.attack.trail and (s.phase == 1 or (s.phase == 2 and s.u < 0.12))
+	if s.attack != null and s.attack.plunge:
+		emit = s.phase == 1
+	trail.color = Color(1.0, 0.78, 0.4) if combat.charge_fraction() > 0.5 else Color(0.72, 0.86, 1.0)
+	trail.push(dt, rig.blade_segment(), emit and dt > 0.0)
+
+
+func set_light(sun: float, blk: float) -> void:
+	rig.set_light(sun, blk)

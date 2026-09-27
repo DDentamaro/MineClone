@@ -60,6 +60,12 @@ var swim_blend := 0.0
 var water_events: Array[Dictionary] = []
 var _water_contact := false
 
+# --- guida del combattimento (M4): velocita' imposta per scatti e capriole,
+# oppure scala dello stick durante i colpi.
+var drive_on := false
+var drive := Vector2.ZERO
+var move_scale := 1.0
+
 
 func _init(w: WorldData) -> void:
 	world = w
@@ -231,7 +237,16 @@ func step(dt: float, move: Vector2, jump: bool) -> void:
 	if wade_depth > 0.12:
 		speed *= maxf(0.52, 1.0 - wade_depth * 0.42)
 	var acc := 40.0 if on_ground else 14.0
-	var target := move * speed
+	var target := move * speed * move_scale
+	if move_scale < 0.5 and on_ground:
+		# Durante un colpo i piedi si piantano: frenata rapida dopo lo scatto.
+		acc = 120.0
+	if drive_on:
+		# Lo scatto usa la sua velocita'; la direzione serve anche alla rampa.
+		target = drive
+		var dl := drive.length()
+		move = drive / dl * minf(1.0, dl) if dl > 1e-4 else Vector2.ZERO
+		acc = 400.0 if on_ground else 60.0
 	var cur := Vector2(velocity.x, velocity.z)
 	var dv := target - cur
 	var max_step := acc * dt * 1.3

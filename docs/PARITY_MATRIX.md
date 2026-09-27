@@ -22,16 +22,18 @@ verificato) · `verificato` (verificato anche su dispositivo).
 | Estetica (pixel RT, outline, dipinto, dithering, cielo, ombre, x-ray) | 5112–5665, 6718–6922 | attivo | `chunk`/`post`/`tree`/`grass.gdshader`, `DayCycle`, pannello sviluppatore | M2 | parziale | Screenshot affiancati al prototipo (Chromium headless) in iso e TPS: stesse forme, palette e posizioni. Differenze note: acqua provvisoria (M3), contorni anche sui ciuffi d'erba, raggi X a passata singola (D-016), orizzonte TPS fisso |
 | Camera ISO + TPS | 6718–6922 | attivo | `CameraRig` | M1–M3 | parziale | Iso con aggancio ai pixel; Q/E rotazione continua e Z/X zoom come il prototipo; TPS senza il contesto adattivo |
 | Movimento (gradini, rampa, salto) | 6929, 6987–7039 | attivo | `PlayerMotor` con query voxel (D-011) | M1/M2 | fatto | 12 test: velocità, rampa, muro, salto, soffitto, galleria, caduta, tronchi |
-| Nuoto / guado | 6941–6982 | attivo | `PlayerMotor.step_water` | M3 | fatto | Soglie, galleggiamento, correnti, salto fuori dall'acqua, rallentamento nel guado: 4 test + e2e con tocchi. Posa acquatica dell'avatar in M4 |
-| Avatar CHARGEN + editor eroe | 4246–4481, 6629–6677, 7898–7917 | attivo | `AvatarRecipe`, editor, persistenza | M4 | — | Ricetta `isoterra.hero.dna` |
-| Corpo a corpo: pugni + spada, lancia, martello, spadone | 7107, 7490–7834 | attivo | `CombatController`, `WeaponDefinition`, `AttackDefinition` | M4 | — | Hitstop, sweep, un colpo per bersaglio. Il giocatore parte con la spada sguainata (7871) |
-| Combo spada L, LL, LLL, LLLL, H, LH, LLH | 7543–7550, 7616–7620 | attivo | tabella dati combo | M4 | — | Tutti i rami |
+| Nuoto / guado | 6941–6982 | attivo | `PlayerMotor.step_water`, `AvatarAnimator` | M3/M4 | fatto | Soglie, galleggiamento, correnti, salto fuori dall'acqua, rallentamento nel guado: 4 test + e2e con tocchi. Crawl e braccia alzate nel guado (M4) |
+| Avatar CHARGEN + editor eroe | 4246–4481, 6629–6677, 7898–7917 | attivo | `AvatarRig`, `AvatarRecipe`, editor, persistenza | M4 | sostituito (D-022) | Eroe nuovo a 15 ossa; editor (pelle, capelli, acconciatura, veste, brache, corporatura, casuale) salvato nelle impostazioni; test ricetta/altezza/IK |
+| Corpo a corpo: pugni + spada, lancia, martello, spadone | 7107, 7490–7834 | attivo | `CombatController`, `WeaponDefinition`, `AttackDefinition`, `WeaponLibrary` | M4 | fatto, ridisegnato (D-022) | Stesse cinque armi e stessi principi (hitstop, sweep, un colpo per bersaglio, spada all'avvio) con movimenti nuovi: 15 test + e2e con tocchi sui manichini |
+| Combo spada L, LL, LLL, LLLL, H, LH, LLH | 7543–7550, 7616–7620 | attivo | catene in `WeaponLibrary` | M4 | sostituito (D-022) | Nuove catene per ogni arma (anche L-forte, L L-forte, dopo capriola, in aria); test su catena e ramo forte |
 | Magia: fuoco, acqua, terra, aria | 7977–8322 | attivo | `SpellDefinition`, proiettili, pool VFX, audio | M4 | — | Mana, raccolta/rilascio (inventario §8) |
 | Reazioni elementali | 8171–8255 | attivo | `ElementReactionSystem` (tabella unica) | M4 | — | Numeri in inventario §8 |
 | Costruzione (terra, pietra, sabbia, legno, torcia) | 4885, 7098–7102, 7858–7860 | attivo, gratuita | `WorldEditService`, `GameRoot.apply_action` | M1 (edit debug) / M5 (costo) | fatto (gratuita) | Portata 7,5; rifiuto se sovrapposta al player |
 | Inventario (contatore) | 7109–7110 | parziale | `InventoryService` a slot | M5 | — | Si riempie solo dai crateri; nascosto |
 | Persistenza impostazioni/avatar/camera | 8 chiavi `isoterra.*` | parziale | `SaveService` / impostazioni | M4/M5 | — | Nessun salvataggio del mondo |
 | UI touch (stick flottante, drag, pinch, pulsanti) | 7835–7870 | attivo | `TouchControls` con ownership delle dita (D-012) | M1/M2 | fatto | 6 test + prova e2e con tocchi iniettati. Interruttori grafici del prototipo nel pannello sviluppatore (⚙) |
+
+| Manichini d'allenamento | — (nuovo) | — | `TrainingDummy`, `TrainingGround` | M4 | fatto (D-023) | Bersagli finché i nemici sono rinviati |
 
 ## Rinviate dal proprietario (fuori dal gate R, D-009)
 

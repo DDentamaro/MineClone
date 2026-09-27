@@ -1,6 +1,49 @@
 # Avanzamento
 
-## Stato corrente: M3 — Acqua e locomozione · completata (senza prova su telefono)
+## Stato corrente: M4 — Action · parte 1 completata (eroe, armi, combattimento); magia in corso
+
+Sessione del 27/09/2026. Richiesta del proprietario: animazioni e mesh delle armi da zero, senza
+prendere esempio da IsoTerra, e un combattimento più dinamico (D-022). Nemici rinviati (D-009):
+i colpi si provano sui manichini d'allenamento (D-023).
+
+### Fatto
+- **Eroe** (`AvatarRig`): 15 ossa rigide con scatole smussate generate in codice, luce a bande
+  come i blocchi (`actor.gdshader`); editor ("Eroe": pelle, capelli, acconciatura, veste,
+  brache, corporatura, casuale) con ricetta salvata nelle impostazioni.
+- **Animazione procedurale** (`AvatarAnimator`): guardia per arma, corsa legata alla distanza,
+  salto e atterraggio, guado, nuoto a crawl, capriola; colpi tra pose chiave con i tempi del
+  combattimento; molle per osso; IK della mano sinistra sulle armi a due mani.
+- **Armi** (`WeaponMeshes`, `WeaponLibrary`): pugni, spada, lancia, martello, spadone, ognuna con
+  la sua catena, rami forti, carica, attacco dopo la capriola e picchiata dall'aria.
+- **Combattimento** (`CombatController`): buffer 0,3 s, aggancio morbido con scatto, capriola con
+  invulnerabilità e annullamento del rientro, hitstop, scossa della camera, scia della lama
+  (`WeaponTrail`), scintille/polvere/paglia con i grani (`CombatFx`).
+- **Manichini** (`TrainingDummy`, `TrainingGround`): volano, oscillano, si rompono e ricompaiono.
+- **Controlli**: Colpo, Forte (tenuto = carica), Schiva, Arma, Eroe; tocco sul mondo = colpo in
+  esplorazione; tastiera J, K, L/Maiusc, R, H, M.
+- **Strumenti**: `tools/pose_sheet.gd` (tavole delle pose per arma e dei movimenti),
+  `tools/e2e_combat.gd` (tocchi reali: catena, carica, capriola, editor).
+
+### Test realmente eseguiti (M4, parte 1)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 122/122 PASS, log pulito (20 test nuovi: combattimento, manichini, eroe) |
+| `tools/e2e_combat.gd` (tocchi reali, xvfb) | OK: catena di spada 8 colpi a segno (combo 3), cambio arma al martello, carica tenuta e terremoto (colpi su tutti i manichini), capriola, editor dell'eroe |
+| `tools/e2e_touch.gd`, `tools/e2e_swim.gd` | OK |
+| `tools/pose_sheet.gd` | tavole controllate a occhio; corrette le pose con la lama nel suolo e la capriola |
+
+### Limiti aperti (parte 1)
+- FPS non misurati: nel container si rende con llvmpipe (7–8 FPS anche senza combattimento);
+  nessuna prova su telefono. Le molle dell'animazione vanno a sottopassi da 1/60 s.
+- Le pose sono controllate su tavole statiche e screenshot, non ancora in un video.
+- I manichini non subiscono le reazioni elementali finché non c'è la magia.
+
+### Punto di ripresa: M4, parte 2
+1. Magie dei quattro elementi (dati del prototipo, inventario §8), mana, lancio con carica.
+2. Reazioni elementali (fuoco/erba/legno, bagnato, cratere, vento) e stati sui manichini.
+3. Poi gate R.
+
+## M3 — Acqua e locomozione · completata (senza prova su telefono)
 
 Sessione del 27/09/2026. Richiesta del proprietario: acqua il più possibile simile alla reference.
 
@@ -33,10 +76,6 @@ Sessione del 27/09/2026. Richiesta del proprietario: acqua il più possibile sim
   sull'acqua; bordo retinato dei raggi X; posizione della mano stimata per le bracciate.
 - `use_hdr_2d` con il renderer Compatibility non verificato.
 
-### Punto di ripresa: M4 — Action originale (senza nemici, D-009)
-1. Avatar modulare CHARGEN + editor eroe e ricetta persistente; pose di nuoto.
-2. Pugni e quattro armi, combo della spada, hitstop, contatti a sweep.
-3. Magie dei quattro elementi (i grani sono pronti) e tabella delle reazioni.
 
 ## M2 — Mondo e resa · completata (senza prova su telefono)
 
