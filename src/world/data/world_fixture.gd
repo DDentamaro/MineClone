@@ -26,6 +26,8 @@ func ok() -> bool:
 
 
 static func sha256_hex(bytes: PackedByteArray) -> String:
+	if bytes.is_empty():
+		return "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 	var ctx := HashingContext.new()
 	ctx.start(HashingContext.HASH_SHA256)
 	ctx.update(bytes)

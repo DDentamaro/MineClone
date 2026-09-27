@@ -26,7 +26,12 @@ func _run_all() -> void:
 	for f in files:
 		if not f.ends_with(".gd"):
 			continue
-		var script: GDScript = load(UNIT_DIR.path_join(f))
+		var script := load(UNIT_DIR.path_join(f)) as GDScript
+		if script == null or not script.can_instantiate():
+			failures += 1
+			total += 1
+			print("  FAIL %s (script non caricabile)" % f)
+			continue
 		var suite: TestCase = script.new()
 		for method in script.get_script_method_list():
 			var name: String = method["name"]

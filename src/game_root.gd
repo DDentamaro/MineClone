@@ -43,6 +43,7 @@ func _ready() -> void:
 		return
 	world = fx.world
 	edits = WorldEditService.new(world, catalog)
+	edits.light = LightEngine.new(world, catalog)
 	edits.chunks_changed.connect(_runtime.mark_dirty)
 	motor = PlayerMotor.new(world)
 	motor.place_at(world.spawn_point())

@@ -27,7 +27,7 @@ var _dirty := {} # chunk_index -> true
 var _jobs := {} # chunk_index -> task_id
 var _done := {} # chunk_index -> MeshData (scritto dai thread)
 var _mutex := Mutex.new()
-var _snapshot := PackedByteArray()
+var _snapshot: ChunkMesher.Snapshot
 var _snapshot_revision := -1
 var _initial_pending := 0
 var _initial_t0 := 0
@@ -51,7 +51,7 @@ func setup(w: WorldData, catalog: BlockCatalog) -> void:
 	_session += 1
 	world = w
 	# Lo snapshot appartiene al mondo precedente anche se la revisione coincide.
-	_snapshot = PackedByteArray()
+	_snapshot = null
 	_snapshot_revision = -1
 	palette = ChunkMesher.Palette.from_catalog(catalog)
 	if max_jobs <= 0:
@@ -97,7 +97,7 @@ func _launch() -> void:
 	if _dirty.is_empty() or _jobs.size() >= max_jobs:
 		return
 	if _snapshot_revision != world.revision:
-		_snapshot = world.blocks.duplicate()
+		_snapshot = ChunkMesher.Snapshot.of(world)
 		_snapshot_revision = world.revision
 	var order: Array = _dirty.keys()
 	var cx := world.chunks_x()
@@ -113,8 +113,7 @@ func _launch() -> void:
 		_dirty.erase(ci)
 		var chunk := Vector3i(_chunk_of(ci, cx, cz))
 		var version := world.chunk_versions[ci]
-		var task := WorkerThreadPool.add_task(_job.bind(ci, chunk, version, _session, _snapshot,
-			world.size_x, world.size_y, world.size_z, palette))
+		var task := WorkerThreadPool.add_task(_job.bind(ci, chunk, version, _session, _snapshot, palette))
 		_jobs[ci] = task
 		stats["jobs"] += 1
 
@@ -125,9 +124,9 @@ static func _chunk_of(ci: int, cx: int, cz: int) -> Vector3:
 	return Vector3(x, rest / cz, rest % cz)
 
 
-func _job(ci: int, chunk: Vector3i, version: int, session: int, blocks: PackedByteArray,
-		sx: int, sy: int, sz: int, pal: ChunkMesher.Palette) -> void:
-	var data := ChunkMesher.build(blocks, sx, sy, sz, chunk, pal)
+func _job(ci: int, chunk: Vector3i, version: int, session: int, snap: ChunkMesher.Snapshot,
+		pal: ChunkMesher.Palette) -> void:
+	var data := ChunkMesher.build(snap, chunk, pal)
 	data.version = version
 	data.session = session
 	_mutex.lock()
@@ -171,7 +170,6 @@ func _apply(ci: int, data: ChunkMesher.MeshData) -> void:
 		if inst == null:
 			inst = MeshInstance3D.new()
 			inst.name = "Chunk_%d_%d_%d" % [data.chunk.x, data.chunk.y, data.chunk.z]
-			inst.position = Vector3(data.chunk * WorldData.CHUNK_SIZE)
 			add_child(inst)
 			_instances[ci] = inst
 		inst.mesh = ChunkMesher.to_array_mesh(data, opaque_material, water_material)

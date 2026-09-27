@@ -32,6 +32,9 @@ class EditResult:
 
 var world: WorldData
 var catalog: BlockCatalog
+## Se presente, la luce viene aggiornata localmente a ogni edit e i chunk con
+## luce cambiata vengono rimeshati.
+var light: LightEngine
 
 
 func _init(w: WorldData, cat: BlockCatalog) -> void:
@@ -70,6 +73,13 @@ func try_apply(edits: Array[Edit], _source: StringName = &"", expected_versions:
 			touched[c] = true
 	for col: Vector2i in columns:
 		_refresh_surface(col.x, col.y)
+	if light != null:
+		var cells: Array[Vector3i] = []
+		for e in edits:
+			cells.append(e.cell)
+		light.update_cells(cells)
+		for c in light.changed_chunks():
+			touched[c] = true
 	for c: Vector3i in touched:
 		world.chunk_versions[world.chunk_index(c)] += 1
 		res.chunks.append(c)

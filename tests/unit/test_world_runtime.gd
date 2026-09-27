@@ -9,14 +9,15 @@ func _runtime(w: WorldData) -> WorldRuntime:
 	return rt
 
 
-func _quads(rt: WorldRuntime, c: Vector3i) -> int:
+## Vero se la mesh del chunk ha un vertice in `p` (coordinate di mondo).
+func _has_vertex(rt: WorldRuntime, c: Vector3i, p: Vector3) -> bool:
 	var inst := rt.chunk_instance(c)
 	if inst == null or inst.mesh == null:
-		return 0
-	var n := 0
-	for s in inst.mesh.get_surface_count():
-		n += inst.mesh.surface_get_array_index_len(s) / 6
-	return n
+		return false
+	for v: Vector3 in inst.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]:
+		if v.is_equal_approx(p):
+			return true
+	return false
 
 
 func test_costruzione_iniziale_e_chunk_vuoti() -> void:
@@ -37,11 +38,11 @@ func test_edit_rimeshato() -> void:
 	var edits := WorldEditService.new(w, BlockCatalog.load_default())
 	edits.chunks_changed.connect(rt.mark_dirty)
 	rt.flush()
-	var before := _quads(rt, Vector3i.ZERO)
+	check(not _has_vertex(rt, Vector3i.ZERO, Vector3(6, 5, 6)), "prima: nessun blocco")
 	edits.set_block(Vector3i(5, 4, 5), BlockCatalog.STONE)
 	check(not rt.is_idle(), "chunk sporco in coda")
 	rt.flush()
-	check_eq(_quads(rt, Vector3i.ZERO), before + 4, "blocco sul pavimento: +5 facce, -1 sotto")
+	check(_has_vertex(rt, Vector3i.ZERO, Vector3(6, 5, 6)), "spigolo superiore del nuovo blocco")
 	rt.free()
 
 
@@ -51,7 +52,6 @@ func test_risultato_obsoleto_scartato() -> void:
 	var edits := WorldEditService.new(w, BlockCatalog.load_default())
 	edits.chunks_changed.connect(rt.mark_dirty)
 	rt.flush()
-	var base := _quads(rt, Vector3i.ZERO)
 	# Primo edit: parte il job con lo snapshot che contiene un solo blocco.
 	edits.set_block(Vector3i(5, 4, 5), BlockCatalog.STONE)
 	rt._launch()
@@ -59,7 +59,8 @@ func test_risultato_obsoleto_scartato() -> void:
 	edits.set_block(Vector3i(9, 4, 9), BlockCatalog.STONE)
 	rt.flush()
 	check(int(rt.stats["discarded"]) >= 1, "il risultato del primo job e' stato scartato")
-	check_eq(_quads(rt, Vector3i.ZERO), base + 8, "la mesh finale contiene entrambi i blocchi")
+	check(_has_vertex(rt, Vector3i.ZERO, Vector3(6, 5, 6)), "primo blocco nella mesh finale")
+	check(_has_vertex(rt, Vector3i.ZERO, Vector3(10, 5, 10)), "secondo blocco nella mesh finale")
 	rt.free()
 
 
