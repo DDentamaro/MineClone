@@ -1,0 +1,57 @@
+# Matrice di parità — prototipo v0_64 → Godot
+
+Fonte: `reference/isoterra_proto_v0_64_humanoids.html` (SHA-256 `2f2f771f…c76a`).
+Righe = righe di quel file (dettagli in `docs/INVENTORY_v064.md`). Il piano originale
+citava la v0_66: fino alla riga ~7430 i numeri coincidono, oltre sono sfalsati di ~80 righe.
+
+**Stato prototipo:** `attivo` (raggiunto da `boot()`, dal frame loop o da un input) ·
+`dormiente` (definito ma spento o mai chiamato) · `parziale` · `legacy` (gira ma senza effetto).
+**Stato Godot:** `—` non iniziato · `dati` solo dati/fixture · `parziale` · `fatto` (criterio
+verificato) · `verificato` (verificato anche su dispositivo).
+
+## Funzionalità attive (gate R)
+
+| Sistema | Fonte v0_64 | Prototipo | Destinazione Godot | Milestone | Godot | Verifica / criterio |
+|---|---|---|---|---|---|---|
+| Mondo e blocchi | 4489–4520 | attivo | `WorldData`, `BlockDefinition`, `BlockCatalog` | M0/M1 | dati | Test: 16 ID/flag = `ISO_CORE`; layout `(y*Z+z)*X+x`; 432 chunk |
+| Generazione (6 biomi, laghi, fiumi, strati, minerali) | 4522–4608 | attivo | `world/generation`, passate versionate | M2 | dati | Fixture seme 1931 `caves:false`: blocchi `ce0d3766…` = hash del piano; spawn 96,5/28/96,5 verificato in GDScript |
+| Luce sole + blocchi (flood-fill) | 4613–4633 | attivo | `world/simulation` luce locale | M2 | dati | Buffer `sun`/`blk` nella fixture con SHA; manca il calcolo |
+| Greedy meshing + AO + cutaway | 4638–4709, 6811 | attivo | `world/meshing`, `ArrayMesh` per chunk | M1 (facce visibili) / M2 (greedy, AO) | — | Chunk (6,1,6): 62 quad / 248 vertici nel prototipo |
+| Vegetazione: alberi (3 archetipi) ed erba | 4893–4957, 6819–6854 | attivo | `TreeInstance`, MultiMesh erba | M2 | — | Alberi = collider cilindrici per player/nemici/proiettili |
+| Acqua a livelli, correnti, cascate | 4965–5103, 6799–6808, 6943–6982 | attivo | `FluidSystem`, mesh acqua per tile 16×16 | M3 | dati | `fluid` e `waterLevel` nella fixture (5.875 celle acqua, 2.381 colonne) |
+| Estetica (pixel RT, outline, dipinto, dithering, cielo, ombre, x-ray) | 5112–5665, 6718–6922 | attivo | shader/materiali, preset "riferimento" e "mobile" | M2 | — | Confronto per scene campione |
+| Camera ISO + TPS | 6718–6922 | attivo | `CameraRig` | M1 | — | Parametri in inventario §3 |
+| Movimento (gradini, rampa, salto) | 6929, 6987–7039 | attivo | `CharacterBody3D` + controller | M1 | — | speed 5,5, stepUp 1,05, jumpH 2,1, g 28, raggio 0,26 |
+| Nuoto / guado | 6941–6982 | attivo | stati di locomozione | M3 | — | Soglie ingresso/uscita in inventario §3 |
+| Avatar CHARGEN + editor eroe | 4246–4481, 6629–6677, 7898–7917 | attivo | `AvatarRecipe`, editor, persistenza | M4 | — | Ricetta `isoterra.hero.dna` |
+| Corpo a corpo: pugni + spada, lancia, martello, spadone | 7107, 7490–7834 | attivo | `CombatController`, `WeaponDefinition`, `AttackDefinition` | M4 | — | Hitstop, sweep, un colpo per bersaglio. Il giocatore parte con la spada sguainata (7871) |
+| Combo spada L, LL, LLL, LLLL, H, LH, LLH | 7543–7550, 7616–7620 | attivo | tabella dati combo | M4 | — | Tutti i rami |
+| Nemici: slime, scheletro, goblin | 7183–7431 | attivo | scene per archetipo + componenti comuni | M4 | — | Fino a 9 nemici (raggi 8/21/34); leash 13; respawn 25 s |
+| Vita giocatore | 7188–7207 | attivo (HUD nascosto dal CSS, riga 14) | `Vitals` + HUD visibile | M4 | — | 100 HP, invul. 0,65 s, morte 2,6 s, rigenerazione 5 HP/s dopo 7 s |
+| Lock-on, strafe, numeri danno, barre HP | 7061–7089, 7442–7469, 7776–7783 | attivo | `TargetingService`, UI, VFX | M4 | — | Portata 7,5, rilascio 9,5 |
+| Magia: fuoco, acqua, terra, aria | 7977–8322 | attivo | `SpellDefinition`, proiettili, pool VFX, audio | M4 | — | Mana, raccolta/rilascio (inventario §8) |
+| Reazioni elementali | 8171–8255 | attivo | `ElementReactionSystem` (tabella unica) | M4 | — | Numeri in inventario §8 |
+| Costruzione (terra, pietra, sabbia, legno, torcia) | 4885, 7098–7102, 7858–7860 | attivo, gratuita | `WorldEditService` | M1 (edit debug) / M5 (costo) | — | Portata 7,5; rifiuto se sovrapposta al player |
+| Inventario (contatore) | 7109–7110 | parziale | `InventoryService` a slot | M5 | — | Si riempie solo dai crateri; nascosto |
+| Persistenza impostazioni/avatar/camera | 8 chiavi `isoterra.*` | parziale | `SaveService` / impostazioni | M4/M5 | — | Nessun salvataggio del mondo |
+| UI touch (stick flottante, drag, pinch, pulsanti) | 7835–7870 | attivo | UI a contesti con ownership delle dita | M1 | — | Tap in modalità scavo non fa nulla (7849) |
+
+## Funzionalità dormienti o legacy (censite, non contate come giocabili)
+
+| Elemento | Fonte v0_64 | Stato | Decisione |
+|---|---|---|---|
+| Grotte (e quindi lava nel mondo) | 4593–4596; `caves:false` a 5731 | dormiente | Riattivare in M5 con collisioni volumetriche; la reazione acqua→lava diventa raggiungibile solo allora |
+| Terreno smussato (surface nets, `meshChunkSmooth`) | 4739–4882, 5422–5476 | dormiente (densità ancora calcolata) | Non portare; conservato come riferimento |
+| Classi di pendenza | 4788–4796 | dormiente (`fieldNormal` restituisce sempre "su") | Non portare |
+| Scavo/raccolta (`breakTarget`, crepe, `killTree`) | 7757–7775, 6747, 7832 | dormiente (unico attrezzo `fist` con `hitsBlocks:false`) | Implementare attrezzi in M5; in M1 solo edit di debug |
+| Manichini `Dummy`, predoni `Humanoid`/`ISOCHAR` | 7434–7441 | dormiente (asset da 1,09 MB decodificato e mai usato) | Non portare |
+| Compositore vecchio (`#composer`, tasti C/H/O) | 7875–7924 | legacy | Non portare; l'editor valido è CHARGEN |
+| `moveAABB`, `reliefAhead`, `CLIMB`, `View.rotate`, `meleeHit`, `CharacterRigV2` | vedi inventario §2 | dormiente | Non portare |
+
+## Stato verifiche M0
+
+- [x] HTML di riferimento integro (dimensione e SHA verificati da test)
+- [x] Fixture seme 1931 estratta dal core originale, deterministica su due esecuzioni
+- [x] Fixture caricata in Godot con SHA per buffer, istogramma, layout, spawn
+- [x] Catalogo blocchi come `Resource`, coincidente col prototipo
+- [ ] Parità visiva e di gameplay: da M1 in poi

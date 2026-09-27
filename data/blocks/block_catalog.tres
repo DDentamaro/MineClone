@@ -1,0 +1,130 @@
+[gd_resource type="Resource" script_class="BlockCatalog" format=3]
+
+[ext_resource type="Script" path="res://src/world/data/block_definition.gd" id="1_ldg4v"]
+[ext_resource type="Script" path="res://src/world/data/block_catalog.gd" id="2_nq45q"]
+
+[sub_resource type="Resource" id="Resource_os8bj"]
+script = ExtResource("1_ldg4v")
+key = &"air"
+display_name = "aria"
+
+[sub_resource type="Resource" id="Resource_bm7v7"]
+script = ExtResource("1_ldg4v")
+id = 1
+key = &"grass"
+display_name = "erba"
+opaque = true
+solid = true
+
+[sub_resource type="Resource" id="Resource_ckbvm"]
+script = ExtResource("1_ldg4v")
+id = 2
+key = &"dirt"
+display_name = "terra"
+opaque = true
+solid = true
+
+[sub_resource type="Resource" id="Resource_83crb"]
+script = ExtResource("1_ldg4v")
+id = 3
+key = &"stone"
+display_name = "pietra"
+opaque = true
+solid = true
+
+[sub_resource type="Resource" id="Resource_1l43l"]
+script = ExtResource("1_ldg4v")
+id = 4
+key = &"sand"
+display_name = "sabbia"
+opaque = true
+solid = true
+
+[sub_resource type="Resource" id="Resource_8n1o7"]
+script = ExtResource("1_ldg4v")
+id = 5
+key = &"copper"
+display_name = "rame"
+opaque = true
+solid = true
+
+[sub_resource type="Resource" id="Resource_mjn56"]
+script = ExtResource("1_ldg4v")
+id = 6
+key = &"iron"
+display_name = "ferro"
+opaque = true
+solid = true
+
+[sub_resource type="Resource" id="Resource_fp4qa"]
+script = ExtResource("1_ldg4v")
+id = 7
+key = &"gold"
+display_name = "oro"
+opaque = true
+solid = true
+
+[sub_resource type="Resource" id="Resource_j8a6c"]
+script = ExtResource("1_ldg4v")
+id = 8
+key = &"bedrock"
+display_name = "roccia madre"
+opaque = true
+solid = true
+
+[sub_resource type="Resource" id="Resource_er5k3"]
+script = ExtResource("1_ldg4v")
+id = 9
+key = &"lava"
+display_name = "lava"
+opaque = true
+emit = 12
+
+[sub_resource type="Resource" id="Resource_mwbq1"]
+script = ExtResource("1_ldg4v")
+id = 10
+key = &"torch"
+display_name = "torcia"
+emit = 14
+
+[sub_resource type="Resource" id="Resource_p624i"]
+script = ExtResource("1_ldg4v")
+id = 11
+key = &"wood"
+display_name = "legno"
+opaque = true
+solid = true
+
+[sub_resource type="Resource" id="Resource_apgba"]
+script = ExtResource("1_ldg4v")
+id = 12
+key = &"leaves"
+display_name = "foglie"
+opaque = true
+solid = true
+
+[sub_resource type="Resource" id="Resource_mnfvw"]
+script = ExtResource("1_ldg4v")
+id = 13
+key = &"sandstone"
+display_name = "arenaria"
+opaque = true
+solid = true
+
+[sub_resource type="Resource" id="Resource_ud587"]
+script = ExtResource("1_ldg4v")
+id = 14
+key = &"darkstone"
+display_name = "pietra scura"
+opaque = true
+solid = true
+
+[sub_resource type="Resource" id="Resource_vuypc"]
+script = ExtResource("1_ldg4v")
+id = 15
+key = &"water"
+display_name = "acqua"
+
+[resource]
+script = ExtResource("2_nq45q")
+blocks = Array[ExtResource("1_ldg4v")]([SubResource("Resource_os8bj"), SubResource("Resource_bm7v7"), SubResource("Resource_ckbvm"), SubResource("Resource_83crb"), SubResource("Resource_1l43l"), SubResource("Resource_8n1o7"), SubResource("Resource_mjn56"), SubResource("Resource_fp4qa"), SubResource("Resource_j8a6c"), SubResource("Resource_er5k3"), SubResource("Resource_mwbq1"), SubResource("Resource_p624i"), SubResource("Resource_apgba"), SubResource("Resource_mnfvw"), SubResource("Resource_ud587"), SubResource("Resource_vuypc")])
