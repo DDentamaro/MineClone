@@ -42,3 +42,150 @@ common/physics_interpolation=true
 
 renderer/rendering_method="mobile"
 textures/vram_compression/import_etc2_astc=true
+
+[shader_globals]
+
+sun_dir={
+"type": "vec3",
+"value": Vector3(-0.3, 0.93, 0.22)
+}
+sun_color={
+"type": "vec3",
+"value": Vector3(1, 0.94, 0.84)
+}
+ambient_color={
+"type": "vec3",
+"value": Vector3(0.32, 0.356, 0.4)
+}
+sun_intensity={
+"type": "float",
+"value": 0.95
+}
+sun_level={
+"type": "float",
+"value": 1.0
+}
+night={
+"type": "float",
+"value": 0.0
+}
+world_time={
+"type": "float",
+"value": 0.0
+}
+cloud_cover={
+"type": "float",
+"value": 0.73
+}
+cloud_shadow_on={
+"type": "float",
+"value": 1.0
+}
+shadow_strength={
+"type": "float",
+"value": 0.84
+}
+view_dir={
+"type": "vec3",
+"value": Vector3(0.5, 0.6, 0.5)
+}
+paint_mode={
+"type": "float",
+"value": 1.0
+}
+dither_amount={
+"type": "float",
+"value": 0.0
+}
+slice_y={
+"type": "float",
+"value": 48.0
+}
+world_xz={
+"type": "vec2",
+"value": Vector2(192, 192)
+}
+climate_tex={
+"type": "sampler2D",
+"value": ""
+}
+xray_a={
+"type": "vec2",
+"value": Vector2(-10, -10)
+}
+xray_b={
+"type": "vec2",
+"value": Vector2(-10, -10)
+}
+xray_r={
+"type": "float",
+"value": 0.0
+}
+xray_amt={
+"type": "float",
+"value": 0.0
+}
+xray_depth={
+"type": "float",
+"value": 0.0
+}
+xray_floor={
+"type": "float",
+"value": 0.0
+}
+sky_horizon={
+"type": "vec3",
+"value": Vector3(0.61, 0.49, 0.44)
+}
+sky_top={
+"type": "vec3",
+"value": Vector3(0.3, 0.42, 0.61)
+}
+sun_uv={
+"type": "vec2",
+"value": Vector2(0.85, 0.92)
+}
+sun_vis={
+"type": "float",
+"value": 0.1
+}
+sun_elev={
+"type": "float",
+"value": 0.5
+}
+horizon_v={
+"type": "float",
+"value": 0.0
+}
+grade_s={
+"type": "vec3",
+"value": Vector3(1, 1, 1)
+}
+grade_h={
+"type": "vec3",
+"value": Vector3(1, 1, 1)
+}
+fog_color={
+"type": "vec3",
+"value": Vector3(0.6, 0.7, 0.8)
+}
+px_h={
+"type": "float",
+"value": 0.033
+}
+persp={
+"type": "float",
+"value": 0.0
+}
+outline_on={
+"type": "float",
+"value": 1.0
+}
+edges_on={
+"type": "float",
+"value": 1.0
+}
+rays_on={
+"type": "float",
+"value": 1.0
+}

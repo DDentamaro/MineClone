@@ -60,9 +60,9 @@ func _process(_dt: float) -> bool:
 			if _frame == 10:
 				# Tap poco a destra del giocatore sullo schermo.
 				var cam := _game._camera_rig.camera
-				var target := cam.unproject_position(_game.motor.position + Vector3(0, 0.2, 0))
+				var target := _game.view_to_screen(cam.unproject_position(_game.motor.position + Vector3(0, 0.2, 0)))
 				_start_pos = Vector3(_game.world.revision, 0, 0)
-				var p := target + Vector2(70, 10)
+				var p := target + Vector2(120, 20)
 				_touch(1, p, true)
 				_touch(1, p, false)
 			if _frame == 12:

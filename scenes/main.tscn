@@ -1,26 +1,19 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=16 format=3]
 
 [ext_resource type="Script" path="res://src/game_root.gd" id="1_root"]
 [ext_resource type="Script" path="res://src/world/runtime/world_runtime.gd" id="2_runtime"]
 [ext_resource type="Script" path="res://src/actors/player/player_avatar.gd" id="3_avatar"]
 [ext_resource type="Script" path="res://src/presentation/camera/camera_rig.gd" id="4_camera"]
 [ext_resource type="Script" path="res://src/ui/touch_controls.gd" id="5_touch"]
-
-[sub_resource type="ProceduralSkyMaterial" id="sky_mat"]
-sky_top_color = Color(0.36, 0.56, 0.82, 1)
-sky_horizon_color = Color(0.72, 0.8, 0.86, 1)
-ground_horizon_color = Color(0.72, 0.8, 0.86, 1)
-
-[sub_resource type="Sky" id="sky"]
-sky_material = SubResource("sky_mat")
+[ext_resource type="Script" path="res://src/presentation/day_cycle.gd" id="6_day"]
+[ext_resource type="Shader" path="res://src/presentation/shaders/post.gdshader" id="7_post"]
 
 [sub_resource type="Environment" id="env"]
-background_mode = 2
-sky = SubResource("sky")
-ambient_light_source = 3
-ambient_light_color = Color(0.78, 0.84, 0.95, 1)
-ambient_light_energy = 0.55
-tonemap_mode = 2
+background_mode = 1
+background_color = Color(0.043, 0.082, 0.102, 1)
+ambient_light_source = 1
+reflected_light_source = 1
+tonemap_mode = 0
 
 [sub_resource type="StandardMaterial3D" id="player_mat"]
 albedo_color = Color(0.85, 0.35, 0.25, 1)
@@ -37,38 +30,77 @@ albedo_color = Color(0.95, 0.85, 0.4, 1)
 material = SubResource("nose_mat")
 size = Vector3(0.14, 0.14, 0.2)
 
-[node name="GameRoot" type="Node3D"]
+[sub_resource type="ShaderMaterial" id="post_mat"]
+render_priority = 127
+shader = ExtResource("7_post")
+
+[sub_resource type="QuadMesh" id="post_quad"]
+material = SubResource("post_mat")
+size = Vector2(2, 2)
+
+[sub_resource type="ViewportTexture" id="view_tex"]
+viewport_path = NodePath("WorldView")
+
+[node name="GameRoot" type="Node"]
 script = ExtResource("1_root")
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+[node name="WorldView" type="SubViewport" parent="."]
+own_world_3d = true
+handle_input_locally = false
+size = Vector2i(640, 360)
+render_target_update_mode = 4
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="WorldView"]
 environment = SubResource("env")
 
-[node name="Sun" type="DirectionalLight3D" parent="."]
-transform = Transform3D(0.866025, -0.383022, 0.321394, 0, 0.642788, 0.766044, -0.5, -0.663414, 0.556670, 0, 60, 0)
-light_energy = 1.1
+[node name="Sun" type="DirectionalLight3D" parent="WorldView"]
 shadow_enabled = true
-directional_shadow_max_distance = 60.0
+directional_shadow_mode = 0
+directional_shadow_max_distance = 140.0
 
-[node name="WorldRuntime" type="Node3D" parent="."]
+[node name="DayCycle" type="Node" parent="WorldView" node_paths=PackedStringArray("light")]
+script = ExtResource("6_day")
+light = NodePath("../Sun")
+
+[node name="WorldRuntime" type="Node3D" parent="WorldView"]
 script = ExtResource("2_runtime")
 
-[node name="Player" type="Node3D" parent="."]
+[node name="Player" type="Node3D" parent="WorldView"]
 script = ExtResource("3_avatar")
 
-[node name="Body" type="MeshInstance3D" parent="Player"]
+[node name="Body" type="MeshInstance3D" parent="WorldView/Player"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, 0)
 mesh = SubResource("player_mesh")
 
-[node name="Nose" type="MeshInstance3D" parent="Player"]
+[node name="Nose" type="MeshInstance3D" parent="WorldView/Player"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, -0.27)
 mesh = SubResource("nose_mesh")
 
-[node name="CameraRig" type="Node3D" parent="."]
+[node name="CameraRig" type="Node3D" parent="WorldView"]
 script = ExtResource("4_camera")
 
-[node name="Camera3D" type="Camera3D" parent="CameraRig"]
+[node name="Camera3D" type="Camera3D" parent="WorldView/CameraRig"]
 current = true
 physics_interpolation_mode = 2
+
+[node name="PostQuad" type="MeshInstance3D" parent="WorldView/CameraRig/Camera3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -2)
+cast_shadow = 0
+extra_cull_margin = 16384.0
+mesh = SubResource("post_quad")
+
+[node name="Screen" type="TextureRect" parent="."]
+unique_name_in_owner = true
+texture_filter = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = SubResource("view_tex")
+expand_mode = 1
+stretch_mode = 0
 
 [node name="HUD" type="CanvasLayer" parent="."]
 

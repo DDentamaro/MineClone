@@ -16,8 +16,8 @@ signal initial_build_finished(ms: int)
 
 var world: WorldData
 var palette: ChunkMesher.Palette
-var opaque_material: StandardMaterial3D
-var water_material: StandardMaterial3D
+var opaque_material: ShaderMaterial
+var water_material: ShaderMaterial
 ## Punto di interesse (player): i chunk vicini vengono costruiti per primi.
 var focus := Vector3.ZERO
 
@@ -35,15 +35,11 @@ var stats := {"applied": 0, "discarded": 0, "jobs": 0}
 
 
 func _init() -> void:
-	opaque_material = StandardMaterial3D.new()
-	opaque_material.vertex_color_use_as_albedo = true
-	opaque_material.vertex_color_is_srgb = true
-	opaque_material.roughness = 1.0
-	water_material = StandardMaterial3D.new()
-	water_material.albedo_color = Color(0.24, 0.5, 0.77, 0.62)
-	water_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	water_material.roughness = 0.2
-	water_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	opaque_material = ShaderMaterial.new()
+	opaque_material.shader = preload("res://src/presentation/shaders/chunk.gdshader")
+	opaque_material.set_shader_parameter(&"atlas", ProtoTextures.atlas_texture())
+	water_material = ShaderMaterial.new()
+	water_material.shader = preload("res://src/presentation/shaders/water_simple.gdshader")
 
 
 func setup(w: WorldData, catalog: BlockCatalog) -> void:

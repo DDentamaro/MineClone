@@ -13,7 +13,9 @@ const ISO_PITCH_MIN := deg_to_rad(22.0)
 const ISO_PITCH_MAX := deg_to_rad(62.0)
 const ISO_ZOOM_MIN := 0.55
 const ISO_ZOOM_MAX := 2.4
-const CAM_DIST := 120.0
+## Il prototipo usa 120; qui 70 basta a stare sopra il mondo alto 48 e tiene
+## piu' stretta la distanza massima dell'ombra direzionale di Godot.
+const CAM_DIST := 70.0
 ## Semi-altezza ortografica a zoom 1: RT_H / (2 * PX_PER_UNIT) con RT_H = 360,
 ## TILE_W = 32 * 360 / 270, PX_PER_UNIT = TILE_W / sqrt(2).
 const ISO_HALF_H := 360.0 / (2.0 * (32.0 * 360.0 / 270.0) / sqrt(2.0))
@@ -44,6 +46,13 @@ var tps_pitch := TPS_PITCH
 var tps_zoom := 1.0
 var world: WorldData
 var opaque := PackedByteArray()
+## Pixel del render target di bordo attorno all'area visibile (per lo
+## spostamento sub-pixel dell'immagine).
+var border_px := 1
+## Resto sub-pixel dell'aggancio alla griglia (pixel del render target, x a
+## destra e y in alto): chi mostra l'immagine la sposta di questo resto.
+var subpixel := Vector2.ZERO
+var pixel_snap := true
 
 @onready var camera: Camera3D = $Camera3D
 
@@ -117,9 +126,24 @@ func update_camera(dt: float, target: Vector3) -> void:
 	zoom += (zoom_target - zoom) * k
 	var look := target + LOOK_OFFSET
 	var dir := view_dir()
+	subpixel = Vector2.ZERO
 	if mode == Mode.ISO:
-		camera.size = 2.0 * ISO_HALF_H / zoom
+		var vp_h := _viewport_height()
+		var inner_h := maxf(1.0, vp_h - 2.0 * border_px)
+		# Semi-altezza riferita alle righe visibili; il bordo si aggiunge fuori.
+		camera.size = 2.0 * ISO_HALF_H / zoom * vp_h / inner_h
 		camera.global_position = look + dir * CAM_DIST
+		if pixel_snap:
+			var px := camera.size / vp_h
+			var basis := Basis.looking_at(-dir, Vector3.UP)
+			var right := basis.x
+			var up := basis.y
+			var cr := camera.global_position.dot(right)
+			var cu := camera.global_position.dot(up)
+			var rx := cr - roundf(cr / px) * px
+			var ry := cu - roundf(cu / px) * px
+			camera.global_position -= right * rx + up * ry
+			subpixel = Vector2(rx / px, ry / px)
 	else:
 		var dist := TPS_DIST * tps_zoom
 		# Arretramento davanti ai muri: raycast voxel dal bersaglio verso la camera.
@@ -128,7 +152,18 @@ func update_camera(dt: float, target: Vector3) -> void:
 			if hit != null:
 				dist = maxf(0.4, hit.distance - 0.2)
 		camera.global_position = look + dir * dist
-	camera.look_at(look, Vector3.UP)
+	camera.global_transform.basis = Basis.looking_at(look - camera.global_position, Vector3.UP)
+	var rs := RenderingServer
+	rs.global_shader_parameter_set(&"view_dir", dir)
+	rs.global_shader_parameter_set(&"persp", 1.0 if mode == Mode.TPS else 0.0)
+	if mode == Mode.ISO:
+		rs.global_shader_parameter_set(&"px_h", camera.size / _viewport_height())
+
+
+func _viewport_height() -> float:
+	if camera != null and camera.is_inside_tree():
+		return maxf(1.0, camera.get_viewport().get_visible_rect().size.y)
+	return 360.0
 
 
 func _apply_projection() -> void:
@@ -137,7 +172,7 @@ func _apply_projection() -> void:
 	if mode == Mode.ISO:
 		camera.projection = Camera3D.PROJECTION_ORTHOGONAL
 		camera.near = 1.0
-		camera.far = 400.0
+		camera.far = 160.0
 	else:
 		camera.projection = Camera3D.PROJECTION_PERSPECTIVE
 		camera.fov = TPS_FOV
