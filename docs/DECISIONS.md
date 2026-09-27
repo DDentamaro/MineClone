@@ -273,3 +273,22 @@ reversibile salvo dove indicato. Formato: contesto → decisione → conseguenze
   delle reazioni (VAPORE, SHOCK TERMICO, SPENTO, CRATERE, stati) ci sono (`FloatingText`).
 - **Controlli:** "Magia" (tenuto = carica, rilascio = lancio) e selettore dell'elemento nella
   riga in alto; tastiera U (tenuto) e Y.
+
+## D-025 — Gate R: cosa è stato recuperato e cosa resta dichiarato
+- **Recuperato per il gate** (funzioni attive del prototipo che mancavano o erano parziali):
+  colpi che non passano i muri; terza persona adattiva (contesto, Auto, alberi, suolo, orizzonte
+  e sole proiettati, erba a distanza); le chiavi di preferenze del prototipo (righe, spigoli,
+  terza persona, Auto, inclinazione e zoom TPS); luci puntiformi della magia, vento sull'erba e
+  alberi scossi; audio sintetizzato della magia; niente contorni sui ciuffi d'erba (stencil: il
+  prototipo scriveva alfa 0, in Godot un opaco non può, quindi due varianti del post);
+  estrazione/rinfodero dell'arma e posa rilassata; colpo tenuto che ripete; pausa; rotazione e
+  zoom a pulsante; Hitbox; cubo del cursore e clic destro; eroi predefiniti e copia/incolla della
+  ricetta; contatore dei blocchi dei crateri.
+- **Differenze dichiarate che restano:** raggi X a passata singola (D-016); contorni del fondale
+  sotto l'acqua e raggi del sole sull'acqua (D-019); eroe, animazioni, armi e combo nuovi (D-022);
+  lancio con la sinistra (D-024).
+- **Mappa dei tasti:** diversa dal prototipo dove il tasto serviva a funzioni rinviate (L e Tab =
+  aggancio) o dove M1 aveva già assegnato il tasto (V = camera, B = blocco). Il prototipo usa V
+  per l'arma e M per la magia; qui R/Y/U. Le funzioni ci sono tutte, anche a pulsante.
+- **Non verificabile qui:** telefono, FPS, renderer Compatibility. Il gate R è chiuso "senza prova
+  su dispositivo", come le milestone precedenti.

@@ -18,6 +18,9 @@ var _log: Array[String] = []
 
 
 func _initialize() -> void:
+	# Impostazioni proprie, per non toccare quelle del giocatore.
+	Settings.path = "user://e2e_settings.cfg"
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(Settings.path))
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--out="):
 			_out = a.substr(6)
@@ -64,6 +67,7 @@ func _process(_dt: float) -> bool:
 				_game._day.time = 0.35
 				_game._day.paused = true
 				_game.select_weapon(1)
+				_game.show_hitboxes = true
 				_game._camera_rig.set_zoom(1.7)
 				_game._camera_rig.zoom = 1.7
 				_game._dummies.place_around(_game.motor.position, _game._avatar.facing, 3, 2.6)
@@ -79,6 +83,7 @@ func _process(_dt: float) -> bool:
 				_hits = _count_hits()
 				_log.append("spada: colpi a segno %d, combo massima %d" % [_hits, _max_combo])
 				_ok = _ok and _hits >= 3 and _max_combo >= 3
+				_game.show_hitboxes = false
 				_tap(&"weapon")
 				_tap(&"weapon")
 				_phase = 2

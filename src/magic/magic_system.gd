@@ -316,18 +316,21 @@ func _step_darts(dt: float, motor: PlayerMotor, targets: Array) -> void:
 		var tree := _tree_at(P.p, S.r)
 		if tree != null:
 			var e := Vector3(P.p.x - tree.x, 0, P.p.z - tree.z)
+			var el := Vector2(e.x, e.z).normalized() if e.length() > 1e-4 else Vector2(0, 1)
+			events.append({"type": "shake_tree", "tree": tree, "dir": -el, "k": 1.0})
 			_impact(P, P.p, e.normalized() if e.length() > 1e-4 else Vector3.UP, {"kind": "tree"})
 			darts.remove_at(i)
 			i -= 1
 			continue
 		# 4) aria: vento lungo il passaggio, braci soffiate.
 		if S.el == "air":
-			wind = {"x": P.p.x, "z": P.p.z, "dx": dir.x, "dz": dir.z, "t": 0.7}
+			wind = {"x": P.p.x, "z": P.p.z, "dx": dir.x, "dz": dir.z, "t": 0.7, "pow": 0.30, "r": 1.7}
 			if P.acc > 0:
 				P.acc -= 1
 			else:
 				P.acc = 2
 				_blow_fire(P.p, 1.4, Vector2(dir.x, dir.z))
+				_shake_near(P.p, Vector2(dir.x, dir.z))
 		var outside := world != null and not world.inside(floori(P.p.x), floori(P.p.y), floori(P.p.z)) and P.p.y >= 0.0
 		if P.t >= S.life or outside or (world != null and P.p.y < 0.0):
 			if S.el == "fire" or S.el == "air":
@@ -336,6 +339,17 @@ func _step_darts(dt: float, motor: PlayerMotor, targets: Array) -> void:
 				_impact(P, P.p, Vector3.UP, {"kind": "air"})
 			darts.remove_at(i)
 		i -= 1
+
+
+## La spina d'aria scuote gli alberi entro 1,8 dal suo passaggio.
+func _shake_near(p: Vector3, d: Vector2) -> void:
+	var cx := int(p.x / 8.0)
+	var cz := int(p.z / 8.0)
+	for gz in range(cz - 1, cz + 2):
+		for gx in range(cx - 1, cx + 2):
+			for ts: Vegetation.TreeSpot in tree_grid.get(Vector2i(gx, gz), []):
+				if not ts.dead and Vector2(ts.x - p.x, ts.z - p.z).length() < 1.8:
+					events.append({"type": "shake_tree", "tree": ts, "dir": d.normalized(), "k": 0.5})
 
 
 func _tree_at(p: Vector3, r: float) -> Vegetation.TreeSpot:
@@ -368,7 +382,7 @@ func _hit_target(P: Dart, tg: CombatTarget) -> void:
 	if mul > 0.0 and S.status != "":
 		apply_status(tg, S.status)
 	if S.el == "air":
-		wind = {"x": tg.position.x, "z": tg.position.z, "dx": d.x, "dz": d.y, "t": 0.6}
+		wind = {"x": tg.position.x, "z": tg.position.z, "dx": d.x, "dz": d.y, "t": 0.6, "pow": 0.35, "r": 1.8}
 
 
 func _impact(P: Dart, p: Vector3, n: Vector3, info: Dictionary) -> void:
@@ -410,7 +424,7 @@ func _impact(P: Dart, p: Vector3, n: Vector3, info: Dictionary) -> void:
 			else:
 				events.append({"type": "burst", "el": "earth", "p": p, "n": n, "k": 0.5})
 		_:
-			wind = {"x": p.x, "z": p.z, "dx": -n.x, "dz": -n.z, "t": 0.5}
+			wind = {"x": p.x, "z": p.z, "dx": -n.x, "dz": -n.z, "t": 0.5, "pow": 0.4, "r": 2.0}
 			_blow_fire(p, 1.6, Vector2(P.v.x, P.v.z))
 
 

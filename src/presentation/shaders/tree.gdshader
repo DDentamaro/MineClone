@@ -5,6 +5,9 @@ render_mode cull_back, specular_disabled, ambient_light_disabled, fog_disabled;
 
 #include "res://src/presentation/shaders/rustic.gdshaderinc"
 
+global uniform vec3 tree_hit;
+global uniform vec2 tree_hit_dir;
+
 varying vec3 v_world;
 varying vec3 v_color;
 varying float v_light;
@@ -16,6 +19,9 @@ void vertex() {
 	float sway = (sin(qt * 1.15 + seed * 6.283) + sin(qt * 0.63 + seed * 11.7) * 0.45) * 0.5;
 	float w = clamp(wind_k, 0.0, 1.0);
 	VERTEX.xz += normalize(vec2(0.22, 1.0)) * sway * 0.085 * w * w;
+	// Albero colpito (shakeTree): oscillazione smorzata di quello con questo seme.
+	if (abs(seed - tree_hit.x) < 1e-4) { float dth = world_time - tree_hit.y;
+		if (dth >= 0.0 && dth < 1.2) { float amp = tree_hit.z * exp(-dth * 5.5) * sin(dth * 34.0); float hk = clamp((VERTEX.y - base_y) / 5.0, 0.0, 1.0); VERTEX.xz += tree_hit_dir * amp * 0.16 * hk; } }
 	if (base_y > slice_y + 0.5) VERTEX = vec3(0.0, -1000.0, 0.0);
 	v_world = VERTEX;
 	v_color = COLOR.rgb;

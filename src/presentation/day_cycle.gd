@@ -21,6 +21,8 @@ const CLOUD_COVER := 0.73
 
 ## Interruttore OMBRE del prototipo (SHADOW.strength 0,84 / 0).
 var shadows_on := true
+## Vero in terza persona: orizzonte e sole li calcola la camera.
+var tps_sky := false
 var state := {}
 var clock := 0.0
 
@@ -56,7 +58,9 @@ func apply(dt: float) -> void:
 	rs.global_shader_parameter_set(&"sky_top", state["top"])
 	rs.global_shader_parameter_set(&"fog_color", state["horizon"])
 	rs.global_shader_parameter_set(&"sky_tint", (state["horizon"] as Vector3) * 0.5 + (state["top"] as Vector3) * 0.5)
-	rs.global_shader_parameter_set(&"sun_uv", state["sun_uv"])
+	# In terza persona il sole lo proietta la camera (CameraRig._tps_sky).
+	if not tps_sky:
+		rs.global_shader_parameter_set(&"sun_uv", state["sun_uv"])
 	rs.global_shader_parameter_set(&"sun_elev", state["elev"])
 	var dk: float = state["dusk"] * state["daylight"]
 	rs.global_shader_parameter_set(&"sun_vis", 0.10 * state["daylight"] * (1.0 - state["dusk"] * 0.5))

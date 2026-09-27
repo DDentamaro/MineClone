@@ -4,7 +4,7 @@ Ricostruzione in **Godot 4.7.2** del prototipo HTML *IsoTerra* e sua evoluzione 
 piccolo sandbox voxel action per telefono (orizzontale). Il piano di lavoro è diviso in
 milestone M0–M8 (traguardo **R** = parità col prototipo, traguardo **G** = gioco).
 
-Stato attuale: **M4 — action** (vedi `docs/PROGRESS.md`): generatore, luce,
+Stato attuale: **gate R chiuso** (parità col prototipo, D-025), dopo **M4 — action** (vedi `docs/PROGRESS.md`): generatore, luce,
 mesh, vegetazione e acqua identici al prototipo; resa dipinta con contorni, cielo, giorno/notte
 e acqua fusa come nella reference; nuoto e guado, schizzi; camera isometrica (terza persona
 facoltativa), controlli touch, costruzione e scavo di debug, pannello sviluppatore (⚙).
@@ -14,7 +14,8 @@ manichini d'allenamento (animazioni e armi disegnate da zero, D-022); magia dei 
 Controlli desktop: WASD/frecce, Spazio salto, trascinamento del mouse per ruotare, rotella
 zoom, clic = tap, F modo, B o 1/2/3/T blocco, V camera, Q/E rotazione, Z/X zoom, N nuovo seme.
 Combattimento: J colpo (o clic sul mondo in esplorazione), K forte (tenuto = carica), L o Maiusc
-capriola, R cambia arma, H editor dell'eroe, M rimette i manichini davanti, U magia (tenuto), Y elemento.
+capriola, R cambia arma, H editor dell'eroe, M rimette i manichini davanti, U magia (tenuto), Y elemento, P pausa; clic destro = azione
+opposta in costruzione/scavo; J tenuto continua la catena.
 
 ## Struttura
 

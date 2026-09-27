@@ -1,6 +1,46 @@
 # Avanzamento
 
-## Stato corrente: M4 — Action · completata (senza prova su telefono)
+## Stato corrente: gate R — parità · chiuso (senza prova su telefono)
+
+Sessione del 27/09/2026. Confronto riga per riga della matrice di parità con il sorgente v0_64:
+recuperate le funzioni attive che mancavano o erano parziali (D-025). Restano fuori, per scelta
+del proprietario, nemici, vita del giocatore e aggancio (D-009).
+
+### Recuperato
+- **Colpi e muri:** nessun colpo corpo a corpo attraverso i blocchi opachi (raggio dal petto, o dal
+  punto d'urto, al bersaglio). Test su spada, lancia e martello.
+- **Terza persona adattiva** (`CameraRig._frame_tps`): esplorazione/corsa/soffitto/aggancio,
+  segue le spalle con "Auto" (pulsante visibile solo in terza persona), arretra davanti a muri e
+  chiome, sta sopra il suolo, orizzonte e sole proiettati dalla camera, erba lontana non disegnata.
+- **Preferenze del prototipo** salvate: righe, spigoli, terza persona, Auto, inclinazione, zoom.
+  I test e le prove e2e usano file di impostazioni propri.
+- **Magia:** 6 luci puntiformi (sfera, dardi, lampi, fuoco a terra) nella luce comune; vento della
+  spina sull'erba; alberi scossi; audio sintetizzato (`MagicAudio`: impatti, rilascio, raccolta).
+- **Resa:** niente contorni sui ciuffi d'erba (stencil + `post_grass.gdshader`), verificato con
+  una resa di controllo che colora i pixel dell'erba.
+- **Azione:** estrazione/rinfodero al cambio d'arma, posa rilassata dopo 2,5 s di calma, colpo
+  tenuto che continua la catena, Hitbox di debug, pausa (P o ⚙).
+- **Costruzione e interfaccia:** cubo del cursore, clic destro per l'azione opposta, ⟲/⟳ e zoom
+  nel pannello ⚙, eroi predefiniti 1/2 e copia/incolla della ricetta, contatore dei crateri.
+
+### Test realmente eseguiti (gate R)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 138/138 PASS, log pulito (6 test nuovi: muri, TPS adattiva ×2, pausa e preferenze, ricette, voci) |
+| `tools/e2e_combat.gd` | OK (spada 8 colpi, martello caricato, capriola, editor, quattro magie con le reazioni); Hitbox negli screenshot |
+| `tools/e2e_touch.gd`, `tools/e2e_swim.gd` | OK |
+| Screenshot in terza persona e iso | orizzonte e cielo corretti in TPS; stencil dell'erba verificato |
+
+### Limiti aperti dopo il gate R
+- Nessuna prova su telefono né misura di FPS; renderer Compatibility non provato.
+- Differenze dichiarate: D-016, D-019, D-022, D-024, mappa dei tasti (D-025).
+- Audio solo per la magia, come il prototipo (i colpi non avevano suoni neanche là).
+
+### Punto di ripresa: M5 — Sandbox persistente
+Attrezzi e scavo vero, raccolta, inventario a slot, craft, costo dei blocchi, contenitori,
+checkpoint e salvataggio del mondo, grotte (con la lava e la reazione acqua → pietra scura).
+
+## M4 — Action · completata (senza prova su telefono)
 
 Sessione del 27/09/2026. Richiesta del proprietario: animazioni e mesh delle armi da zero, senza
 prendere esempio da IsoTerra, e un combattimento più dinamico (D-022). Nemici rinviati (D-009):

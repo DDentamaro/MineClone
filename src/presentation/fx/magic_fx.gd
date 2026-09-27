@@ -11,6 +11,11 @@ var grains: Grains
 var world: WorldData
 var _rng := RandomNumberGenerator.new()
 var _acc := {}
+## Lampi di rilascio e d'impatto per le luci puntiformi: {p, col, r, t, life}.
+var _flashes: Array[Dictionary] = []
+var _clock := 0.0
+const LIGHT := {"fire": Color(1.0, .55, .20, 3.4), "water": Color(.30, .55, .85, 1.5)}
+const FLASH := {"fire": Vector3(1, .6, .25), "water": Vector3(.35, .6, .95), "air": Vector3(.8, .9, 1), "earth": Vector3(.7, .55, .35)}
 
 
 func _g(p: Vector3, v: Vector3, el: String, mode: int, life: float, size: float, grav: float = 0.0, drag: float = 0.0, t0: float = 1.0) -> Grains.Grain:
@@ -43,6 +48,13 @@ func _r3() -> Vector3:
 
 func update(dt: float, m: MagicSystem, hand: Vector3, player: Vector3) -> void:
 	var s := m.spell()
+	_clock += dt
+	var i0 := _flashes.size() - 1
+	while i0 >= 0:
+		_flashes[i0]["t"] = float(_flashes[i0]["t"]) + dt
+		if float(_flashes[i0]["t"]) >= float(_flashes[i0]["life"]):
+			_flashes.remove_at(i0)
+		i0 -= 1
 	# Raccolta: l'elemento arriva a spirale dalla zona attorno alla mano.
 	if m.phase == MagicSystem.Phase.GATHER:
 		var n := _emit("gather", 90.0 + 160.0 * m.w, dt)
@@ -163,14 +175,45 @@ func steam(p: Vector3, n: int) -> void:
 			"steam", 1, _rng.randf_range(0.5, 1.2), 0.045, -0.3, 1.0, 0.8)
 
 
+## Fino a 6 luci puntiformi (magicRender del prototipo, HTML 8294–8300):
+## sfera in mano, dardi, lampi, le 3 celle in fiamme piu' vicine.
+func lights(m: MagicSystem, hand: Vector3, player: Vector3) -> Array:
+	var out := []
+	var s := m.spell()
+	if m.phase == MagicSystem.Phase.GATHER and LIGHT.has(s.el):
+		var c: Color = LIGHT[s.el]
+		var k := 0.35 + 0.65 * m.w + 0.08 * sin(_clock * 23.0)
+		out.append([hand, Vector3(c.r, c.g, c.b) * k, c.a * (0.6 + 0.4 * m.w)])
+	for d in m.darts:
+		if LIGHT.has(d.spell.el):
+			var c: Color = LIGHT[d.spell.el]
+			out.append([d.p, Vector3(c.r, c.g, c.b), c.a])
+	for f in _flashes:
+		var k := 1.0 - float(f["t"]) / float(f["life"])
+		out.append([f["p"], (f["col"] as Vector3) * k * 1.3, f["r"]])
+	if not m.fire.is_empty() and out.size() < 6:
+		var cells: Array = m.fire.keys()
+		cells.sort_custom(func(a: Vector3i, b: Vector3i) -> bool:
+			return Vector2(a.x - player.x, a.z - player.z).length_squared() < Vector2(b.x - player.x, b.z - player.z).length_squared())
+		for i in mini(3, cells.size()):
+			if out.size() >= 6:
+				break
+			var c: Vector3i = cells[i]
+			var fl := 0.8 + 0.2 * sin(_clock * 17.0 + c.x * 3.0 + c.z * 5.0)
+			out.append([Vector3(c.x + 0.5, c.y + 1.3, c.z + 0.5), Vector3(1.0, 0.55, 0.2) * fl, 3.0])
+	return out.slice(0, 6)
+
+
 func _event(e: Dictionary) -> void:
 	match String(e["type"]):
 		"impact":
 			burst(e["el"], e["p"], e["n"], 1.0)
+			_flashes.append({"p": e["p"], "col": FLASH[e["el"]], "r": 2.2 if e["el"] == "earth" else 3.2, "t": 0.0, "life": 0.35 if e["el"] == "fire" else 0.22})
 		"burst":
 			burst(e["el"], e["p"], e["n"], float(e.get("k", 1.0)))
 		"release":
 			burst(e["el"], e["p"], e["dir"], 0.35)
+			_flashes.append({"p": e["p"], "col": FLASH[e["el"]] * 0.9, "r": 1.6, "t": 0.0, "life": 0.12})
 		"steam":
 			steam(e["p"], int(e.get("n", 8)))
 		"puddle":

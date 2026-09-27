@@ -53,7 +53,12 @@ var combo := 0
 var combo_t := 0.0
 var events: Array[Dictionary] = []
 var clock := 0.0
+## Mondo e tabella dei blocchi opachi: i colpi non passano attraverso i muri.
+var world: WorldData
+var opaque := PackedByteArray()
 
+## Cambio d'arma in corso (secondi): gli attacchi aspettano.
+var draw_t := 0.0
 var _hit_log := {}
 var _lunge_speed := 0.0
 var _prev_u := 0.0
@@ -170,6 +175,11 @@ func step(dt: float, motor: PlayerMotor, targets: Array, stick: Vector2) -> void
 		State.IDLE:
 			drive_on = false
 			move_scale = 1.0
+			if draw_t > 0.0:
+				# Arma in arrivo: l'input resta in attesa e parte appena e' in mano.
+				draw_t -= dt
+				buffer_t = maxf(buffer_t, 0.05) if buffer != &"" else buffer_t
+				return
 			_take_buffer(motor, targets, stick)
 		State.ATTACK:
 			_step_attack(dt, motor, targets, stick)
@@ -453,7 +463,26 @@ func _radial_hit(from: Vector3, targets: Array) -> void:
 		_hit(tg, dir, from)
 
 
+## Vero se tra `a` e `b` non c'e' un blocco opaco (raggio voxel).
+func clear_path(a: Vector3, b: Vector3) -> bool:
+	if world == null or opaque.is_empty():
+		return true
+	var d := b - a
+	var l := d.length()
+	if l < 1e-3:
+		return true
+	var h := VoxelQuery.raycast(world, opaque, a, d / l, l)
+	return h == null
+
+
 func _hit(tg: CombatTarget, dir: Vector2, from: Vector3) -> void:
+	# Niente colpi attraverso le pareti: dal petto (o dal punto d'urto) al bersaglio.
+	var eye := from + Vector3(0, 0.9, 0)
+	if attack.shape == AttackDefinition.Shape.RADIAL:
+		var f := forward(_attack_facing)
+		eye = from + Vector3(f.x, 0, f.y) * attack.radial_ahead + Vector3(0, 0.5, 0)
+	if not clear_path(eye, tg.position + Vector3(0, tg.height * 0.55, 0)):
+		return
 	_hit_log[tg] = t
 	var cf := charge_fraction()
 	var mult := 1.0 + cf * attack.charge_bonus

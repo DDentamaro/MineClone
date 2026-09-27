@@ -184,3 +184,24 @@ func test_masso_rimbalza_sulla_pietra() -> void:
 				bounced = true
 	check(bounced, "rimbalzo sulla pietra")
 	check_eq(s.magic.crater_items, 0, "nessun cratere")
+
+
+func test_voci_sintetizzate() -> void:
+	var rng := RandomNumberGenerator.new()
+	for el in ["fire", "water", "earth", "air"]:
+		var s := MagicAudio.impact_samples(el, 1.0, rng)
+		var peak := 0.0
+		for v in s:
+			peak = maxf(peak, absf(v))
+		check(s.size() > 1000 and peak > 0.05 and peak < 1.0, "%s: impatto (%d campioni, picco %f)" % [el, s.size(), peak])
+		var tail := 0.0
+		for i in range(s.size() - 200, s.size()):
+			tail = maxf(tail, absf(s[i]))
+		check(tail < peak * 0.1, "%s: decade" % el)
+	var g := MagicAudio.gather_samples("fire", 0.36, rng)
+	var a := 0.0
+	var b := 0.0
+	for i in 400:
+		a = maxf(a, absf(g[i]))
+		b = maxf(b, absf(g[int(0.36 * MagicAudio.RATE) + i]))
+	check(b > a * 3.0, "la raccolta cresce (%f -> %f)" % [a, b])

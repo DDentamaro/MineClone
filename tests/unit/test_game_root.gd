@@ -101,3 +101,33 @@ func test_interruttori_del_pannello() -> void:
 	check_eq(g._view.size.y, 450 + 2, "righe 450 + bordo")
 	check_eq(g._touch.labels[&"dev_res"], "Righe 450", "etichetta")
 	g.free()
+
+
+func test_pausa_e_preferenze_salvate() -> void:
+	var g := _scene()
+	g._on_button(&"dev_pause")
+	check(g.paused and g.get_tree().paused, "in pausa")
+	var p0 := g.motor.position
+	g._physics_process(1.0 / 60.0)
+	check_eq(g.motor.position, p0, "fermo in pausa")
+	g._on_button(&"dev_pause")
+	check(not g.get_tree().paused, "ripreso")
+	# Righe e spigoli restano salvati (chiavi isoterra.rtH / isoterra.edges).
+	g._on_button(&"dev_res")
+	g._on_button(&"dev_edges")
+	var rh := g.rt_height
+	g.free()
+	var g2 := _scene()
+	check_eq(g2.rt_height, rh, "righe ricordate")
+	check_eq(g2.toggles["edges"], false, "spigoli ricordati")
+	g2._on_button(&"dev_edges")
+	g2.free()
+
+
+func test_ricette_predefinite_e_appunti() -> void:
+	var a := AvatarRecipe.preset(0)
+	var b := AvatarRecipe.preset(1)
+	check(a.to_dict() != b.to_dict(), "due eroi diversi")
+	check_eq(AvatarRecipe.from_json(b.to_json()).to_dict(), b.to_dict(), "JSON andata e ritorno")
+	check(AvatarRecipe.from_json("non json") == null, "testo non valido")
+	check(AvatarRecipe.from_json("{\"v\":2}") == null, "versione sconosciuta")

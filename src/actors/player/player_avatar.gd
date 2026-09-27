@@ -13,6 +13,14 @@ var animator := AvatarAnimator.new()
 var trail: WeaponTrail
 var anim_state := AvatarAnimator.State.new()
 var _turn_prev := 0.0
+## Consapevolezza di combattimento: colpi, magia o un manichino vicino tengono
+## la guardia; dopo 2,5 s di calma ci si rilassa.
+var aware_t := 0.0
+var _relax := 0.0
+## Cambio d'arma in corso: tempo trascorso e arma in arrivo.
+const SWAP_TIME := 0.46
+var _swap_t := -1.0
+var _swap_to: WeaponDefinition
 
 
 func _ready() -> void:
@@ -36,6 +44,21 @@ func set_weapon(w: WeaponDefinition) -> void:
 	rig.set_weapon(w)
 	anim_state.weapon = w
 	trail.clear()
+	_swap_t = -1.0
+
+
+## Cambio animato: la mano va dietro la spalla, l'arma cambia a meta'.
+func swap_weapon(w: WeaponDefinition) -> void:
+	if rig.weapon == null:
+		set_weapon(w)
+		return
+	_swap_to = w
+	_swap_t = 0.0
+	aware_t = 2.5
+
+
+func swapping() -> bool:
+	return _swap_t >= 0.0
 
 
 func face_towards(dir: Vector2, dt: float) -> void:
@@ -74,7 +97,27 @@ func animate(dt: float, motor: PlayerMotor, combat: CombatController, magic: Mag
 			s.gather = magic.w
 		elif magic.phase == MagicSystem.Phase.RECOVER:
 			s.release = clampf(magic.t / magic.spell().recover, 0.0, 1.0)
-	rig.ik_enabled = s.gather < 0.0 and s.release < 0.0
+	# Guardia o riposo, e cambio d'arma.
+	var busy := s.attack != null or s.dodge >= 0.0 or s.gather >= 0.0 or s.release >= 0.0 or combat.combo > 0
+	if busy:
+		aware_t = 2.5
+	else:
+		aware_t = maxf(0.0, aware_t - dt)
+	_relax += ((1.0 if aware_t <= 0.0 else 0.0) - _relax) * (1.0 - exp(-dt * 4.0))
+	s.relax = _relax
+	s.reach = 0.0
+	if _swap_t >= 0.0:
+		var half := SWAP_TIME * 0.5
+		var was := _swap_t
+		_swap_t += dt
+		if was < half and _swap_t >= half and _swap_to != null:
+			rig.set_weapon(_swap_to)
+			s.weapon = _swap_to
+			trail.clear()
+		s.reach = 1.0 - absf(_swap_t - half) / half
+		if _swap_t >= SWAP_TIME:
+			_swap_t = -1.0
+	rig.ik_enabled = s.gather < 0.0 and s.release < 0.0 and _relax < 0.5 and s.reach < 0.3
 	if s.dodge >= 0.0 or s.attack != null:
 		s.speed = 0.0 if s.attack != null else s.speed * 0.2
 	if dt > 0.0:

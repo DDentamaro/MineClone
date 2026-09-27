@@ -20,6 +20,8 @@ class Rig:
 		motor.place_at(Vector3(24.5, 4, 24.5))
 		combat = CombatController.new(WeaponLibrary.by_id(weapon))
 		combat.facing = 0.0
+		combat.world = world
+		combat.opaque = BlockCatalog.load_default().opaque_table()
 
 	func dummy(rel: Vector2) -> TrainingDummy:
 		var d := TrainingDummy.new(Vector3(motor.position.x + rel.x, 4, motor.position.z + rel.y))
@@ -242,3 +244,17 @@ func test_tutte_le_catene_sono_valide() -> void:
 			for n in [a.next_light, a.next_heavy]:
 				check(n == &"" or w.attack(n) != null, "%s.%s -> %s" % [w.id, a.id, n])
 			check(a.total() > 0.2 and a.total() < 1.6, "%s.%s durata %f" % [w.id, a.id, a.total()])
+
+
+func test_niente_colpi_attraverso_i_muri() -> void:
+	for id in [&"sword", &"spear", &"hammer"]:
+		var r := Rig.new(id)
+		var d := r.dummy(Vector2(0, -1.8))
+		# Muro alto due blocchi tra giocatore e manichino.
+		var z := floori(r.motor.position.z - 1.0)
+		TestWorlds.fill(r.world, Vector3i(20, 4, z), Vector3i(28, 5, z), BlockCatalog.STONE)
+		r.combat._start_attack(WeaponLibrary.by_id(id).light_start, r.motor, [], Vector2.ZERO)
+		r.settle()
+		r.combat._start_attack(WeaponLibrary.by_id(id).heavy_start, r.motor, [], Vector2.ZERO)
+		r.settle()
+		check_eq(d.hits, 0, "%s: nessun colpo oltre il muro" % id)

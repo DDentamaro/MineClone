@@ -22,6 +22,8 @@ enum Kind { FISTS, SWORD, SPEAR, HAMMER, GREATSWORD }
 @export var trail_from := 0.2
 @export var trail_to := 1.0
 @export var guard := {}
+## Posa rilassata (fuori combattimento dopo 2,5 s di calma).
+@export var relaxed := {}
 @export var attacks := {}
 
 

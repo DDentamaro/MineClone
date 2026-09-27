@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3]
+[gd_scene load_steps=20 format=3]
 
 [ext_resource type="Script" path="res://src/game_root.gd" id="1_root"]
 [ext_resource type="Script" path="res://src/world/runtime/world_runtime.gd" id="2_runtime"]
@@ -12,6 +12,7 @@
 [ext_resource type="Script" path="res://src/presentation/fx/grains.gd" id="10_grains"]
 [ext_resource type="Script" path="res://src/presentation/fx/water_effects.gd" id="11_wfx"]
 [ext_resource type="Script" path="res://src/actors/dummy/training_ground.gd" id="12_dummies"]
+[ext_resource type="Shader" path="res://src/presentation/shaders/post_grass.gdshader" id="13_postg"]
 
 [sub_resource type="Environment" id="env"]
 background_mode = 1
@@ -23,6 +24,15 @@ tonemap_mode = 0
 [sub_resource type="ShaderMaterial" id="post_mat"]
 render_priority = -128
 shader = ExtResource("7_post")
+
+[sub_resource type="ShaderMaterial" id="post_grass_mat"]
+render_priority = -128
+shader = ExtResource("13_postg")
+shader_parameter/no_outline = 1.0
+
+[sub_resource type="QuadMesh" id="post_grass_quad"]
+material = SubResource("post_grass_mat")
+size = Vector2(2, 2)
 
 [sub_resource type="QuadMesh" id="post_quad"]
 material = SubResource("post_mat")
@@ -86,6 +96,12 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -2)
 cast_shadow = 0
 extra_cull_margin = 16384.0
 mesh = SubResource("post_quad")
+
+[node name="PostQuadGrass" type="MeshInstance3D" parent="WorldView/CameraRig/Camera3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -2)
+cast_shadow = 0
+extra_cull_margin = 16384.0
+mesh = SubResource("post_grass_quad")
 
 [node name="Screen" type="TextureRect" parent="."]
 unique_name_in_owner = true

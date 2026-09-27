@@ -76,6 +76,29 @@ func label(field: String) -> String:
 	return field
 
 
+## Eroi predefiniti dell'editor ("Eroe 1", "Eroe 2" come nel prototipo).
+static func preset(i: int) -> AvatarRecipe:
+	var d: Dictionary = [{"v": 1, "skin": 0, "hair": 0, "hair_style": 1, "shirt": 0, "pants": 0, "build": 1},
+		{"v": 1, "skin": 2, "hair": 4, "hair_style": 2, "shirt": 1, "pants": 1, "build": 0}][posmod(i, 2)]
+	return from_dict(d)
+
+
+## Ricetta come testo JSON (da copiare e incollare, come #c-dna del prototipo).
+func to_json() -> String:
+	return JSON.stringify(to_dict())
+
+
+## null se il testo non e' una ricetta valida.
+static func from_json(text: String) -> AvatarRecipe:
+	var j := JSON.new()
+	if j.parse(text) != OK:
+		return null
+	var d: Variant = j.data
+	if not (d is Dictionary) or int((d as Dictionary).get("v", 0)) != 1:
+		return null
+	return from_dict(d)
+
+
 static func random(seed_value: int) -> AvatarRecipe:
 	var r := AvatarRecipe.new()
 	var rng := RandomNumberGenerator.new()

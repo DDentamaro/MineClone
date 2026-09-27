@@ -58,6 +58,8 @@ var stick_vector := Vector2.ZERO
 var stick_center := Vector2.ZERO
 var left_handed := false
 var labels := {}
+## Pulsanti nascosti in questo momento (es. "Auto" fuori dalla terza persona).
+var hidden_ids := {}
 ## Pannello sviluppatore (comandi tecnici del prototipo) aperto.
 var dev_open := false:
 	set(v):
@@ -113,6 +115,8 @@ func add_button(id: StringName, label: String, hold: bool, group: StringName = &
 
 
 func _visible(b: VButton) -> bool:
+	if hidden_ids.get(b.id, false):
+		return false
 	match b.group:
 		&"dev":
 			return dev_open
@@ -169,7 +173,7 @@ func _layout() -> void:
 	var m := dp(20.0)
 	var med := big * 0.78
 	# Riga in alto dal bordo verso il centro: camera, blocco, modo, arma, eroe.
-	var row: Array[StringName] = [&"camera", &"block", &"mode", &"weapon", &"spell", &"hero"]
+	var row: Array[StringName] = [&"camera", &"tps_auto", &"block", &"mode", &"weapon", &"spell", &"hero"]
 	var dw := dp(DEV_BUTTON_W_DP)
 	var dh := dp(DEV_BUTTON_H_DP)
 	var cursor := {}

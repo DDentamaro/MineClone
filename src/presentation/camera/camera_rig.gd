@@ -57,6 +57,27 @@ var pixel_snap := true
 var shake_amt := 0.0
 var _shake_t := 0.0
 
+# --- terza persona adattiva (frameTPS del prototipo, HTML 6859–6888)
+## Situazione riempita dal gioco: velocita', direzione dell'eroe, "coperto"
+## (soffitto sopra la testa) e punto del bersaglio agganciato (o null).
+var tps_ctx := {}
+## Segue da sola le spalle dell'eroe (e il bersaglio agganciato).
+var tps_auto := true
+## Inclinazione scelta dall'utente trascinando (NAN finche' non la tocca).
+var tps_user_pitch := NAN
+var tps_dist := TPS_DIST
+var tps_fov := TPS_FOV
+var tree_grid := {}
+## Sole proiettato dalla camera in terza persona (coordinate schermo 0..1, y in alto).
+var tps_sun_uv := Vector2(-2, -2)
+## Preferenze cambiate da salvare (le salva il GameRoot, non a ogni evento).
+var prefs_dirty := false
+## Direzione del sole (la imposta il gioco dal ciclo del giorno).
+var sun_dir := Vector3(-0.3, 0.93, 0.22)
+var _tps_zoom_cur := 1.0
+var _tps_esc := 0.0
+var _last_spin := -9.0
+
 @onready var camera: Camera3D = $Camera3D
 
 
@@ -74,15 +95,20 @@ func toggle_mode() -> void:
 
 
 func spin(dyaw: float, dpitch: float) -> void:
+	_last_spin = _now()
 	yaw_target += dyaw
 	if mode == Mode.TPS:
-		tps_pitch = clampf(tps_pitch + dpitch, TPS_PITCH_MIN, TPS_PITCH_MAX)
+		if dpitch != 0.0:
+			var base := tps_pitch if is_nan(tps_user_pitch) else tps_user_pitch
+			tps_user_pitch = clampf(base + dpitch, TPS_PITCH_MIN, TPS_PITCH_MAX)
+			prefs_dirty = true
 	else:
 		pitch_target = clampf(pitch_target + dpitch, ISO_PITCH_MIN, ISO_PITCH_MAX)
 
 
 ## Rotazione a scatti (tasti Q/E): 90° in isometrica, 45° in terza persona.
 func rotate_step(step: int) -> void:
+	_last_spin = _now()
 	yaw_target += step * (PI / 4.0 if mode == Mode.TPS else PI / 2.0)
 
 
@@ -101,6 +127,7 @@ func get_zoom() -> float:
 func set_zoom(z: float) -> void:
 	if mode == Mode.TPS:
 		tps_zoom = clampf(z, TPS_ZOOM_MIN, TPS_ZOOM_MAX)
+		prefs_dirty = true
 	else:
 		zoom_target = clampf(z, ISO_ZOOM_MIN, ISO_ZOOM_MAX)
 
@@ -159,19 +186,147 @@ func update_camera(dt: float, target: Vector3) -> void:
 			camera.global_position -= right * rx + up * ry
 			subpixel = Vector2(rx / px, ry / px)
 	else:
-		var dist := TPS_DIST * tps_zoom
-		# Arretramento davanti ai muri: raycast voxel dal bersaglio verso la camera.
-		if world != null and not opaque.is_empty():
-			var hit := VoxelQuery.raycast(world, opaque, look, dir, dist)
-			if hit != null:
-				dist = maxf(0.4, hit.distance - 0.2)
-		camera.global_position = look + dir * dist
-	camera.global_transform.basis = Basis.looking_at(look - camera.global_position, Vector3.UP)
+		_frame_tps(dt, look)
+		dir = view_dir()
+	if mode == Mode.ISO:
+		camera.global_transform.basis = Basis.looking_at(look - camera.global_position, Vector3.UP)
+	if mode == Mode.TPS:
+		_tps_sky()
+	else:
+		RenderingServer.global_shader_parameter_set(&"horizon_v", 0.0)
 	var rs := RenderingServer
 	rs.global_shader_parameter_set(&"view_dir", dir)
 	rs.global_shader_parameter_set(&"persp", 1.0 if mode == Mode.TPS else 0.0)
 	if mode == Mode.ISO:
 		rs.global_shader_parameter_set(&"px_h", camera.size / _viewport_height())
+
+
+static func _now() -> float:
+	return Time.get_ticks_msec() / 1000.0
+
+
+## Terza persona adattiva: la situazione sceglie distanza, inclinazione e campo
+## (esplorazione 6,5 u / 20°; corsa: piu' lontana e larga; sotto un soffitto:
+## vicina e bassa; aggancio: si alza e tiene in quadro eroe e bersaglio), la
+## scelta dell'utente (zoom, inclinazione) resta la base. Un raggio nei voxel e
+## tra gli alberi la accorcia prima che entri in un muro (rientro rapido, uscita lenta).
+func _frame_tps(dt: float, look_feet: Vector3) -> void:
+	dt = minf(0.05, dt)
+	var c := tps_ctx
+	var now := _now()
+	var d_want := 6.5
+	var p_want := 0.35
+	var f_want := 52.0
+	var sp := float(c.get("speed", 0.0))
+	var covered := bool(c.get("covered", false))
+	var lock: Variant = c.get("lock", null)
+	if sp > 3.6:
+		d_want = 7.4
+		f_want = 57.0
+		p_want = 0.32
+	if covered:
+		d_want = 4.2
+		p_want = 0.20
+		f_want = 58.0
+	if lock is Vector3:
+		var lv: Vector3 = lock
+		var dx := lv.x - look_feet.x
+		var dz := lv.z - look_feet.z
+		d_want = clampf(5.2 + Vector2(dx, dz).length() * 0.5, 6.0, 11.0)
+		p_want = 0.45
+		f_want = 54.0
+		if tps_auto and now - _last_spin > 1.5:
+			var df := wrapf(atan2(-dx, -dz) - yaw_target, -PI, PI)
+			yaw_target += df * minf(1.0, dt * 2.2)
+	elif tps_auto and sp > 1.2 and now - _last_spin > 3.0 and c.has("heading"):
+		# Alle spalle dell'eroe: la camera sta dalla parte opposta allo sguardo.
+		var df := wrapf(float(c["heading"]) - yaw_target, -PI, PI)
+		if absf(df) < 2.5:
+			yaw_target += df * minf(1.0, dt * 0.55)
+	_tps_zoom_cur += (tps_zoom - _tps_zoom_cur) * (1.0 - exp(-dt * 9.0))
+	var k_ad := d_want / 6.5
+	var dist := 6.5 / _tps_zoom_cur * (0.55 + 0.45 * k_ad)
+	var user := not is_nan(tps_user_pitch)
+	if user:
+		p_want = tps_user_pitch + (0.06 if lock is Vector3 else 0.0) - (0.08 if covered else 0.0)
+	var k := 1.0 - exp(-dt * (12.0 if user else 3.2))
+	tps_pitch += (p_want - tps_pitch) * k
+	tps_fov += (f_want - tps_fov) * k
+	var look := look_feet + Vector3(0, 0.45, 0)
+	var dir := view_dir()
+	var free := dist
+	if world != null:
+		var t := 0.7
+		while t <= dist:
+			var q := look + dir * t
+			var id := world.get_block_xyz(floori(q.x), floori(q.y), floori(q.z)) if world.inside(floori(q.x), floori(q.y), floori(q.z)) else 0
+			if id != BlockCatalog.AIR and id != BlockCatalog.TORCH and id != BlockCatalog.LEAVES and id != BlockCatalog.WATER:
+				free = maxf(0.5, t - 0.45)
+				break
+			if _tree_blocks(q):
+				free = maxf(1.2, t - 0.5)
+				break
+			t += 0.2
+	if free < 1.7:
+		_tps_esc = 0.8
+	else:
+		_tps_esc = maxf(0.0, _tps_esc - dt)
+	if _tps_esc > 0.0:
+		tps_pitch += (1.22 - tps_pitch) * (1.0 - exp(-dt * 7.0))
+	var rate := 18.0 if free < tps_dist else (6.0 if free >= dist - 0.01 else 2.5)
+	tps_dist += (free - tps_dist) * (1.0 - exp(-dt * rate))
+	if absf(camera.fov - tps_fov) > 0.01:
+		camera.fov = tps_fov
+	var pos := look + view_dir() * tps_dist
+	if world != null:
+		var gy := VoxelQuery.field_height(world, clampf(pos.x, 1.0, world.size_x - 2.0), clampf(pos.z, 1.0, world.size_z - 2.0), float(world.size_y))
+		pos.y = maxf(pos.y, gy + 0.35)
+	camera.global_position = pos
+	# Il punto guardato e' quello del prototipo (0,45 sopra il bersaglio).
+	camera.global_transform.basis = Basis.looking_at(look - pos, Vector3.UP)
+
+
+## Chioma o tronco di un albero nel punto (test del raggio della camera).
+func _tree_blocks(q: Vector3) -> bool:
+	if tree_grid.is_empty():
+		return false
+	var gx := int(q.x / 8.0)
+	var gz := int(q.z / 8.0)
+	for az in range(gz - 1, gz + 2):
+		for ax in range(gx - 1, gx + 2):
+			for tr: Vegetation.TreeSpot in tree_grid.get(Vector2i(ax, az), []):
+				if tr.dead:
+					continue
+				var sc := tr.scale
+				var dx := q.x - tr.x
+				var dz := q.z - tr.z
+				var dy := q.y - (tr.y + 3.0 * sc)
+				if (q.y > tr.y + 1.7 * sc and dx * dx + dz * dz + dy * dy * 0.7 < (1.9 * sc) * (1.9 * sc)) \
+						or (dx * dx + dz * dz < 0.2 and q.y < tr.y + 3.0 * sc):
+					return true
+	return false
+
+
+## Orizzonte e sole veri in terza persona: si proiettano un punto lontano
+## all'altezza degli occhi e la direzione del sole.
+func _tps_sky() -> void:
+	var vs := camera.get_viewport().get_visible_rect().size if camera.is_inside_tree() else Vector2(640, 360)
+	var d := view_dir()
+	var cp := camera.global_position
+	var far := Vector3(cp.x - d.x * 900.0, cp.y, cp.z - d.z * 900.0)
+	var hv := 0.0
+	if not camera.is_position_behind(far):
+		hv = 1.0 - camera.unproject_position(far).y / vs.y
+	RenderingServer.global_shader_parameter_set(&"horizon_v", clampf(hv, -0.5, 0.95))
+	var sd := sun_dir
+	var fwd := -camera.global_transform.basis.z
+	var sp := cp + sd.normalized() * 900.0
+	if fwd.dot(sd.normalized()) > 0.05 and not camera.is_position_behind(sp):
+		var q := camera.unproject_position(sp)
+		tps_sun_uv = Vector2(q.x / vs.x, 1.0 - q.y / vs.y)
+	else:
+		tps_sun_uv = Vector2(-2, -2)
+	RenderingServer.global_shader_parameter_set(&"sun_uv", tps_sun_uv)
 
 
 func _viewport_height() -> float:
@@ -189,6 +344,6 @@ func _apply_projection() -> void:
 		camera.far = 160.0
 	else:
 		camera.projection = Camera3D.PROJECTION_PERSPECTIVE
-		camera.fov = TPS_FOV
+		camera.fov = tps_fov
 		camera.near = 0.05
 		camera.far = 300.0

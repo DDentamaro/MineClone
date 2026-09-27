@@ -14,6 +14,9 @@ var _started := false
 func _process(_delta: float) -> bool:
 	if not _started:
 		_started = true
+		# Impostazioni separate da quelle del gioco e vuote a ogni esecuzione.
+		Settings.path = "user://test_settings.cfg"
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(Settings.path))
 		_run_all()
 	return false
 

@@ -83,6 +83,7 @@ static func _fists() -> WeaponDefinition:
 	w.air_attack = &"dive"
 	w.trail_from = -0.02
 	w.trail_to = 0.08
+	w.relaxed = pose({"arm_l": [4, 0, -6], "fore_l": [16, 0, 0], "arm_r": [4, 0, 6], "fore_r": [16, 0, 0]})
 	w.guard = pose({"arm_l": [34, 10, -8], "fore_l": [112, 0, 0], "arm_r": [26, 8, 10], "fore_r": [118, 0, 0], "chest": [0, 12, 0], "hand_r": [-60, 0, 0], "hand_l": [-60, 0, 0]})
 	var jab := {"windup": 0.05, "active": 0.07, "recovery": 0.16, "chain_at": 0.2, "shape": AttackDefinition.Shape.THRUST,
 		"reach_min": 0.2, "reach": 1.3, "width": 0.5, "damage": 5.0, "knockback": 2.5, "hitstop": 0.045, "shake": 0.06,
@@ -138,6 +139,7 @@ static func _sword() -> WeaponDefinition:
 	w.air_attack = &"plunge"
 	w.trail_from = 0.22
 	w.trail_to = 0.98
+	w.relaxed = pose({"arm_r": [-6, 0, 8], "fore_r": [12, 0, 0], "hand_r": [-100, 0, 0], "arm_l": [4, 0, -6], "fore_l": [14, 0, 0]})
 	w.guard = pose({"arm_r": [22, 6, 10], "fore_r": [52, 0, 0], "hand_r": [-26, 0, 0], "arm_l": [12, 0, -12], "fore_l": [30, 0, 0], "chest": [0, 8, 0]})
 	var base := {"windup": 0.13, "active": 0.1, "recovery": 0.24, "chain_at": 0.15, "shape": AttackDefinition.Shape.ARC,
 		"reach_min": 0.3, "reach": 2.05, "damage": 9.0, "knockback": 4.5, "hitstop": 0.07, "shake": 0.14, "lunge": 0.7}
@@ -207,6 +209,7 @@ static func _spear() -> WeaponDefinition:
 	w.trail_from = 1.25
 	w.trail_to = 1.62
 	w.move_mult = 1.0
+	w.relaxed = pose({"arm_r": [10, 0, 10], "fore_r": [70, 0, 0], "hand_r": [0, 0, 0], "arm_l": [4, 0, -6], "fore_l": [14, 0, 0]})
 	w.guard = pose({"arm_r": [8, 0, 12], "fore_r": [72, 0, 0], "hand_r": [-62, 0, 0], "chest": [0, -20, 0], "head": [0, 18, 0]})
 	var th := {"windup": 0.1, "active": 0.09, "recovery": 0.22, "chain_at": 0.2, "shape": AttackDefinition.Shape.THRUST,
 		"reach_min": 0.4, "reach": 2.75, "width": 0.4, "damage": 9.0, "knockback": 4.0, "hitstop": 0.06, "shake": 0.1, "lunge": 0.9}
@@ -253,6 +256,7 @@ static func _hammer() -> WeaponDefinition:
 	w.air_attack = &"meteor"
 	w.trail_from = 0.72
 	w.trail_to = 1.0
+	w.relaxed = pose({"arm_r": [40, 24, 12], "fore_r": [124, 0, 0], "hand_r": [-16, 0, 0], "arm_l": [4, 0, -6], "fore_l": [14, 0, 0]})
 	w.guard = pose({"arm_r": [38, 22, 12], "fore_r": [118, 0, 0], "hand_r": [-20, 0, 0], "chest": [0, -10, 0]})
 	var sw := {"windup": 0.24, "active": 0.14, "recovery": 0.34, "chain_at": 0.2, "shape": AttackDefinition.Shape.ARC,
 		"reach_min": 0.4, "reach": 2.2, "damage": 16.0, "knockback": 9.0, "hitstop": 0.11, "shake": 0.3, "lunge": 0.7, "fx": "spark"}
@@ -303,6 +307,7 @@ static func _greatsword() -> WeaponDefinition:
 	w.air_attack = &"plunge"
 	w.trail_from = 0.3
 	w.trail_to = 1.45
+	w.relaxed = pose({"arm_r": [40, 22, 12], "fore_r": [122, 0, 0], "hand_r": [-12, 0, 0], "arm_l": [4, 0, -6], "fore_l": [14, 0, 0]})
 	w.guard = pose({"arm_r": [30, 16, 8], "fore_r": [70, 0, 0], "hand_r": [-52, 0, 0], "chest": [0, -12, 0]})
 	var sw := {"windup": 0.2, "active": 0.15, "recovery": 0.3, "chain_at": 0.2, "shape": AttackDefinition.Shape.ARC,
 		"reach_min": 0.4, "reach": 2.55, "damage": 14.0, "knockback": 7.0, "hitstop": 0.09, "shake": 0.25, "lunge": 0.9}

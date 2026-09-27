@@ -33,6 +33,10 @@ class State:
 	## Magia (mano sinistra): raccolta 0..1 e rilascio 0..1, -1 se assenti.
 	var gather := -1.0
 	var release := -1.0
+	## 0 in guardia, 1 rilassato (fuori combattimento).
+	var relax := 0.0
+	## Cambio d'arma: la destra va dietro la spalla (0..1..0).
+	var reach := 0.0
 
 
 var stride_phase := 0.0
@@ -102,6 +106,21 @@ func target_pose(dt: float, s: State) -> Dictionary:
 	if s.weapon != null:
 		for b: StringName in s.weapon.guard:
 			p[b] = s.weapon.guard[b]
+		# Fuori combattimento l'arma si abbassa o va sulla spalla.
+		if s.relax > 0.0:
+			for b: StringName in s.weapon.relaxed:
+				p[b] = (p[b] as Vector3).lerp(s.weapon.relaxed[b], s.relax)
+			for b: StringName in s.weapon.guard:
+				if not s.weapon.relaxed.has(b):
+					p[b] = (p[b] as Vector3).lerp(Vector3.ZERO, s.relax)
+	# Cambio d'arma: la mano destra va a prenderla dietro la spalla.
+	if s.reach > 0.0:
+		var rk := _smooth(s.reach)
+		p[&"arm_r"] = (p[&"arm_r"] as Vector3).lerp(d(150, -10, 28), rk)
+		p[&"fore_r"] = (p[&"fore_r"] as Vector3).lerp(d(115), rk)
+		p[&"hand_r"] = (p[&"hand_r"] as Vector3).lerp(d(-40), rk)
+		p[&"chest"] += d(0, -12.0 * rk)
+		p[&"head"] += d(0, 10.0 * rk)
 	# Respiro.
 	var br := sin(time * 2.2)
 	p[&"chest"] += d(br * 1.6)

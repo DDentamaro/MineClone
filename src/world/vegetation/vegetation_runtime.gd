@@ -300,6 +300,19 @@ func set_grass_visible(on: bool) -> void:
 		inst.visible = on
 
 
+## Terza persona: i ciuffi d'erba oltre 46 + 1,2 × distanza della camera non si
+## disegnano (come il prototipo, riga 6884). `r` = 0 li mostra tutti.
+func cull_grass(cam: Vector3, r: float) -> void:
+	var cs := float(WorldData.CHUNK_SIZE)
+	for col: Vector2i in _grass_nodes:
+		var inst: MeshInstance3D = _grass_nodes[col]
+		var on := grass_visible
+		if on and r > 0.0:
+			var c := Vector2((col.x + 0.5) * cs, (col.y + 0.5) * cs)
+			on = c.distance_to(Vector2(cam.x, cam.z)) < r + cs * 0.71
+		inst.visible = on
+
+
 func grass_count() -> int:
 	return _grass_nodes.size()
 

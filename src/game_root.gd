@@ -17,10 +17,17 @@ const DEV_BUTTONS := [
 	[&"dev_seed", "Nuovo seme"], [&"dev_lake", "Al lago"], [&"dev_time", "Ora +3h"], [&"dev_res", "Righe"], [&"dev_outline", "Contorni"],
 	[&"dev_edges", "Spigoli"], [&"dev_paint", "Dipinto"], [&"dev_dither", "Dither"], [&"dev_rays", "Raggi"],
 	[&"dev_grass", "Erba"], [&"dev_shadow", "Ombre"], [&"dev_clouds", "Nubi"], [&"dev_dummies", "Manichini"],
+	[&"dev_rot_l", "⟲ Ruota"], [&"dev_rot_r", "⟳ Ruota"], [&"dev_zin", "Zoom +"], [&"dev_zout", "Zoom −"],
+	[&"dev_hitbox", "Hitbox"], [&"dev_pause", "Pausa"],
 ]
+## Pulsanti del pannello da tenere premuti (rotazione continua come rot-l/rot-r).
+const DEV_HOLD: Array[StringName] = [&"dev_rot_l", &"dev_rot_r"]
 ## Editor dell'eroe: un pulsante per parametro della ricetta.
 const HERO_BUTTONS := [[&"hero_skin", "skin"], [&"hero_hair", "hair"], [&"hero_hair_style", "hair_style"],
-	[&"hero_shirt", "shirt"], [&"hero_pants", "pants"], [&"hero_build", "build"], [&"hero_random", ""], [&"hero_close", ""]]
+	[&"hero_shirt", "shirt"], [&"hero_pants", "pants"], [&"hero_build", "build"], [&"hero_preset", ""], [&"hero_random", ""],
+	[&"hero_copy", ""], [&"hero_paste", ""], [&"hero_close", ""]]
+const HERO_LABELS := {&"hero_preset": "Eroe 1/2", &"hero_random": "Casuale", &"hero_copy": "Copia ricetta",
+	&"hero_paste": "Incolla ricetta", &"hero_close": "Chiudi"}
 const WEAPONS: Array[StringName] = [&"fists", &"sword", &"spear", &"hammer", &"greatsword"]
 
 @onready var _status: Label = %Status
@@ -49,6 +56,16 @@ var magic := MagicSystem.new(1931)
 var mfx := MagicFx.new()
 var _texts: FloatingText
 var _magic_key := false
+var _audio: MagicAudio
+var _light_key := false
+var paused := false
+var show_hitboxes := false
+var inventory := {}
+var _preset_i := 0
+var _hitbox_lines: DebugLines
+var _cursor_lines: DebugLines
+var _mouse_pos := Vector2(-1, -1)
+var _audio_n := 0
 var recipe: AvatarRecipe
 var weapon_index := 1
 var fx := CombatFx.new()
@@ -72,6 +89,10 @@ var _build_ms := 0
 
 func _ready() -> void:
 	_args = _parse_user_args()
+	# Preferenze del prototipo (chiavi isoterra.*): righe, spigoli, terza persona.
+	var rh := int(Settings.load_value("view", "rt_h", 360))
+	rt_height = rh if rh in [270, 360, 450] else 360
+	toggles["edges"] = bool(Settings.load_value("view", "edges", true))
 	catalog = BlockCatalog.load_default()
 	var w: WorldData
 	if _args.has("seed"):
@@ -97,18 +118,36 @@ func _ready() -> void:
 	_texts = FloatingText.new()
 	_texts.name = "Texts"
 	_view.add_child(_texts)
+	_hitbox_lines = DebugLines.new()
+	_view.add_child(_hitbox_lines)
+	_cursor_lines = DebugLines.new()
+	_view.add_child(_cursor_lines)
+	# Pausa (tasto P): si ferma il mondo, non l'interfaccia.
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	_view.process_mode = Node.PROCESS_MODE_PAUSABLE
+	$HUD.process_mode = Node.PROCESS_MODE_ALWAYS
+	_audio = MagicAudio.new()
+	_audio.name = "MagicAudio"
+	add_child(_audio)
 	magic.catalog = catalog
 	magic.spell_index = clampi(int(Settings.load_value("magic", "spell", 0)), 0, 3)
 	_swap_world(w)
 	_camera_rig.opaque = catalog.opaque_table()
 	for d: Array in DEV_BUTTONS:
-		_touch.add_button(d[0], d[1], false, &"dev")
+		_touch.add_button(d[0], d[1], DEV_HOLD.has(d[0]), &"dev")
 	for d: Array in HERO_BUTTONS:
 		_touch.add_button(d[0], "", false, &"hero")
 	var cam_mode: int = Settings.load_value("camera", "mode", CameraRig.Mode.ISO)
 	if _args.get("cam", "") == "tps":
 		cam_mode = CameraRig.Mode.TPS
 	_camera_rig.set_mode(cam_mode as CameraRig.Mode)
+	_camera_rig.tps_auto = bool(Settings.load_value("camera", "tps_auto", true))
+	_camera_rig.tps_zoom = clampf(float(Settings.load_value("camera", "tps_zoom", 1.0)), CameraRig.TPS_ZOOM_MIN, CameraRig.TPS_ZOOM_MAX)
+	var up := float(Settings.load_value("camera", "tps_pitch", NAN))
+	if not is_nan(up):
+		_camera_rig.tps_user_pitch = clampf(float(up), CameraRig.TPS_PITCH_MIN, CameraRig.TPS_PITCH_MAX)
+	_touch.add_button(&"tps_auto", "Auto", false)
+	_apply_toggles()
 	if _args.has("zoom"):
 		_camera_rig.set_zoom(float(_args["zoom"]))
 		_camera_rig.zoom = _camera_rig.zoom_target
@@ -178,7 +217,10 @@ func _swap_world(w: WorldData) -> void:
 	_water_fx.reset()
 	motor.tree_grid = _vegetation.tree_grid
 	_camera_rig.world = world
+	_camera_rig.tree_grid = _vegetation.tree_grid
 	fx.world = world
+	combat.world = world
+	combat.opaque = catalog.opaque_table()
 	mfx.world = world
 	magic.world = world
 	magic.edits = edits
@@ -191,8 +233,15 @@ func _swap_world(w: WorldData) -> void:
 
 
 func _physics_process(dt: float) -> void:
-	if motor == null:
+	if motor == null or paused:
 		return
+	# Colpo tenuto premuto: la catena continua da sola (come J tenuto nel prototipo).
+	if (_touch.is_held(&"attack") or _light_key) and combat.buffer == &"" and not magic.is_casting():
+		if combat.state == CombatController.State.IDLE or (combat.state == CombatController.State.ATTACK and combat.phase() == 2):
+			combat.press_light()
+	for d in _dummies.dummies:
+		if d.alive and d.position.distance_to(motor.position) < 4.5:
+			_avatar.aware_t = 2.5
 	var stick := _read_stick()
 	_move_world = _camera_rig.stick_to_world(stick)
 	if not combat.is_busy():
@@ -231,6 +280,108 @@ func _physics_process(dt: float) -> void:
 		fx.broke(d)
 
 
+## Riquadri dei colpi (Hitbox) e cubo del cursore di costruzione.
+func _draw_debug() -> void:
+	_hitbox_lines.begin()
+	if show_hitboxes:
+		for d in _dummies.dummies:
+			if d.alive:
+				_hitbox_lines.cylinder(d.position, d.radius, d.height, Color(0.4, 1, 0.5) if d.flash <= 0.0 else Color(1, 0.3, 0.3))
+		var a := combat.attack
+		if a != null:
+			var col := Color(1, 0.9, 0.2) if combat.phase() == 1 else Color(0.6, 0.6, 0.6)
+			var base := motor.position + Vector3(0, 0.05, 0)
+			var f := combat._attack_facing
+			match a.shape:
+				AttackDefinition.Shape.ARC:
+					var sweep := combat.arc_angle(combat.phase_u()) if combat.phase() == 1 else deg_to_rad(a.arc_from)
+					_hitbox_lines.arc(base, a.reach, f + deg_to_rad(a.arc_from), f + deg_to_rad(a.arc_to), col, true)
+					_hitbox_lines.arc(base, a.reach_min, f + deg_to_rad(a.arc_from), f + deg_to_rad(a.arc_to), col)
+					if combat.phase() == 1:
+						var dd := Vector3(-sin(f + deg_to_rad(sweep)), 0, -cos(f + deg_to_rad(sweep)))
+						_hitbox_lines.line(base, base + dd * a.reach, Color(1, 0.3, 0.2))
+				AttackDefinition.Shape.THRUST:
+					var fw := Vector3(-sin(f), 0, -cos(f))
+					var lf := Vector3(-sin(f + PI * 0.5), 0, -cos(f + PI * 0.5))
+					var c0 := base + fw * a.reach_min
+					var c1 := base + fw * a.reach
+					_hitbox_lines.line(c0 + lf * a.width, c1 + lf * a.width, col)
+					_hitbox_lines.line(c0 - lf * a.width, c1 - lf * a.width, col)
+					_hitbox_lines.line(c1 + lf * a.width, c1 - lf * a.width, col)
+					_hitbox_lines.line(c0 + lf * a.width, c0 - lf * a.width, col)
+				_:
+					var fw := Vector3(-sin(f), 0, -cos(f))
+					_hitbox_lines.arc(base + fw * a.radial_ahead, a.radial, 0.0, TAU, col)
+	_hitbox_lines.finish()
+	_cursor_lines.begin()
+	if action_mode != ActionMode.EXPLORE and _mouse_pos.x >= 0.0:
+		var cam := _camera_rig.camera
+		var sub := screen_to_view(_mouse_pos)
+		var hit := VoxelQuery.raycast(world, catalog.opaque_table(), cam.project_ray_origin(sub), cam.project_ray_normal(sub), 400.0)
+		if hit != null and Axes.cell_center(hit.cell).distance_to(motor.eye_position()) <= REACH:
+			var c := hit.cell + hit.normal if action_mode == ActionMode.BUILD else hit.cell
+			var e := 0.02
+			_cursor_lines.box(Vector3(c) - Vector3(e, e, e), Vector3(c) + Vector3(1 + e, 1 + e, 1 + e),
+				Color(1, 1, 1, 0.9) if action_mode == ActionMode.BUILD else Color(1, 0.4, 0.3, 0.9))
+	_cursor_lines.finish()
+
+
+## Luci puntiformi e vento degli incantesimi (globali degli shader).
+func _apply_magic_globals(hand: Vector3, player: Vector3) -> void:
+	var rs := RenderingServer
+	var ls := mfx.lights(magic, hand, player)
+	rs.global_shader_parameter_set(&"pt_n", float(ls.size()))
+	for i in ls.size():
+		var l: Array = ls[i]
+		var pp: Vector3 = l[0]
+		rs.global_shader_parameter_set(StringName("pt_pos%d" % i), Vector4(pp.x, pp.y, pp.z, float(l[2])))
+		rs.global_shader_parameter_set(StringName("pt_col%d" % i), l[1])
+	var w := magic.wind
+	if w.is_empty():
+		rs.global_shader_parameter_set(&"spell_wind_rp", Vector2(1, 0))
+	else:
+		rs.global_shader_parameter_set(&"spell_wind", Vector4(w["x"], w["z"], w["dx"], w["dz"]))
+		rs.global_shader_parameter_set(&"spell_wind_rp", Vector2(float(w.get("r", 1.7)), float(w.get("pow", 0.3)) * minf(1.0, float(w["t"]) / 0.25)))
+
+
+## Situazione per la terza persona adattiva (tpsCtx del prototipo, riga 7968)
+## e salvataggio ritardato delle preferenze di camera.
+var _prefs_t := 0.0
+
+
+func _update_camera_context(dt: float) -> void:
+	var tps := _camera_rig.mode == CameraRig.Mode.TPS
+	_day.tps_sky = tps
+	_camera_rig.sun_dir = _day.state.get("dir", Vector3(-0.3, 0.93, 0.22))
+	if _touch.hidden_ids.get(&"tps_auto", false) != (not tps):
+		_touch.hidden_ids[&"tps_auto"] = not tps
+		_touch.queue_redraw()
+	if tps:
+		_camera_rig.tps_ctx = {"speed": Vector2(motor.velocity.x, motor.velocity.z).length(), "heading": _avatar.facing,
+			"covered": is_covered(motor.position, 4), "lock": null}
+	if _camera_rig.prefs_dirty:
+		_prefs_t += dt
+		if _prefs_t > 1.0:
+			_prefs_t = 0.0
+			_camera_rig.prefs_dirty = false
+			Settings.save_value("camera", "tps_zoom", _camera_rig.tps_zoom)
+			if not is_nan(_camera_rig.tps_user_pitch):
+				Settings.save_value("camera", "tps_pitch", _camera_rig.tps_user_pitch)
+
+
+## Blocco opaco da 2 a n celle sopra i piedi (isCovered del prototipo).
+func is_covered(p: Vector3, n: int) -> bool:
+	var bx := floori(p.x)
+	var bz := floori(p.z)
+	if bx < 0 or bz < 0 or bx >= world.size_x or bz >= world.size_z:
+		return false
+	var op := catalog.opaque_table()
+	for yy in range(floori(p.y) + 2, mini(floori(p.y) + n + 1, world.size_y)):
+		if op[world.get_block_xyz(bx, yy, bz)] != 0:
+			return true
+	return false
+
+
 ## I manichini sono solidi: il giocatore ne viene spinto fuori (cilindri).
 func _push_out_of_dummies() -> void:
 	for d in _dummies.dummies:
@@ -266,12 +417,27 @@ func _handle_combat_events() -> void:
 func _process(dt: float) -> void:
 	if motor == null:
 		return
+	if paused:
+		_status.text = "PAUSA (P o ⚙ Pausa per riprendere)"
+		return
 	var p := _avatar.get_global_transform_interpolated().origin
+	_update_camera_context(dt)
 	_avatar.animate(0.0 if combat.hitstop > 0.0 else dt, motor, combat, magic)
 	mfx.update(dt, magic, _avatar.rig.cast_point(), p)
+	_apply_magic_globals(_avatar.rig.cast_point(), p)
+	_audio_n += 1
+	_audio.handle(magic.events, _audio_n)
 	for e in magic.events:
 		if e["type"] == "text":
 			_texts.spawn(e["p"], e["text"])
+		elif e["type"] == "crater":
+			var nm: String = catalog.get_def(int(e["id"])).display_name
+			inventory[nm] = int(inventory.get(nm, 0)) + 1
+		elif e["type"] == "shake_tree":
+			var ts: Vegetation.TreeSpot = e["tree"]
+			var d: Vector2 = e["dir"]
+			RenderingServer.global_shader_parameter_set(&"tree_hit", Vector3(ts.seed_value, _day.clock, float(e["k"])))
+			RenderingServer.global_shader_parameter_set(&"tree_hit_dir", d)
 		elif e["type"] == "impact":
 			_camera_rig.shake(0.12 if e["el"] != "earth" else 0.25)
 	magic.events.clear()
@@ -279,13 +445,16 @@ func _process(dt: float) -> void:
 	_avatar.set_light(lt.x, lt.y)
 	_dummies.sync_views(combat.lock_target if combat.is_busy() else null)
 	_camera_rig.update_camera(dt, p)
+	_vegetation.cull_grass(_camera_rig.camera.global_position, 46.0 + _camera_rig.tps_dist * 1.2 if _camera_rig.mode == CameraRig.Mode.TPS else 0.0)
 	_place_screen()
 	_runtime.focus = p
 	_update_xray(dt, p)
 	_poll_generation()
 	_water_fx.update(dt, _avatar.facing)
 	# Q/E ruotano e Z/X zoomano in continuo come il prototipo (riga 7946).
-	var rot := (1.0 if Input.is_physical_key_pressed(KEY_E) else 0.0) - (1.0 if Input.is_physical_key_pressed(KEY_Q) else 0.0)
+	var rot := (1.0 if Input.is_physical_key_pressed(KEY_E) or _touch.is_held(&"dev_rot_r") else 0.0) \
+		- (1.0 if Input.is_physical_key_pressed(KEY_Q) or _touch.is_held(&"dev_rot_l") else 0.0)
+	_draw_debug()
 	if rot != 0.0:
 		_camera_rig.spin(rot * 1.6 * dt, 0.0)
 	if Input.is_physical_key_pressed(KEY_Z):
@@ -302,6 +471,11 @@ func _process(dt: float) -> void:
 		int(magic.mana), int(MagicSystem.MANA_MAX), magic.spell().display_name,
 		(" · raduna %d%%%s" % [int(magic.w * 100.0), " ●" if magic.committed else ""]) if magic.phase == MagicSystem.Phase.GATHER else "",
 		(" · fuoco %d celle" % magic.fire.size()) if not magic.fire.is_empty() else ""]
+	if not inventory.is_empty():
+		var parts: Array[String] = []
+		for k: String in inventory:
+			parts.append("%s %d" % [k, inventory[k]])
+		_status.text += " · zaino: " + ", ".join(parts)
 	if _frames_after_build >= 0 and _vegetation.is_idle() and _water.is_idle():
 		_frames_after_build += 1
 		if _frames_after_build >= int(_args.get("frames", "30")):
@@ -340,6 +514,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		var k := event as InputEventKey
 		if k.physical_keycode == KEY_SPACE:
 			_jump_key = k.pressed
+		if k.physical_keycode == KEY_J and not k.echo:
+			_light_key = k.pressed
 		if k.physical_keycode == KEY_U and not k.echo:
 			if k.pressed:
 				magic.press()
@@ -371,6 +547,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				_on_button(&"dev_seed")
 			KEY_J:
 				combat.press_light()
+			KEY_P:
+				_on_button(&"dev_pause")
 			KEY_L, KEY_SHIFT:
 				combat.press_dodge()
 			KEY_R:
@@ -381,8 +559,16 @@ func _unhandled_input(event: InputEvent) -> void:
 				_on_button(&"hero")
 			KEY_M:
 				_on_button(&"dev_dummies")
+	elif event is InputEventMouseMotion:
+		_mouse_pos = (event as InputEventMouseMotion).position
 	elif event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
+		# Clic destro: azione opposta (costruisci <-> scava), come nel prototipo.
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_RIGHT and action_mode != ActionMode.EXPLORE:
+			var keep := action_mode
+			action_mode = ActionMode.DIG_DEBUG if action_mode == ActionMode.BUILD else ActionMode.BUILD
+			_on_world_tap(mb.position)
+			action_mode = keep
 		if mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_UP:
 			_camera_rig.set_zoom(_camera_rig.get_zoom() * 1.1)
 		elif mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
@@ -405,10 +591,13 @@ func _on_button(id: StringName) -> void:
 		&"dev_res":
 			var opts := [270, 360, 450]
 			rt_height = opts[(opts.find(rt_height) + 1) % opts.size()]
+			Settings.save_value("view", "rt_h", rt_height)
 			_fit_view()
 		&"dev_outline", &"dev_edges", &"dev_paint", &"dev_dither", &"dev_rays", &"dev_grass", &"dev_shadow", &"dev_clouds":
 			var key := String(id).substr(4)
 			toggles[key] = not bool(toggles[key])
+			if key == "edges":
+				Settings.save_value("view", "edges", toggles[key])
 			_apply_toggles()
 		&"mode":
 			action_mode = ((action_mode + 1) % ActionMode.size()) as ActionMode
@@ -417,6 +606,36 @@ func _on_button(id: StringName) -> void:
 		&"camera":
 			_camera_rig.toggle_mode()
 			Settings.save_value("camera", "mode", _camera_rig.mode)
+		&"dev_zin":
+			_camera_rig.set_zoom(_camera_rig.get_zoom() * 1.25)
+		&"dev_zout":
+			_camera_rig.set_zoom(_camera_rig.get_zoom() / 1.25)
+		&"dev_hitbox":
+			show_hitboxes = not show_hitboxes
+		&"dev_pause":
+			paused = not paused
+			get_tree().paused = paused
+			_touch.reset()
+			_jump_key = false
+			_light_key = false
+		&"hero_preset":
+			recipe = AvatarRecipe.preset(_preset_i)
+			_preset_i += 1
+			_apply_recipe()
+		&"hero_copy":
+			DisplayServer.clipboard_set(recipe.to_json())
+			last_edit = "ricetta copiata negli appunti"
+		&"hero_paste":
+			var r := AvatarRecipe.from_json(DisplayServer.clipboard_get())
+			if r == null:
+				last_edit = "negli appunti non c'e' una ricetta valida"
+			else:
+				recipe = r
+				_apply_recipe()
+				last_edit = "ricetta incollata"
+		&"tps_auto":
+			_camera_rig.tps_auto = not _camera_rig.tps_auto
+			Settings.save_value("camera", "tps_auto", _camera_rig.tps_auto)
 		&"attack":
 			combat.press_light()
 		&"dodge":
@@ -446,7 +665,8 @@ func _on_button(id: StringName) -> void:
 func select_weapon(i: int) -> void:
 	weapon_index = i
 	combat.set_weapon(WeaponLibrary.by_id(WEAPONS[i]))
-	_avatar.set_weapon(combat.weapon)
+	combat.draw_t = PlayerAvatar.SWAP_TIME * 0.6
+	_avatar.swap_weapon(combat.weapon)
 	Settings.save_value("combat", "weapon", String(WEAPONS[i]))
 	last_edit = "arma: %s" % combat.weapon.display_name
 	_refresh_labels()
@@ -574,10 +794,13 @@ func _refresh_labels() -> void:
 	_touch.labels[&"dev_res"] = "Righe %d" % rt_height
 	for key: String in toggles:
 		_touch.labels[StringName("dev_" + key)] = "%s %s" % [_dev_label(key), "ON" if toggles[key] else "OFF"]
+	_touch.labels[&"tps_auto"] = "Auto ON" if _camera_rig.tps_auto else "Auto OFF"
 	_touch.labels[&"weapon"] = combat.weapon.display_name if combat != null else "Arma"
 	_touch.labels[&"spell"] = ["Fuoco", "Acqua", "Terra", "Aria"][magic.spell_index]
 	for d: Array in HERO_BUTTONS:
-		_touch.labels[d[0]] = recipe.label(d[1]) if d[1] != "" else ("Casuale" if d[0] == &"hero_random" else "Chiudi")
+		_touch.labels[d[0]] = recipe.label(d[1]) if d[1] != "" else HERO_LABELS[d[0]]
+	_touch.labels[&"dev_hitbox"] = "Hitbox %s" % ("ON" if show_hitboxes else "OFF")
+	_touch.labels[&"dev_pause"] = "Riprendi" if paused else "Pausa"
 	_touch.queue_redraw()
 
 

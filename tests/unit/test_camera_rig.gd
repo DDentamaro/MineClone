@@ -46,6 +46,48 @@ func test_terza_persona_arretra_davanti_al_muro() -> void:
 	rig.set_mode(CameraRig.Mode.TPS)
 	rig.yaw = 0.0
 	rig.yaw_target = 0.0
-	rig.update_camera(1.0, Vector3(8.5, 4, 10.5))
+	for i in 60:
+		rig.update_camera(1.0 / 60.0, Vector3(8.5, 4, 10.5))
 	check(rig.camera.global_position.z < 12.0, "camera davanti al muro (z=%f)" % rig.camera.global_position.z)
+	rig.free()
+
+
+func _tps_dist_after(ctx: Dictionary, secs: float = 2.0) -> float:
+	var rig := _rig()
+	rig.world = TestWorlds.flat(4, 64, 32, 64)
+	rig.set_mode(CameraRig.Mode.TPS)
+	rig.tps_auto = false
+	rig.tps_ctx = ctx
+	for i in int(secs * 60.0):
+		rig.update_camera(1.0 / 60.0, Vector3(32.5, 4, 32.5))
+	var d := rig.tps_dist
+	rig.free()
+	return d
+
+
+func test_terza_persona_adattiva() -> void:
+	var still := _tps_dist_after({"speed": 0.0})
+	var run := _tps_dist_after({"speed": 5.5})
+	var cov := _tps_dist_after({"speed": 0.0, "covered": true})
+	check(absf(still - 6.5) < 0.1, "esplorazione 6,5 (%f)" % still)
+	check(run > still + 0.2, "in corsa si allontana (%f)" % run)
+	check(cov < still - 0.8, "sotto un soffitto si avvicina (%f)" % cov)
+
+
+func test_terza_persona_segue_le_spalle() -> void:
+	var rig := _rig()
+	rig.world = TestWorlds.flat(4, 64, 32, 64)
+	rig.set_mode(CameraRig.Mode.TPS)
+	rig.yaw = 0.0
+	rig.yaw_target = 0.0
+	rig._last_spin = -99.0
+	rig.tps_ctx = {"speed": 5.0, "heading": 1.2}
+	for i in 240:
+		rig.update_camera(1.0 / 60.0, Vector3(32.5, 4, 32.5))
+	check(absf(rig.yaw_target - 1.2) < 0.2, "camera alle spalle (yaw %f)" % rig.yaw_target)
+	rig.tps_auto = false
+	rig.yaw_target = 0.0
+	for i in 240:
+		rig.update_camera(1.0 / 60.0, Vector3(32.5, 4, 32.5))
+	check(absf(rig.yaw_target) < 0.01, "senza auto non gira")
 	rig.free()
