@@ -22,6 +22,8 @@ signal button_down(id: StringName)
 signal button_up(id: StringName)
 ## Dito fermo sul mondo oltre HOLD_MS (scavo): inizio, posizione aggiornata, fine.
 signal world_hold(position: Vector2, active: bool)
+## Pulsante tenuto a lungo (barra delle magie: apre il libro su quello slot).
+signal button_long(id: StringName)
 
 const TAP_MAX_MOVE := 8.0
 const TAP_MAX_MS := 450
@@ -48,6 +50,7 @@ class Finger:
 	var moved := 0.0
 	var button: StringName = &""
 	var holding := false
+	var long_sent := false
 
 
 class VButton:
@@ -69,8 +72,16 @@ var labels := {}
 ## Icone della barra rapida: id -> {color, glyph, count, wear (0..1 o -1), rarity}.
 var icons := {}
 var hot_selected := 0
-## Barra delle magie: id -> {color, glyph, blocked}; la scelta e la Pressione (0..1,25).
+## Barra delle magie: id -> {spell: SpellDefinition, blocked, locked}; la scelta e la Pressione (0..1,25).
 var spell_icons := {}
+## Magia scelta, disegnata nel pulsante Magia col suo nome; motivo del blocco ("" = pronta).
+var magic_spell: SpellDefinition
+var magic_blocked := ""
+## Scritta breve al centro (nome della magia al cambio): testo, colore, tempo rimasto.
+var _toast := ""
+var _toast_col := Color.WHITE
+var _toast_t := 0.0
+const LONG_MS := 450
 var spell_selected := 0
 var pressure := 0.0
 var saturated := false
@@ -290,10 +301,12 @@ func _touch_down(index: int, p: Vector2) -> bool:
 			f.role = Role.BUTTON
 			f.button = b.id
 			b.held = true
+			# Il dito si registra prima dei segnali: se il pulsante apre un pannello
+			# (reset dei tocchi), il dito sparisce davvero.
+			_fingers[index] = f
 			button_down.emit(b.id)
 			if not b.hold:
 				button_pressed.emit(b.id)
-			_fingers[index] = f
 			queue_redraw()
 			return true
 	if in_stick_zone(p) and not _has_role(Role.STICK):
@@ -310,8 +323,22 @@ func _touch_down(index: int, p: Vector2) -> bool:
 	return true
 
 
+func show_toast(text: String, col: Color = Color.WHITE) -> void:
+	_toast = text
+	_toast_col = col
+	_toast_t = 1.3
+	queue_redraw()
+
+
 func _process(_dt: float) -> void:
 	var now := Time.get_ticks_msec()
+	if _toast_t > 0.0:
+		_toast_t -= _dt
+		queue_redraw()
+	for f: Finger in _fingers.values():
+		if f.role == Role.BUTTON and not blocked and not f.long_sent and now - f.t0 >= LONG_MS and String(f.button).begins_with("sp"):
+			f.long_sent = true
+			button_long.emit(f.button)
 	for f: Finger in _fingers.values():
 		if f.role == Role.CAMERA and not f.holding and not _pinch_used and f.moved <= TAP_MAX_MOVE \
 				and now - f.t0 >= HOLD_MS and _count_role(Role.CAMERA) == 1:
@@ -439,6 +466,9 @@ func _draw() -> void:
 		if b.group == &"spellbar":
 			_draw_spell_slot(b)
 			continue
+		if b.id == &"magic" and magic_spell != null:
+			_draw_magic_button(b)
+			continue
 		if b.group != &"main":
 			draw_rect(b.rect, Color(0.08, 0.1, 0.12, 0.72 if not b.held else 0.9))
 			draw_rect(b.rect, Color(0.63, 0.89, 0.78, 0.8), false, dp(1.5))
@@ -492,20 +522,41 @@ func _draw_spell_slot(b: VButton) -> void:
 	var i := int(String(b.id).substr(2))
 	var sel := i == spell_selected
 	var ic: Dictionary = spell_icons.get(b.id, {})
-	draw_rect(b.rect, Color(0.08, 0.1, 0.12, 0.8 if sel else 0.5))
-	if not ic.is_empty():
-		var inner := b.rect.grow(-b.rect.size.x * 0.16)
-		var col: Color = ic["color"]
-		if ic.get("blocked", false):
-			col = col.darkened(0.6)
-		draw_rect(inner, col)
-		var g: String = ic.get("glyph", "")
-		var fs := int(dp(12.0))
-		var ts := _font.get_string_size(g, HORIZONTAL_ALIGNMENT_CENTER, -1, fs)
-		var at := inner.get_center() + Vector2(-ts.x * 0.5, ts.y * 0.3)
-		draw_string_outline(_font, at, g, HORIZONTAL_ALIGNMENT_CENTER, -1, fs, int(dp(3.0)), Color(0, 0, 0, 0.8))
-		draw_string(_font, at, g, HORIZONTAL_ALIGNMENT_CENTER, -1, fs, Color.WHITE)
+	if ic.is_empty():
+		draw_rect(b.rect, Color(0.08, 0.1, 0.12, 0.45))
+		var fs := int(dp(18.0))
+		var ts := _font.get_string_size("+", HORIZONTAL_ALIGNMENT_CENTER, -1, fs)
+		draw_string(_font, b.rect.get_center() + Vector2(-ts.x * 0.5, ts.y * 0.3), "+", HORIZONTAL_ALIGNMENT_CENTER, -1, fs, Color(0.7, 0.8, 0.75, 0.8))
+	else:
+		SpellIcons.draw(self, b.rect.grow(-dp(2.0)), ic["spell"], ic.get("blocked", false), ic.get("locked", false))
 	draw_rect(b.rect, Color(1, 0.9, 0.5, 1) if sel else Color(0.63, 0.89, 0.78, 0.5), false, dp(3.0 if sel else 1.5))
+	# Numero dello slot in alto a sinistra.
+	var ns := int(dp(10.0))
+	draw_string_outline(_font, b.rect.position + Vector2(dp(3.0), dp(11.0)), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, ns, int(dp(2.5)), Color(0, 0, 0, 0.9))
+	draw_string(_font, b.rect.position + Vector2(dp(3.0), dp(11.0)), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, ns, Color.WHITE)
+
+
+func _outlined(p: Vector2, text: String, size_dp: float, col: Color, center: bool = true) -> void:
+	var fs := int(dp(size_dp))
+	var ts := _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
+	var at := p - Vector2(ts.x * 0.5 if center else 0.0, 0)
+	draw_string_outline(_font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, int(dp(3.0)), Color(0, 0, 0, 0.85))
+	draw_string(_font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+
+
+## Pulsante Magia: icona della magia scelta nel cerchio, nome sotto (o il blocco in rosso).
+func _draw_magic_button(b: VButton) -> void:
+	var c := b.rect.get_center()
+	var r := b.rect.size.x * 0.5
+	draw_circle(c, r, Color(0.08, 0.1, 0.12, 0.55 if not b.held else 0.8))
+	var q := r * 1.05
+	SpellIcons.draw(self, Rect2(c - Vector2(q, q) * 0.5, Vector2(q, q)), magic_spell, magic_blocked != "")
+	draw_arc(c, r, 0.0, TAU, 40, magic_spell.color().lightened(0.3), dp(2.5), true)
+	var y := b.rect.end.y + dp(13.0)
+	if magic_blocked != "":
+		_outlined(Vector2(c.x, y), magic_blocked, 11.0, Color(1.0, 0.55, 0.45))
+	else:
+		_outlined(Vector2(c.x, y), magic_spell.display_name, 11.0, Color.WHITE)
 
 
 ## Pressione del nucleo come arco attorno al pulsante Magia (rosso se saturo).
@@ -524,6 +575,9 @@ func _draw_pressure() -> void:
 
 func _draw_after() -> void:
 	_draw_pressure()
+	if _toast_t > 0.0 and _toast != "":
+		var a := clampf(_toast_t / 0.3, 0.0, 1.0)
+		_outlined(Vector2(size.x * 0.5, size.y * 0.24), _toast, 20.0, Color(_toast_col, a))
 	if _has_role(Role.STICK):
 		var r := dp(STICK_RADIUS_DP)
 		draw_circle(stick_center, r * 1.25, Color(0, 0, 0, 0.25))

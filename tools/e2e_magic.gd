@@ -98,16 +98,29 @@ func _process(dt: float) -> bool:
 				_log.append("libro aperto: %s" % _game._bag.tab)
 				_tap_at((_game._bag.spell_rects[&"giudizio"] as Rect2).get_center())
 			if _frame == 40:
-				_tap_at(_game._bag.bar_rects[4].get_center())
-			if _frame == 50:
 				_shot("book")
-				_ok = _ok and m.bar[4] == &"giudizio"
+				_ok = _ok and _game._bag.target_slot == 4 and _game._bag.button_rects.has("Metti nello slot 5")
+				_tap_at((_game._bag.button_rects["Metti nello slot 5"] as Rect2).get_center())
+			if _frame == 50:
+				_ok = _ok and m.bar[4] == &"giudizio" and m.bar_index == 4
 				_log.append("slot 5: %s" % m.bar[4])
 				_tap_at(_game._bag.close_rect.get_center())
-			if _frame == 70:
+			if _frame == 60:
 				_ok = _ok and not _game._bag.is_open()
+				_shot("hud_giudizio")
+				# Tenere premuto uno slot pieno apre il libro su quello slot.
+				_touch(6, _game._touch.button_rect(&"sp1").get_center(), true)
+			if _frame > 60 and _game._bag.is_open() and not _shots.has("book_long"):
+				_touch(6, _game._touch.button_rect(&"sp1").get_center(), false)
+				_log.append("tenuto: libro aperto sullo slot %d" % (_game._bag.target_slot + 1))
+				_ok = _ok and _game._bag.target_slot == 1
+				_shot("book_long")
+			if _frame == 100:
+				_ok = _ok and _shots.has("book_long")
+				_tap_at(_game._bag.close_rect.get_center())
+			if _frame == 115:
 				_tap(&"sp4")
-			if _frame == 80:
+			if _frame == 125:
 				_ok = _ok and m.bar_index == 4
 				_hits0 = _count_hits()
 				_phase = 2

@@ -209,6 +209,10 @@ func _ready() -> void:
 		_hold_active = on
 		_hold_pos = pos)
 	_touch.button_pressed.connect(_on_button)
+	_touch.button_long.connect(func(id: StringName) -> void:
+		_bag.target_slot = int(String(id).substr(2))
+		if not _bag.is_open():
+			open_bag(null, "magic"))
 	_touch.button_down.connect(func(id: StringName) -> void:
 		if id == &"heavy":
 			combat.press_heavy()
@@ -549,9 +553,11 @@ func _process(dt: float) -> void:
 	if sandbox.message != "":
 		last_edit = sandbox.message
 		sandbox.message = ""
-	if absf(_touch.pressure - magic.pressure) > 0.004 or _touch.saturated != magic.saturated:
+	var why := _magic_block_text()
+	if absf(_touch.pressure - magic.pressure) > 0.004 or _touch.saturated != magic.saturated or why != _touch.magic_blocked:
 		_touch.pressure = magic.pressure
 		_touch.saturated = magic.saturated
+		_touch.magic_blocked = why
 		_touch.queue_redraw()
 	var h := items.held()
 	_status.text = "%d FPS · in mano: %s%s · chunk in coda %d%s\nposizione %.1f %.1f %.1f%s" % [
@@ -736,16 +742,15 @@ func _on_button(id: StringName) -> void:
 			combat.press_dodge()
 		&"spell":
 			magic.select_next()
-			_refresh_spellbar()
-			last_edit = "magia: %s" % magic.spell().display_name
+			_spell_chosen()
 		&"sp0", &"sp1", &"sp2", &"sp3", &"sp4":
 			var i := int(String(id).substr(2))
 			if magic.bar[i] == &"":
+				_bag.target_slot = i
 				open_bag(null, "magic")
 			else:
 				magic.select(i)
-				_refresh_spellbar()
-				last_edit = "magia: %s" % magic.spell().display_name
+				_spell_chosen()
 		&"dev_dummies":
 			_dummies.place_around(motor.position, _avatar.facing)
 			last_edit = "manichini davanti al giocatore"
@@ -1126,6 +1131,28 @@ func _poll_generation() -> void:
 	_gen_result = null
 
 
+## Motivo breve per cui la magia scelta non parte ("" = pronta).
+func _magic_block_text() -> String:
+	var why := magic.blocked_reason(magic.spell())
+	match why:
+		"":
+			return ""
+		"NON CONOSCIUTA":
+			return "serve la pergamena"
+		"NUCLEO SATURO":
+			return "nucleo saturo"
+		"SPINTO":
+			return ""
+	return "Output %d/%d" % [int(magic.spell().output), int(magic.output_cap())]
+
+
+func _spell_chosen() -> void:
+	_refresh_spellbar()
+	var sp := magic.spell()
+	_touch.show_toast("%s  ·  Output %d" % [sp.display_name, int(sp.output)], sp.color().lightened(0.4))
+	last_edit = "magia: %s" % sp.display_name
+
+
 ## Barra delle magie e Pressione sui TouchControls.
 func _refresh_spellbar() -> void:
 	for i in MagicSystem.BAR:
@@ -1134,8 +1161,10 @@ func _refresh_spellbar() -> void:
 		if sp == null:
 			_touch.spell_icons.erase(bid)
 		else:
-			_touch.spell_icons[bid] = {"color": sp.color(), "glyph": sp.glyph(), "blocked": sp.output > magic.output_cap()}
+			_touch.spell_icons[bid] = {"spell": sp, "blocked": sp.output > magic.output_cap(), "locked": not magic.known.has(sp.id)}
 	_touch.spell_selected = magic.bar_index
+	_touch.magic_spell = magic.spell()
+	_touch.magic_blocked = _magic_block_text()
 	_touch.queue_redraw()
 
 
