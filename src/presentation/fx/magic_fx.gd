@@ -16,17 +16,18 @@ const FLAME_CELLS := 26
 const GRAIN_MIN := 0.022
 
 var grains: Grains
+## Zolle vere della terra (D-032).
+var earth: EarthFx
 var world: WorldData
 var _rng := RandomNumberGenerator.new()
 var _acc := {}
 var _clock := 0.0
-var _spin := 0.0
 ## Segni di materia (K122): al massimo 16, fusi se vicini; vita per tipo.
 const MARK_MAX := 16
 const MARK_LIFE := {"scorch": 12.0, "puddle": 7.5, "crater": 10.0}
 var _marks: Array[Dictionary] = []
-## Rotazione della figura del glifo per elemento (spin × elemento).
-const GLYPH_SPIN := {"fire": 1.0, "water": 0.62, "air": 1.45, "earth": 0.42, "karma": 0.52}
+## Stato dei costrutti delle forme ad area (punte, sisma) per effetto.
+var _built := {}
 ## Impatto del Karma per magia: [tagli, durata, anello da, anello a, ejecta, taglio].
 const KARMA_HIT := {"ago": [1, .30, .05, .38, 4, .38], "zoltraak": [3, .42, .10, .90, 5, .62], "dardo": [3, .44, .10, .85, 9, .48],
 	"tridente": [2, .42, .08, .70, 8, .46], "spina": [3, .46, .09, .86, 11, .84], "orbe": [0, .56, .14, 1.60, 20, 0.0],
@@ -82,10 +83,12 @@ func update(dt: float, m: MagicSystem, hand: Vector3, player: Vector3) -> void:
 	# Raccolta dei dardi del prototipo: l'elemento arriva a spirale sulla mano.
 	if m.phase == MagicSystem.Phase.GATHER and s.is_legacy():
 		_legacy_gather(dt, s, hand, m.w)
-	# Glifo delle magie del libro (resta per il recupero e gli effetti sostenuti).
-	var cs := m.cast_spell if m.cast_spell != null else s
-	if not cs.is_legacy() and m.arm_w > 0.0 and m.glyph > 0.0 and m.glyph_shed < 1.0:
-		_glyph(dt, m, cs, hand)
+	# Magie del libro: la sostanza si accumula nel palmo durante la raccolta.
+	if m.phase == MagicSystem.Phase.GATHER and not s.is_legacy():
+		_accumulate(dt, m, s, hand)
+	elif earth != null and earth.has("palm"):
+		earth.release("palm", Vector3.ZERO, 0.8)
+	_sync_earth(dt, m)
 	for d in m.darts:
 		if d.spell.is_legacy():
 			_dart(dt, d)
@@ -217,128 +220,101 @@ func lights(m: MagicSystem, _hand: Vector3, player: Vector3) -> Array:
 	return out
 
 
-# ---------------------------------------------------------------- glifo (RMNDWN §2.0)
+# ---------------------------------------------------------------- raccolta (D-032)
 
-## Base del piano del glifo, perpendicolare alla mira.
+## Base di un piano perpendicolare a una direzione.
 static func _plane(dir: Vector3) -> Array[Vector3]:
 	var right := dir.cross(Vector3.UP)
 	right = right.normalized() if right.length() > 1e-3 else Vector3.RIGHT
 	return [right, right.cross(dir).normalized()]
 
 
-## Punto della figura dell'elemento nel piano (unita' di R), da `a` in 0..TAU.
-func _glyph_point(el: String, q: float, a: float, poly: int, ticks: int) -> Vector2:
-	var sp := _spin * float(GLYPH_SPIN.get(el, 1.0))
-	if q < 0.34:
-		var r := 1.0 + 0.02 * sin(_clock * 9.0)
-		return Vector2(cos(a + sp), sin(a + sp)) * r
-	if q < 0.58:
-		match el:
-			"fire":
-				var r := 0.26 + 0.30 * absf(sin(2.5 * a))
-				return Vector2(cos(a + sp), sin(a + sp)) * r
-			"water":
-				var ring := 0.34 if _rng.randf() < 0.5 else 0.50
-				var dirn := 1.0 if ring < 0.4 else -1.0
-				var r := ring * (1.0 + 0.06 * sin(_clock * 3.1))
-				return Vector2(cos(a + sp * dirn), sin(a + sp * dirn)) * r
-			"air":
-				var k := floorf(_rng.randf() * 3.0)
-				var u := a / TAU
-				var ang := k * TAU / 3.0 + u * 2.2 + sp + _clock * 0.25
-				return Vector2(cos(ang), sin(ang)) * (0.16 + 0.40 * u)
-			"earth":
-				var seg := a / TAU * 6.0
-				if seg - floorf(seg) > 0.8:
-					a -= 0.2 * TAU / 6.0
-				return Vector2(cos(a + sp), sin(a + sp)) * 0.52
-			_:
-				# Karma: rosa a tre petali e cerchio interno che gira al contrario.
-				if _rng.randf() < 0.72:
-					var r := absf(sin(3.0 * a))
-					return Vector2(cos(a + sp), sin(a + sp)) * r
-				return Vector2(cos(a - sp * 1.5), sin(a - sp * 1.5)) * 0.30
-	if q < 0.78:
-		var k := floorf(a / TAU * ticks)
-		var ang := k / ticks * TAU + sp * 0.5
-		return Vector2(cos(ang), sin(ang)) * _rng.randf_range(0.64, 0.96)
-	# Poligono inscritto a .86 R.
-	var side := floorf(a / TAU * poly)
-	var f := a / TAU * poly - side
-	var a0 := side / poly * TAU + sp
-	var a1 := (side + 1.0) / poly * TAU + sp
-	return Vector2(cos(a0), sin(a0)).lerp(Vector2(cos(a1), sin(a1)), f) * 0.86
-
-
-func _glyph(dt: float, m: MagicSystem, s: SpellDefinition, hand: Vector3) -> void:
-	var dir := m.aim - hand
-	dir = dir.normalized() if dir.length() > 0.05 else MagicSystem._fwd(m.face)
-	var R := s.glyph_r
-	var c := hand + dir * s.glyph_off
-	var pl := _plane(dir)
-	var right := pl[0]
-	var up := pl[1]
-	var gathering := m.phase == MagicSystem.Phase.GATHER
-	_spin += dt * lerpf(1.0, 1.7 + (s.tier - 1) * 0.18, _sm5(m.w if gathering else 1.0))
-	var draw := minf(m.glyph, 1.0 - m.glyph_shed)
+## La sostanza si accumula nel palmo: arriva dall'intorno (e dal suolo) a
+## spirale e si addensa in una massa che cresce con la raccolta. Fuoco: fiamma
+## viva che sale e fuma; acqua: gocce che arrivano e una sfera che gira; aria:
+## vortice che si stringe e alza la polvere; terra: zolle vere che si staccano
+## dal suolo e si compattano in una pietra; Karma: frammenti viola e nucleo chiaro.
+func _accumulate(dt: float, m: MagicSystem, s: SpellDefinition, hand: Vector3) -> void:
+	var w := m.w
 	var el := s.el
-	var size_k := {"earth": 1.45, "water": 1.15, "air": 0.78}.get(el, 1.0) as float
-	var n := _emit("glyph", 900.0 * (0.35 + 0.65 * draw), dt, 22)
-	for i in n:
-		var a := _rng.randf() * TAU
-		if a > TAU * draw:
-			continue
-		var q := _rng.randf()
-		var p2 := _glyph_point(el, q, a, s.glyph_poly, s.glyph_ticks) * R
-		var p := c + right * p2.x + up * p2.y
-		var t0 := _rng.randf_range(0.55, 0.9) if el == "karma" else 0.64 + 0.34 * _rng.randf()
-		var g := _g(p, dir * 0.05, el, 0, _rng.randf_range(0.16, 0.28), GRAIN_MIN * size_k * (1.15 if q < 0.34 else 1.0), 0.0, 0.0, t0)
-		if g != null:
-			g.cool = 3.0
-			if el == "air":
-				g.v = (right * -p2.y + up * p2.x).normalized() * 0.6
-				g.length = 0.03
-	if not gathering:
-		return
-	var ch := clampf((m.glyph - 0.5) / 0.5, 0.0, 1.0)
-	if el == "karma":
-		# Grani che arrivano alla mano da una sfera di 12,75 cm.
-		for i in _emit("khand", 160.0 * (0.22 + 0.78 * m.w), dt, 8):
-			var o := _ball().normalized() * 0.1275
-			var g := _g(hand + o, -o / 0.12 * 0.3 + dir * 0.1, "karma", 0, 0.14, GRAIN_MIN, 0.0, 0.0, _rng.randf_range(0.55, 0.9))
-			if g != null:
-				g.cool = 2.0
-		return
-	if m.glyph < 0.5:
-		return
-	# Carica: spirale verso il centro da R·(1,05..1,5) a .09 R.
-	var wind := {"air": -3.6, "earth": 0.7}.get(el, 2.2) as float
-	for i in _emit("gcharge", 200.0 * (0.35 + 0.65 * ch) * (0.6 + 0.4 * m.cast_commit), dt, 8):
-		var a := _rng.randf() * TAU
-		var r0 := R * _rng.randf_range(1.05, 1.5)
-		var dur := ({"earth": 0.55, "air": 0.28}.get(el, 0.40) as float) * _rng.randf_range(0.8, 1.3)
-		var p0 := c + (right * cos(a) + up * sin(a)) * r0
-		var p1 := c + (right * cos(a + wind) + up * sin(a + wind)) * R * 0.09
-		var g := _g(p0, (p1 - p0) / dur, "flame" if el == "fire" else el, 1 if el == "earth" else 0, dur, GRAIN_MIN * size_k, 0.0, 0.0, 0.85)
-		if g != null:
-			g.cool = 0.6
-	# Massa al centro: fiamma che sale, sfera d'acqua, anello d'aria, blocchi di terra.
-	var rc := R * 0.34 * (0.55 + 0.45 * ch) * (1.0 + 0.30 * _sm5((m.cast_commit - 0.7) / 0.3))
-	for i in _emit("gmass", 160.0 * (0.25 + 0.75 * ch), dt, 8):
-		match el:
-			"fire":
-				var g := _g(c + _ball() * rc, up * 0.6 + Vector3(0, 0.5, 0), "flame", 0, _rng.randf_range(0.12, 0.22), rc * 0.5, -0.8, 0.0, _rng.randf_range(0.7, 1.0))
-				if g != null:
-					g.cool = 1.4
-			"water":
-				_g(c + _ball().normalized() * rc, Vector3.ZERO, "water", 1, 0.08, rc * 0.35, 0.0, 0.0, _rng.randf_range(0.5, 0.9))
-			"air":
+	var rm := clampf(s.mass_r * 0.36, 0.08, 0.22) * (0.5 + 0.5 * w)
+	var in_rate := 260.0 + 340.0 * w
+	var pl := _plane(MagicSystem._fwd(m.face))
+	match el:
+		"fire":
+			for i in _emit("acc_in", in_rate, dt, 16):
 				var a := _rng.randf() * TAU
-				var g := _g(c + (right * cos(a) + up * sin(a)) * rc, (right * -sin(a) + up * cos(a)) * 3.0, "air", 0, 0.1, 0.012, 0.0, 0.0, 0.9)
+				var o := (pl[0] * cos(a) + pl[1] * sin(a) + _r3() * 0.3).normalized() * _rng.randf_range(0.35, 0.7)
+				var life := _rng.randf_range(0.2, 0.32)
+				var tang := o.cross(Vector3.UP).normalized() * 1.4
+				var g := _g(hand + o, -o / life + tang, "flame", 0, life, GRAIN_MIN * 2.0, 0.0, 0.0, _rng.randf_range(0.85, 1.0))
+				if g != null:
+					g.cool = 0.5
+			for i in _emit("acc_core", 200.0 + 400.0 * w, dt, 16):
+				var g := _g(hand + _ball() * rm, Vector3(0, 0.5, 0) + _r3() * 0.2, "flame", 0, _rng.randf_range(0.12, 0.24), rm * _rng.randf_range(0.7, 1.1), -1.5, 0.0, _rng.randf_range(0.9, 1.0))
+				if g != null:
+					g.cool = 1.6
+			for i in _emit("acc_smoke", 8.0 * w, dt, 2):
+				var sm := _g(hand + Vector3(0, rm, 0), Vector3(0, 0.6, 0) + _r3() * 0.15, "smoke", 1, 0.8, 0.04, -0.3, 0.8, 0.5)
+				if sm != null:
+					sm.al = 0.5
+		"water":
+			for i in _emit("acc_in", in_rate * 0.8, dt, 14):
+				var a := _rng.randf() * TAU
+				var o := Vector3(cos(a), _rng.randf_range(-0.9, 0.3), sin(a)).normalized() * _rng.randf_range(0.4, 0.8)
+				var life := _rng.randf_range(0.22, 0.34)
+				var g := _g(hand + o, -o / life + o.cross(Vector3.UP).normalized() * 1.0, "water", 1, life, GRAIN_MIN * 0.9, 0.0, 0.0, _rng.randf_range(0.4, 0.8))
 				if g != null:
 					g.length = 0.05
-			_:
-				_g(c + _ball() * rc * 0.8, Vector3.ZERO, "earth", 1, 0.08, rc * 0.45, 0.0, 0.0, _rng.randf_range(0.3, 0.6))
+			var spin := _clock * 5.0
+			for i in _emit("acc_core", 260.0 + 300.0 * w, dt, 16):
+				var a := _rng.randf() * TAU
+				var y := _rng.randf_range(-1.0, 1.0)
+				var rr := sqrt(1.0 - y * y) * rm
+				var p := hand + Vector3(cos(a + spin) * rr, y * rm, sin(a + spin) * rr)
+				_g(p, Vector3(-sin(a + spin), 0, cos(a + spin)) * 1.2, "water", 1, 0.07, rm * 0.4, 0.0, 0.0, _rng.randf_range(0.35, 0.9))
+			for i in _emit("acc_drip", 6.0 * w, dt, 2):
+				var g := _g(hand + Vector3(0, -rm, 0), Vector3(0, -0.5, 0), "water", 1, 0.5, 0.02, 9.0, 0.0, 0.6)
+				if g != null:
+					g.ground = true
+		"air":
+			for i in _emit("acc_in", in_rate, dt, 16):
+				var a := _rng.randf() * TAU + _clock * 6.0
+				var r := lerpf(0.75, rm * 1.4, w) * _rng.randf_range(0.8, 1.2)
+				var p := hand + Vector3(cos(a) * r, _rng.randf_range(-0.25, 0.25) * (1.0 - w), sin(a) * r)
+				var g := _g(p, Vector3(-sin(a), 0.15, cos(a)) * (3.0 + 5.0 * w) - Vector3(cos(a), 0, sin(a)) * 1.5, "air", 0, 0.14, GRAIN_MIN * 0.8, 0.0, 0.0, 0.9)
+				if g != null:
+					g.length = 0.12
+			for i in _emit("acc_dust", 30.0 * w, dt, 4):
+				var a := _rng.randf() * TAU
+				var q := hand + Vector3(cos(a), 0, sin(a)) * _rng.randf_range(0.3, 0.9)
+				if world != null:
+					q.y = VoxelQuery.field_height(world, q.x, q.z, hand.y) + 0.03
+				var g := _g(q, Vector3(-sin(a), 1.6, cos(a)) * 1.5, "earth", 1, 0.5, 0.025, 2.0, 0.5, 0.45)
+				if g != null:
+					g.ground = true
+		"earth":
+			# Pietra nel palmo fatta di zolle che salgono dal suolo davanti ai piedi.
+			if earth != null:
+				if not earth.has("palm"):
+					var feet := m.player.position + MagicSystem._fwd(m.face) * 0.5
+					earth.build("palm", EarthFx.ball_slots(0.13, 0.06), Transform3D(Basis.IDENTITY, hand), feet, 0.7,
+						s.cast_dur * m.gather_mul() * 0.8, 0.055)
+				earth.set_xf("palm", Transform3D(Basis(Vector3.UP, _clock * 2.0), hand + Vector3(0, 0.06, 0)), 0.5 + 0.5 * w)
+			for i in _emit("acc_dust", 20.0, dt, 3):
+				var a := _rng.randf() * TAU
+				var q := m.player.position + Vector3(cos(a), 0.03, sin(a)) * 0.6
+				_g(q, Vector3(0, 0.8, 0) + _r3() * 0.3, "smoke", 1, 0.6, 0.035, -0.2, 1.0, 0.7)
+		_:
+			for i in _emit("acc_in", in_rate, dt, 16):
+				var a := _rng.randf() * TAU
+				var o := (pl[0] * cos(a) + pl[1] * sin(a) + _r3() * 0.4).normalized() * _rng.randf_range(0.3, 0.6)
+				var life := _rng.randf_range(0.16, 0.26)
+				var g := _g(hand + o, -o / life + o.cross(Vector3.UP).normalized() * 2.0, "karma", 0, life, GRAIN_MIN, 0.0, 0.0, _rng.randf_range(0.5, 0.85))
+				if g != null:
+					g.length = 0.05
+			for i in _emit("acc_core", 220.0 + 300.0 * w, dt, 14):
+				_g(hand + _ball() * rm * 0.6, Vector3.ZERO, "karma", 0, 0.08, rm * _rng.randf_range(0.8, 1.3), 0.0, 0.0, _rng.randf_range(0.85, 1.0))
 
 
 # ---------------------------------------------------------------- magie del libro in volo
@@ -407,7 +383,7 @@ func _book_dart(dt: float, d: MagicSystem.Dart) -> void:
 		"fire":
 			# Testa trattenuta (hold/shell) e scia di fiamma che sale (v78 fire bolt).
 			var hr := S.r * (0.75 if S.kind != "meteor" else 1.6)
-			for i in _emit(key, 260.0 + 900.0 * S.r, dt, 30):
+			for i in _emit(key, 420.0 + 1200.0 * S.r, dt, 30):
 				var g := _g(d.p + _ball() * hr, -dir * sp * 0.25 + Vector3(0, 0.55, 0) + _r3() * 0.4, "flame", 0,
 					_rng.randf_range(0.14, 0.34) * (1.0 + S.r), _rng.randf_range(0.04, 0.06) * (1.0 + S.r * 2.0), -1.2, 1.8, _rng.randf_range(0.8, 1.0))
 				if g != null:
@@ -422,22 +398,70 @@ func _book_dart(dt: float, d: MagicSystem.Dart) -> void:
 					g.length = 0.06
 					g.ground = true
 		"earth":
-			# Il masso: palla di zolle che si compone davanti alla mano e gira.
-			var grow := 1.0 if d.hold <= 0.0 else lerpf(0.35, 1.0, 1.0 - d.hold / maxf(0.05, S.hit_at * 0.5))
-			for i in _emit(key, 220.0, dt, 20):
-				var o := _ball() * 0.28 * grow
-				o *= 1.0 + 0.24 * sin(o.x * 17.0 + o.y * 11.0)
-				_g(d.p + o, Vector3.ZERO, "earth", 1, 0.06, 0.05 * grow, 0.0, 0.0, _rng.randf_range(0.15, 0.45))
+			# Il costrutto lo muove _sync_earth; in volo lascia una scia di polvere.
 			if d.hold <= 0.0:
-				for i in _emit(key + "d", 30.0, dt, 4):
-					var g := _g(d.p + _r3() * 0.2, Vector3(0, -0.4, 0) + _r3() * 0.4, "earth", 1, 0.6, 0.03, MagicSystem.MG * 0.5, 0.0, 0.5)
-					if g != null:
-						g.ground = true
+				for i in _emit(key + "d", 40.0, dt, 5):
+					var sm := _g(d.p + _r3() * 0.2, _r3() * 0.3, "smoke", 1, _rng.randf_range(0.4, 0.8), 0.05, -0.2, 1.5, 0.75)
+					if sm != null:
+						sm.al = 0.6
 		_:
 			for i in _emit(key, 140.0, dt, 20):
 				var g := _g(d.p + _r3() * 0.2, dir * sp * 0.3 + _r3() * 1.2, "air", 0, _rng.randf_range(0.12, 0.28), 0.016, 0.0, 2.0, 0.8)
 				if g != null:
 					g.length = 0.26
+
+
+## Costrutti di terra legati ai dardi: il masso (palla bitorzoluta che si
+## compone davanti alla mano, cresce e prende a girare) e i coni gemelli
+## (punta in avanti). Quando il dardo non c'e' piu' il costrutto si rompe.
+func _sync_earth(_dt: float, m: MagicSystem) -> void:
+	if earth == null:
+		return
+	var live := {}
+	for d in m.darts:
+		var S := d.spell
+		if S.el != "earth" or S.is_legacy():
+			continue
+		var key := "d%d" % d.get_instance_id()
+		live[key] = true
+		var grow := 1.0
+		if d.hold > 0.0 and S.hold > 0.0:
+			grow = lerpf(0.35, 1.0, _sm5(1.0 - d.hold / S.hold))
+		if not earth.has(key):
+			var from := m.player.position + MagicSystem._fwd(m.face) * 0.8
+			if S.kind == "twins":
+				earth.build(key, EarthFx.cone_slots(0.30, 1.25, 0.11), Transform3D(Basis.IDENTITY, d.p), d.p - Vector3(0, 1.0, 0), 0.7, maxf(0.2, S.hold * 0.9), 0.14)
+			else:
+				earth.build(key, EarthFx.ball_slots(0.34, 0.09), Transform3D(Basis.IDENTITY, d.p), from, 1.3, maxf(0.2, S.hold * 0.8), 0.12)
+		var dir := d.v.normalized() if d.v.length() > 0.1 else MagicSystem._fwd(m.face)
+		var basis: Basis
+		if S.kind == "twins":
+			basis = Basis.looking_at(dir, Vector3.UP if absf(dir.y) < 0.95 else Vector3.FORWARD)
+			if d.hold > 0.0:
+				# Mentre si compongono i coni puntano gia' la mira e vibrano appena.
+				basis = basis.rotated(dir, sin(_clock * 31.0) * 0.04)
+		else:
+			var spin := lerpf(1.1, 6.5, grow) * (d.t + (S.hold - maxf(d.hold, 0.0)))
+			basis = Basis(Vector3(0.3, 1.0, 0.2).normalized(), spin)
+		earth.set_xf(key, Transform3D(basis, d.p), grow)
+	for key: String in earth.keys():
+		if key.begins_with("d") and not live.has(key):
+			earth.release(key, Vector3.ZERO, 1.5)
+
+
+## Rottura di un costrutto sul bersaglio o sul suolo: zolle che schizzano
+## avanti e intorno, polvere, qualche zolla in piu' dal punto d'impatto.
+func _earth_break(d: MagicSystem.Dart, p: Vector3, n: Vector3) -> void:
+	if earth == null:
+		return
+	var key := "d%d" % d.get_instance_id()
+	var fwd := d.v.normalized() if d.v.length() > 0.1 else -n
+	earth.release(key, fwd * 2.5 + Vector3(0, 1.0, 0), 3.2)
+	earth.debris(p, n + Vector3(0, 0.5, 0), 10, 3.5, 0.08, 0.25)
+	for i in 10:
+		var sm := _g(p + _r3() * 0.35, Vector3(0, 0.6, 0) + _r3() * 0.6, "smoke", 1, _rng.randf_range(0.8, 1.5), 0.07, -0.2, 1.0, 0.75)
+		if sm != null:
+			sm.al = 0.7
 
 
 # ---------------------------------------------------------------- impatti
@@ -462,13 +486,29 @@ func signature(el: String, p: Vector3, heavy: bool, axis: Vector3) -> void:
 			for i in 6:
 				_puff(p, axis, 1.9, 0.0, "air", 0, 0.3, 0.0, 0.016)
 		"earth":
-			for i in (18 if heavy else 11):
-				_puff(p, axis, 1.3 * k, 2.6, "earth", 1, 0.75, 13.0, 0.04 if heavy else 0.03)
+			if earth != null:
+				earth.debris(p, axis * 0.4, 18 if heavy else 11, 2.6 * k, 0.06, 0.15)
 			for i in 6:
-				_puff(p, axis, 1.0, 2.0, "smoke", 1, 0.75, 13.0, 0.03)
+				_puff(p, axis, 1.0, 1.0, "smoke", 1, 0.9, -0.3, 0.05)
 		_:
 			_line_ring(p, 0.05, 0.24, 0.11, "karma", false, 14, 0.98)
 			_line_ring(p, 0.10, 0.42, 0.16, "karma", false, 18, 0.7)
+
+
+## Firma piccola dei colpi continui: qualche brace o goccia e uno sbuffo.
+func _tick_sign(el: String, p: Vector3, axis: Vector3) -> void:
+	match el:
+		"fire":
+			for i in 6:
+				_puff(p, axis, 0.9, 1.6, "fire", 0, 0.45, -1.4, 0.03)
+			var sm := _g(p + Vector3(0, 0.2, 0), Vector3(0, 0.8, 0) + _r3() * 0.2, "smoke", 1, 0.7, 0.05, -0.3, 0.8, 0.5)
+			if sm != null:
+				sm.al = 0.55
+		"water":
+			for i in 8:
+				_puff(p, axis, 1.3, 1.4, "water", 1, 0.45, 8.5, 0.022)
+		_:
+			pass
 
 
 func _puff(p: Vector3, axis: Vector3, spd: float, up: float, el: String, mode: int, dur: float, grav: float, size: float) -> void:
@@ -541,13 +581,8 @@ func element_impact(S: SpellDefinition, p: Vector3, n: Vector3) -> void:
 					g.ground = true
 			_line_ring(p, 0.1, 0.7 * sqrt(big), 0.4, "water", true, 20, 0.8)
 		"earth":
-			for i in ejecta * 2:
-				var d := (_r3() + Vector3(0, 1.2, 0)).normalized()
-				var g := _g(p + _r3() * 0.15, d * _rng.randf_range(2.0, 4.5) * sqrt(big), "earth", 1, _rng.randf_range(0.6, 1.2), _rng.randf_range(0.03, 0.06),
-					MagicSystem.MG, 0.3, _rng.randf_range(0.25, 0.6))
-				if g != null:
-					g.ground = true
-					g.stick = true
+			if earth != null:
+				earth.debris(p, Vector3.UP, ejecta * 2, 3.5 * sqrt(big), 0.09, 0.3)
 			for i in 8:
 				_g(p + _r3() * 0.4, Vector3(0, 0.5, 0) + _r3() * 0.5, "smoke", 1, _rng.randf_range(0.8, 1.6), 0.07, -0.2, 1.0, 0.7)
 			_line_ring(p, 0.2, 1.2, 0.5, "earth", true, 22, 0.6)
@@ -639,20 +674,18 @@ func _event(e: Dictionary, hand: Vector3) -> void:
 		"fan_ring":
 			_line_ring(e["p"], 0.2, 3.0, 0.3, "fire", true, 22)
 		"struct":
+			# Il blocco sale dal suolo: zolle che schizzano dalla base.
 			for c: Vector3i in e["cells"]:
-				for i in 3:
-					var g := _g(Vector3(c) + Vector3(_rng.randf(), _rng.randf(), _rng.randf()), _r3() * 1.2 + Vector3(0, 1.0, 0), "earth", 1,
-						_rng.randf_range(0.4, 0.9), _rng.randf_range(0.03, 0.06), MagicSystem.MG * 0.5, 0.5, 0.5)
-					if g != null:
-						g.ground = true
+				if earth != null:
+					earth.debris(Vector3(c) + Vector3(0.5, 0.1, 0.5), Vector3.UP, 3, 2.5, 0.09, 0.4)
+				var sm := _g(Vector3(c) + Vector3(0.5, 0.2, 0.5) + _r3() * 0.4, Vector3(0, 0.5, 0) + _r3() * 0.4, "smoke", 1, 0.9, 0.08, -0.2, 1.0, 0.75)
+				if sm != null:
+					sm.al = 0.6
 		"crumble":
+			# Il blocco si sbriciola in zolle vere che cadono e rotolano.
 			for c: Vector3i in e["cells"]:
-				for i in 4:
-					var g := _g(Vector3(c) + Vector3(_rng.randf(), _rng.randf(), _rng.randf()), _r3() * 1.6, "earth", 1,
-						_rng.randf_range(0.6, 1.4), _rng.randf_range(0.04, 0.08), MagicSystem.MG, 0.3, _rng.randf_range(0.3, 0.6))
-					if g != null:
-						g.ground = true
-						g.stick = true
+				if earth != null:
+					earth.debris(Vector3(c) + Vector3(0.5, 0.5, 0.5), Vector3(0, 0.2, 0), 6, 1.6, 0.2, 0.35)
 		"mark":
 			_mark(String(e["kind"]), e["p"], float(e["r"]))
 		"buff":
@@ -668,6 +701,8 @@ func _event(e: Dictionary, hand: Vector3) -> void:
 				burst(e["el"], e["p"], e["n"], 1.0)
 			elif S.el == "karma":
 				karma_impact(S, e["p"], -(e["n"] as Vector3), 1.0)
+			elif S.el == "earth" and e.has("dart"):
+				_earth_break(e["dart"], e["p"], e["n"])
 			else:
 				element_impact(S, e["p"], e["n"])
 		"contact":
@@ -676,9 +711,14 @@ func _event(e: Dictionary, hand: Vector3) -> void:
 				_line_ring(e["p"], 0.1, maxf(0.5, float(e["r"])), 0.25, "air", false, 20)
 		"hit":
 			var S3: SpellDefinition = e["spell"]
+			var d: Vector2 = e["dir"]
 			if not e.get("quiet", false) and not S3.is_legacy():
-				var d: Vector2 = e["dir"]
 				signature(S3.el, e["p"], S3.heavy, Vector3(d.x, 0, d.y))
+			elif e.get("quiet", false) and e.get("juice", false):
+				# Colpo continuo: una firma piccola a ogni finestra (.22 s).
+				_tick_sign(S3.el, e["p"], Vector3(d.x, 0, d.y))
+		"dot":
+			_tick_sign("fire", e["p"], Vector3.ZERO)
 		"burst":
 			burst(e["el"], e["p"], e["n"], float(e.get("k", 1.0)))
 		"release":
@@ -687,7 +727,7 @@ func _event(e: Dictionary, hand: Vector3) -> void:
 				burst(e["el"], e["p"], e["dir"], 0.35)
 			elif S4.el == "karma":
 				# Bocca del Karma: due quad additivi al centro del glifo.
-				var c: Vector3 = hand + (e["dir"] as Vector3) * S4.glyph_off
+				var c: Vector3 = hand + (e["dir"] as Vector3) * 0.1
 				_g(c, Vector3.ZERO, "karma", 0, 0.14, S4.r * 7.0 * 0.6, 0.0, 0.0, 0.66)
 				_g(c, Vector3.ZERO, "karma", 0, 0.14, S4.r * 3.0 * 0.6, 0.0, 0.0, 0.97)
 		"steam":
@@ -726,18 +766,8 @@ func _event(e: Dictionary, hand: Vector3) -> void:
 
 # ---------------------------------------------------------------- forme ad area
 
-func _area_start(e: Dictionary) -> void:
-	if e["kind"] == "spikes":
-		# Sei coni su un anello di 1 m attorno alla mira, su dal suolo in .4 s.
-		var p: Vector3 = e["p"]
-		for i in 6:
-			var a := TAU * i / 6.0 + _rng.randf_range(-0.3, 0.3)
-			var q := p + Vector3(cos(a), 0, sin(a)) * _rng.randf_range(0.7, 1.3)
-			if world != null:
-				q.y = VoxelQuery.field_height(world, q.x, q.z, p.y + 1.0)
-			for k in 8:
-				var h := k / 7.0 * 1.5
-				_g(q + Vector3(0, -0.2, 0), Vector3(0, (h + 0.2) / 0.4, 0), "earth", 1, 0.9, 0.26 * (1.0 - h / 1.5) * 0.5 + 0.02, 0.0, 0.0, 0.2 + 0.2 * (k % 2))
+func _area_start(_e: Dictionary) -> void:
+	pass
 
 
 ## Arco della conduzione: zig-zag di grani viola.
@@ -813,9 +843,10 @@ func _effect(dt: float, e: SpellRuntime.Effect, hand: Vector3) -> void:
 			if s.el == "fire":
 				# Fiamma che esce a 17 m/s, sale e fuma (lunghezza ×2,8).
 				for i in _emit(key, 900.0, dt, 30):
-					var d := (e.dir + _r3() * 0.08).normalized()
-					var g := _g(hand + d * 0.12, d * 17.0 * _rng.randf_range(0.7, 1.3), "flame", 0, _rng.randf_range(0.3, 0.5),
-						_rng.randf_range(0.05, 0.09), -3.0, 3.1, _rng.randf_range(0.85, 1.0))
+					var d := (e.dir + _r3() * 0.06).normalized()
+					# Vola a 17 m/s frenando (arriva a ~7 m, la portata e' 6,5) e sale.
+					var g := _g(hand + d * 0.12, d * 17.0 * _rng.randf_range(0.8, 1.2), "flame", 0, _rng.randf_range(0.5, 0.75),
+						_rng.randf_range(0.06, 0.1) * 1.0, -2.2, 1.6, _rng.randf_range(0.9, 1.0))
 					if g != null:
 						g.cool = 1.2
 				for i in _emit(key + "s", 30.0, dt, 4):
@@ -841,12 +872,13 @@ func _effect(dt: float, e: SpellRuntime.Effect, hand: Vector3) -> void:
 					if e.t < lead or e.t > lead + 1.9:
 						continue
 					var cc := e.p + side * (k - 2.5) / 5.0 * minf(8.2, s.area * 2.6)
-					for i in _emit(key + str(k), 70.0 * fade + 10.0, dt, 6):
+					var env := _sm5((e.t - lead) / 0.26) * (1.0 - _sm5((e.t - lead - 1.5) / 0.4))
+					for i in _emit(key + str(k), 320.0 * env + 10.0, dt, 14):
 						var a := _rng.randf() * TAU
-						var rr := sqrt(_rng.randf()) * 0.74 * 0.5
+						var rr := sqrt(_rng.randf()) * 0.74 * 0.55
 						var q := cc + Vector3(cos(a) * rr, 0.05, sin(a) * rr)
 						var g := _g(q, Vector3(-sin(a), 0, cos(a)) * 2.6 * rr + Vector3(0, 7.2 * _rng.randf_range(0.7, 1.3), 0), "flame", 0,
-							_rng.randf_range(0.35, 0.6), _rng.randf_range(0.04, 0.07), -1.0, 3.0, _rng.randf_range(0.85, 1.0))
+							_rng.randf_range(0.35, 0.6), _rng.randf_range(0.09, 0.15), -1.0, 3.0, _rng.randf_range(0.9, 1.0))
 						if g != null:
 							g.cool = 1.1
 			else:
@@ -946,17 +978,84 @@ func _effect(dt: float, e: SpellRuntime.Effect, hand: Vector3) -> void:
 				var g := _g(c + d * 0.6, e.dir * 13.0 * 0.4 + d * 3.8 * 0.4, "air", 0, 0.1, 0.016, 0.0, 0.0, 0.9)
 				if g != null:
 					g.length = 0.16
+		"spikes":
+			_spikes(e)
 		"quake":
-			# Anelli di lastre che si sollevano: l'onda va fuori a 5,5 m/s.
-			var front := 5.5 * e.t
-			if front > s.area + 1.0:
-				return
-			for i in _emit(key, 260.0, dt, 20):
-				var a := _rng.randf() * TAU
-				var rr := front + _rng.randf_range(-0.3, 0.3)
-				var q := e.p + Vector3(cos(a) * rr, 0, sin(a) * rr)
-				if world != null:
-					q.y = VoxelQuery.field_height(world, q.x, q.z, e.p.y + 1.0)
-				var g := _g(q, Vector3(0, 2.0, 0) + Vector3(cos(a), 0, sin(a)) * 0.6, "earth", 1, 0.5, _rng.randf_range(0.05, 0.09), 8.0, 0.0, 0.25)
-				if g != null:
-					g.ground = true
+			_quake(e)
+
+
+## Punte (RMNDWN struct spikes: 6 coni R .26, lunghi 1,5, su un anello di 1 m):
+## le zolle salgono dal suolo e si compattano in coni che escono dalla terra in
+## .4 s, restano, e a .81 s si sbriciolano.
+func _spikes(e: SpellRuntime.Effect) -> void:
+	if earth == null:
+		return
+	var base := "sp%d_" % e.get_instance_id()
+	if not _built.has(base):
+		_built[base] = []
+		var rr := RandomNumberGenerator.new()
+		rr.seed = e.get_instance_id()
+		for k in 6:
+			var a := TAU * k / 6.0 + rr.randf_range(-0.3, 0.3)
+			var q := e.p + Vector3(cos(a), 0, sin(a)) * rr.randf_range(0.7, 1.3)
+			if world != null:
+				q.y = VoxelQuery.field_height(world, q.x, q.z, e.p.y + 1.0)
+			(_built[base] as Array).append(q)
+			earth.build(base + str(k), EarthFx.cone_slots(0.30, 1.5, 0.13), Transform3D(Basis.IDENTITY, q), q, 0.9, 0.3, 0.17, 0.35)
+	var pts: Array = _built[base]
+	var up := Basis.looking_at(Vector3.UP, Vector3.FORWARD)
+	var rise := _sm5(e.t / 0.4)
+	for k in pts.size():
+		var key := base + str(k)
+		if e.t >= 0.81:
+			earth.release(key, Vector3.ZERO, 1.2)
+			continue
+		var q: Vector3 = pts[k]
+		var tilt := Basis(Vector3(sin(k * 1.7), 0, cos(k * 2.3)).normalized(), 0.18)
+		earth.set_xf(key, Transform3D(tilt * up, q + Vector3(0, -1.2 * (1.0 - rise) + 0.35, 0)))
+	if e.t >= e.dur - 0.05:
+		_built.erase(base)
+
+
+## Sisma (RMNDWN struct fault): 4 anelli di lastre (raggi .95…3,8, larghe
+## 2πr/round(2πr/1,7)·.92, alte .62, spesse .68, anelli dispari sfalsati) che si
+## alzano al passaggio di un'onda a 5,5 m/s e si inclinano; poi ricadono e si rompono.
+func _quake(e: SpellRuntime.Effect) -> void:
+	if earth == null:
+		return
+	var key := "qk%d" % e.get_instance_id()
+	if not _built.has(key):
+		var slabs := []
+		var sizes: Array[Vector3] = []
+		for ring in 4:
+			var r := 0.95 * (ring + 1)
+			var n := maxi(3, int(round(TAU * r / 1.7)))
+			for i in n:
+				var a := TAU * (i + (0.5 if ring % 2 == 1 else 0.0)) / n
+				slabs.append([r, a])
+				sizes.append(Vector3(TAU * r / n * 0.92, 0.62, 0.68))
+		_built[key] = slabs
+		earth.build_manual(key, sizes, 0.55)
+	if e.t >= e.dur - 0.6:
+		if earth.has(key):
+			earth.crumble(key, 0.13)
+		if e.t >= e.dur - 0.05:
+			_built.erase(key)
+		return
+	var slabs2: Array = _built[key]
+	for i in slabs2.size():
+		var r: float = slabs2[i][0]
+		var a: float = slabs2[i][1]
+		var tau := e.t - r / 5.5
+		var lift := 0.0
+		if tau > 0.0:
+			var gx := (tau - 0.28) / 0.26
+			lift = 0.52 * maxf(exp(-gx * gx), 0.26 * minf(1.0, tau / 0.28))
+		var radial := Vector3(cos(a), 0, sin(a))
+		var p := e.p + radial * r
+		if world != null:
+			p.y = VoxelQuery.field_height(world, p.x, p.z, e.p.y + 1.0)
+		p.y += -0.36 + lift * 1.3
+		var yaw := Basis(Vector3.UP, -a + PI * 0.5)
+		var tilt := Basis(Vector3(-sin(a), 0, cos(a)), 0.6 * lift)
+		earth.set_chunk(key, i, p, Quaternion(tilt * yaw))

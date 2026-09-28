@@ -7,6 +7,10 @@ extends RefCounted
 ## fatti di veri voxel che poi crollano, zone di fango dalle pozze.
 
 const TICK := 0.10
+## Intervallo dei colpi continui delle aree di fuoco e acqua.
+const AREA_TICK := 0.25
+## Parte del danno data al contatto quando la forma continua a colpire.
+const FIRST_SHARE := 0.4
 const MUD_MAX := 10
 const MUD_DUR := 7.5
 
@@ -141,6 +145,7 @@ func _effect(s: SpellDefinition, p: Vector3, d: Vector3, dur: float, hit_at: flo
 ## frusta: capsula mano → mira, raggio .08, solo il primo corpo.
 func resolve(e: Effect, targets: Array) -> void:
 	var s := e.spell
+	var dmg := s.dmg * (FIRST_SHARE if s.tick_for > 0.0 else 1.0)
 	if s.kind == "lash":
 		var best: CombatTarget = null
 		var best_u := INF
@@ -183,7 +188,7 @@ func resolve(e: Effect, targets: Array) -> void:
 			_:
 				var cv := Vector2(tg.position.x - e.o.x, tg.position.z - e.o.z)
 				dn = cv.normalized() if cv.length() > 0.05 else rn
-		m.spell_hit(tg, s, s.dmg, dn, tg.position + Vector3(0, tg.height * 0.5, 0), 0.0 if s.kind == "updraft" else 1.0)
+		m.spell_hit(tg, s, dmg, dn, tg.position + Vector3(0, tg.height * 0.5, 0), 0.0 if s.kind == "updraft" else 1.0)
 	world_touch(s, c, s.area)
 	m.events.append({"type": "contact", "el": s.el, "kind": s.kind, "p": c, "r": s.area, "spell": s})
 
@@ -417,6 +422,12 @@ func _step_effect(e: Effect, dt: float, _motor: PlayerMotor, targets: Array, han
 		if s.el == "water" and s.area > 0.0:
 			var r := maxf(0.9, s.area * 1.6)
 			add_mud(e.p if s.kind != "wave" else e.aim, r)
+	# Colpi continui: chi resta nell'area continua a bruciare o a essere investito.
+	if e.done and s.tick_for > 0.0 and e.t <= e.hit_at + s.tick_for:
+		e.acc += dt
+		while e.acc >= AREA_TICK:
+			e.acc -= AREA_TICK
+			_area_tick(e, targets)
 	# Aspetto che continua dopo il contatto: vento sull'erba e sulle braci.
 	match s.kind:
 		"cyclone", "updraft", "vacuum":
@@ -424,9 +435,7 @@ func _step_effect(e: Effect, dt: float, _motor: PlayerMotor, targets: Array, han
 			if s.kind == "cyclone":
 				m._blow_fire(e.p, s.area * 1.4, Vector2.ZERO)
 		"rain":
-			e.acc += dt
-			if e.acc >= 0.5 and e.t < s.emit:
-				e.acc = 0.0
+			if int(e.t / 0.5) != int((e.t - dt) / 0.5) and e.t < s.emit:
 				m.wet_around(e.p, int(maxf(1.0, s.area * 0.6)))
 		"wave":
 			e.acc += dt
@@ -436,6 +445,20 @@ func _step_effect(e: Effect, dt: float, _motor: PlayerMotor, targets: Array, han
 				var fp := e.p.lerp(e.aim, u)
 				m.wet_around(fp, 1)
 				m.events.append({"type": "wave", "el": s.el, "p": fp, "dir": e.dir, "w": s.width, "h": s.height})
+
+
+## Un colpo continuo: danno spalmato, poca spinta, un decimo dello stagger,
+## famiglia "sostenuta" (niente hitstop, scossa e suono leggeri).
+func _area_tick(e: Effect, targets: Array) -> void:
+	var s := e.spell
+	var per := s.dmg * (1.0 - FIRST_SHARE) * AREA_TICK / s.tick_for
+	for o in targets:
+		var tg := o as CombatTarget
+		if tg == null or not tg.alive or not in_sphere(tg, e.p, s.area):
+			continue
+		var rad := Vector2(tg.position.x - e.p.x, tg.position.z - e.p.z)
+		var dn := rad.normalized() if rad.length() > 0.05 else Vector2(e.dir.x, e.dir.z).normalized()
+		m.spell_hit(tg, s, per, dn, tg.position + Vector3(0, tg.height * 0.5, 0), 0.15, 0.0, true, s.stagger * 0.1)
 
 
 ## Getto sostenuto (SUSTAIN_TUNE + VOLSPEC.jet, RMNDWN L20905–L21130): cono

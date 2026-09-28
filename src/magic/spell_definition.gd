@@ -12,7 +12,7 @@ var display_name := ""
 ## Scuola/elemento (karma = materia neutra, niente stati).
 var el := "fire"
 var tier := 1
-## Forma: dart, bolt, volley, ball, meteor, throw, shaft, orb, beam, jet,
+## Forma: dart, bolt, volley, ball, meteor, throw, twins, shaft, orb, beam, jet,
 ## column, spikes, quake, rain, cyclone, vacuum, updraft, wave, lash, slash,
 ## push, spray, aura, buff, wall, pillar.
 var kind := "bolt"
@@ -75,6 +75,11 @@ var r0 := 0.0
 var r1 := 0.0
 ## Stagger al secondo dei getti.
 var poise := 0.0
+## Colpi continui (D-032, fuoco e acqua): dopo il colpo del contatto la forma
+## continua a colpire per `tick_for` secondi (il 60% del danno e' spalmato sui tick).
+var tick_for := 0.0
+## Costrutti di terra: secondi in cui si compongono prima di partire.
+var hold := 0.0
 ## Fasci del Karma: lunghezza del bastone luminoso (0 = raggio intero).
 var body_len := 0.0
 ## Scoppio delle sfere: stagger.
@@ -86,12 +91,9 @@ var open := 0.0
 var widen := 0.0
 var both := false
 var converge := 0.0
-## Glifo del lancio davanti alla mano (RMNDWN elementGlyph / Karma glyph):
-## raggio, distanza dal palmo, lati del poligono inscritto e tacche radiali.
-var glyph_r := 0.26
-var glyph_off := 0.14
-var glyph_poly := 3
-var glyph_ticks := 8
+## Dimensione della sostanza che si accumula nel palmo durante la raccolta
+## (dal raggio del glifo di RMNDWN: cresce con il livello della magia).
+var mass_r := 0.26
 ## Rinculo quando la magia colpisce (impactAtk, impactDec, impactPose).
 var recoil_atk := 0.035
 var recoil_dec := 0.24
@@ -227,6 +229,8 @@ static func _e(id: String, n: String, el: String, tier: int, kind: String, o: Di
 	s.r1 = o.get("r1", 0.0)
 	s.poise = o.get("poise", 0.0)
 	s.body_len = o.get("body", 0.0)
+	s.hold = o.get("hold", 0.0)
+	s.tick_for = o.get("ticks", 0.0)
 	s.burst_stag = o.get("burst_stag", 0.0)
 	s.status = o.get("status", {"fire": "burn", "water": "wet", "earth": "slow", "air": "", "karma": ""}[el])
 	s.note = o.get("note", "")
@@ -248,24 +252,19 @@ const KARMA_POSE := {
 }
 
 
-## Glifi del roster (v78 glyph r/poly/ticks e Karma glyph r).
-const GLYPH := {"fire_bolt": [.207, 3, 8], "fire_volley": [.221, 3, 6], "fire_jet": [.235, 3, 10], "fire_embers": [.29, 3, 9],
-	"fire_ball": [.414, 4, 16], "fire_columns": [.42, 5, 14], "fire_meteor": [.552, 6, 24], "water_hydrant": [.345, 4, 5],
-	"water_bolt": [.248, 4, 5], "water_tide": [.442, 4, 8], "water_pressure": [.40, 4, 6], "water_ball": [.455, 4, 7],
-	"water_geyser": [.47, 4, 9], "water_rain": [.54, 4, 11], "air_lash": [.359, 3, 4], "air_push": [.40, 3, 5],
-	"air_slash": [.42, 3, 6], "air_vacuum": [.50, 3, 7], "air_updraft": [.55, 3, 8], "air_cyclone": [.59, 3, 9],
-	"earth_spikes": [.26, 6, 5], "earth_rock": [.28, 6, 5], "earth_wall": [.31, 6, 6], "earth_pillar": [.32, 6, 6],
-	"earth_quake": [.42, 6, 8], "ago": [.22, 6, 6], "zoltraak": [.30, 6, 6], "dardo": [.26, 6, 6], "flusso": [.24, 6, 6],
-	"tridente": [.28, 6, 6], "spina": [.30, 6, 6], "orbe": [.34, 6, 6], "giudizio": [.60, 6, 6], "nova": [.52, 6, 6]}
+## Massa nel palmo per magia (raggio del glifo v78 e del Karma).
+const MASS := {"fire_bolt": .207, "fire_volley": .221, "fire_jet": .235, "fire_embers": .29,
+	"fire_ball": .414, "fire_columns": .42, "fire_meteor": .552, "water_hydrant": .345,
+	"water_bolt": .248, "water_tide": .442, "water_pressure": .40, "water_ball": .455,
+	"water_geyser": .47, "water_rain": .54, "air_lash": .359, "air_push": .40,
+	"air_slash": .42, "air_vacuum": .50, "air_updraft": .55, "air_cyclone": .59,
+	"earth_spikes": .26, "earth_rock": .28, "earth_twins": .30, "earth_wall": .31, "earth_pillar": .32,
+	"earth_quake": .42, "ago": .22, "zoltraak": .30, "dardo": .26, "flusso": .24,
+	"tridente": .28, "spina": .30, "orbe": .34, "giudizio": .60, "nova": .52}
 
 
 static func _stance(s: SpellDefinition) -> void:
-	if GLYPH.has(String(s.id)):
-		var g: Array = GLYPH[String(s.id)]
-		s.glyph_r = g[0]
-		s.glyph_poly = g[1]
-		s.glyph_ticks = g[2]
-		s.glyph_off = 0.17 if s.el == "karma" else 0.12
+	s.mass_r = float(MASS.get(String(s.id), 0.26))
 	if KARMA_POSE.has(String(s.id)):
 		var k: Array = KARMA_POSE[String(s.id)]
 		s.lean = k[0]
@@ -298,7 +297,7 @@ static func _build() -> void:
 	_e("fire_jet", "Lanciafiamme", "fire", 2, "jet", {"output": 65, "cast": .30, "rec": .42, "fx": 3.1, "emit": 1.6, "w": .58, "area": .62, "dmg": 16, "stag": 10, "kb": .55, "dps": 34, "poise": 16, "reach": 6.5, "r0": .16, "r1": .70, "role": "area", "note": "Getto sostenuto che segue la mira"})
 	_e("fire_embers", "Braci", "fire", 2, "spray", {"output": 55, "cast": .38, "rec": .34, "speed": 8, "fx": 3.6, "self": true, "area": 1.9, "dmg": 9, "stag": 5, "kb": .35, "role": "difesa", "note": "Braci tutt'attorno: accendono il suolo, non feriscono"})
 	_e("fire_ball", "Palla di fuoco", "fire", 3, "ball", {"output": 125, "cast": .68, "rec": .48, "speed": 6.2, "life": 1.4, "fx": 1.75, "r": .36, "area": 1.55, "dmg": 58, "stag": 42, "kb": 2.0, "heavy": true, "role": "area", "note": "Lenta; all'impatto colpisce tutti nel raggio"})
-	_e("fire_columns", "Colonne di fuoco", "fire", 3, "column", {"output": 135, "cast": .72, "rec": .52, "fx": 4.65, "at": .57, "area": 2.1, "h": 3.3, "dmg": 46, "stag": 34, "kb": 1.35, "role": "area", "note": "Sei colonne di fiamma sul punto mirato"})
+	_e("fire_columns", "Colonne di fuoco", "fire", 3, "column", {"output": 135, "cast": .72, "rec": .52, "fx": 4.65, "at": .57, "ticks": 1.9, "area": 2.1, "h": 3.3, "dmg": 46, "stag": 34, "kb": 1.35, "role": "area", "note": "Sei colonne di fiamma sul punto mirato"})
 	_e("fire_meteor", "Meteorite di fuoco", "fire", 4, "meteor", {"output": 240, "cast": .95, "rec": .72, "speed": 21, "life": 1.6, "fx": 1.8, "r": .58, "area": 2.8, "dmg": 118, "stag": 92, "kb": 3.6, "heavy": true, "note": "Cade dal cielo sul punto mirato"})
 	# ACQUA.
 	_e("water_hydrant", "Idrante", "water", 1, "jet", {"output": 25, "cast": .36, "rec": .30, "fx": 3.7, "emit": 2.0, "w": .20, "area": .38, "dmg": 0, "stag": 10, "kb": 2.8, "dps": 0, "poise": 10, "push": 28, "reach": 7.0, "r0": .10, "r1": .40, "role": "area", "note": "Spinta continua, bagna e rallenta"})
@@ -306,8 +305,8 @@ static func _build() -> void:
 	_e("water_tide", "Marea", "water", 2, "wave", {"output": 65, "cast": .62, "rec": .42, "speed": 5.6, "life": 2.0, "fx": 1.75, "w": 3.8, "h": .9, "area": 2.0, "dmg": 18, "stag": 20, "kb": 3.3, "role": "area", "note": "Un'onda larga che avanza"})
 	_e("water_pressure", "Getto pressurizzato", "water", 2, "jet", {"output": 70, "cast": .44, "rec": .36, "fx": 2.42, "emit": 1.1, "w": .06, "area": .16, "dmg": 44, "stag": 26, "kb": 2.8, "dps": 56, "poise": 20, "push": 24, "reach": 9.0, "r0": .06, "r1": .16, "note": "Getto sottile e potente"})
 	_e("water_ball", "Sfera d'acqua", "water", 3, "ball", {"output": 120, "cast": .66, "rec": .48, "speed": 6.8, "life": 1.4, "fx": 1.7, "r": .42, "area": 1.25, "dmg": 52, "stag": 44, "kb": 3.45, "heavy": true})
-	_e("water_geyser", "Geyser", "water", 3, "column", {"output": 130, "cast": .66, "rec": .50, "fx": 3.9, "at": .27, "area": 1.1, "h": 4.3, "dmg": 34, "stag": 38, "kb": 2.8, "role": "area", "note": "Quattro getti verticali attorno al punto mirato"})
-	_e("water_rain", "Diluvio", "water", 4, "rain", {"output": 220, "cast": .70, "rec": .66, "fx": 4.8, "emit": 3.6, "at": .36, "area": 2.6, "h": 5.0, "dmg": 42, "stag": 34, "kb": .6, "role": "area", "note": "Pioggia battente ad area"})
+	_e("water_geyser", "Geyser", "water", 3, "column", {"output": 130, "cast": .66, "rec": .50, "fx": 3.9, "at": .27, "ticks": 1.4, "area": 1.1, "h": 4.3, "dmg": 34, "stag": 38, "kb": 2.8, "role": "area", "note": "Quattro getti verticali attorno al punto mirato"})
+	_e("water_rain", "Diluvio", "water", 4, "rain", {"output": 220, "cast": .70, "rec": .66, "fx": 4.8, "emit": 3.6, "at": .36, "ticks": 3.2, "area": 2.6, "h": 5.0, "dmg": 42, "stag": 34, "kb": .6, "role": "area", "note": "Pioggia battente ad area"})
 	# ARIA.
 	_e("air_lash", "Schiocco", "air", 1, "lash", {"output": 20, "cast": .22, "rec": .20, "fx": .72, "at": .44, "r": .08, "dmg": 18, "stag": 9, "kb": 1.15, "note": "Frusta d'aria fino al bersaglio"})
 	_e("air_push", "Spinta", "air", 1, "push", {"output": 25, "cast": .26, "rec": .24, "fx": .88, "at": .45, "area": .9, "dmg": 0, "stag": 10, "kb": 3.5, "role": "utilita", "note": "Un'onda d'urto che allontana"})
@@ -317,7 +316,8 @@ static func _build() -> void:
 	_e("air_cyclone", "Ciclone", "air", 4, "cyclone", {"output": 240, "cast": 1.0, "rec": .78, "fx": 3.8, "at": .28, "area": 1.65, "h": 5.0, "dmg": 54, "stag": 34, "kb": 2.3, "role": "area", "note": "Spirale che colpisce e trascina"})
 	# TERRA.
 	_e("earth_spikes", "Punte", "earth", 1, "spikes", {"output": 30, "cast": .34, "rec": .28, "fx": 1.15, "at": .30, "area": 1.25, "dmg": 30, "stag": 24, "kb": 1.1, "role": "area"})
-	_e("earth_rock", "Masso", "earth", 1, "throw", {"output": 35, "cast": .42, "rec": .30, "speed": 14, "life": 2.0, "fx": 1.25, "at": 1.5, "r": .34, "dmg": 36, "stag": 30, "kb": 1.45, "note": "Si compone davanti alla mano, poi vola"})
+	_e("earth_rock", "Masso", "earth", 1, "throw", {"output": 35, "cast": .42, "rec": .30, "speed": 14, "life": 2.0, "fx": 1.25, "at": 1.5, "hold": .75, "r": .34, "dmg": 36, "stag": 30, "kb": 1.45, "note": "Zolle dal suolo si compattano in un masso che vola sul bersaglio"})
+	_e("earth_twins", "Coni gemelli", "earth", 2, "twins", {"output": 65, "cast": .42, "rec": .38, "speed": 14, "life": 2.0, "fx": 1.25, "hold": .45, "area": .55, "dmg": 23, "stag": 19, "kb": 1.65, "note": "Due coni di terra si alzano ai tuoi lati e partono insieme"})
 	_e("earth_wall", "Muraglia", "earth", 2, "wall", {"output": 80, "cast": .55, "rec": .42, "fx": 3.5, "at": .53, "w": 4.8, "h": 2.7, "dmg": 0, "stag": 0, "kb": 0, "role": "difesa", "note": "Muro di terra che sale dal suolo"})
 	_e("earth_pillar", "Colonna tellurica", "earth", 2, "pillar", {"output": 78, "cast": .58, "rec": .42, "fx": 2.8, "self": true, "h": 3.35, "dmg": 0, "stag": 0, "kb": 0, "role": "utilita", "note": "Ti solleva su una colonna"})
 	_e("earth_quake", "Sisma", "earth", 4, "quake", {"output": 250, "cast": .85, "rec": .78, "fx": 3.85, "at": .31, "area": 3.8, "dmg": 68, "stag": 78, "kb": 2.7, "heavy": true, "role": "area", "note": "Quattro anelli di faglia"})

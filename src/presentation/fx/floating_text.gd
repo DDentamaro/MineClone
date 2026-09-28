@@ -1,16 +1,23 @@
 class_name FloatingText
 extends Node3D
 ## Scritte brevi che salgono e svaniscono sopra il mondo (reazioni: VAPORE,
-## SHOCK TERMICO, SPENTO, CRATERE, stati). Non sono i numeri del danno (D-009).
+## SHOCK TERMICO, SPENTO, CRATERE, stati) e numeri del danno delle magie
+## (D-032): colore dell'elemento, piu' grandi per i colpi pieni e i critici.
 
 const LIFE := 1.1
 var _items: Array[Dictionary] = []
 
 
-func spawn(p: Vector3, text: String, color: Color = Color(1, 0.95, 0.8)) -> void:
+## Numero del danno, spostato un poco a caso perche' i colpi vicini non si coprano.
+func number(p: Vector3, value: float, color: Color, big: bool) -> void:
+	var j := Vector3(randf_range(-0.25, 0.25), randf_range(0.0, 0.2), randf_range(-0.25, 0.25))
+	spawn(p + j, str(maxi(1, roundi(value))), color, 44 if big else 30)
+
+
+func spawn(p: Vector3, text: String, color: Color = Color(1, 0.95, 0.8), font_size: int = 40) -> void:
 	var l := Label3D.new()
 	l.text = text
-	l.font_size = 40
+	l.font_size = font_size
 	l.pixel_size = 0.006
 	l.outline_size = 10
 	l.modulate = color
@@ -22,7 +29,7 @@ func spawn(p: Vector3, text: String, color: Color = Color(1, 0.95, 0.8)) -> void
 	l.position = p
 	add_child(l)
 	_items.append({"n": l, "t": 0.0})
-	while _items.size() > 12:
+	while _items.size() > 24:
 		(_items.pop_front()["n"] as Node).queue_free()
 
 

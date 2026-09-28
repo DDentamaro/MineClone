@@ -7,12 +7,16 @@ extends SceneTree
 ## xvfb-run -a godot --path . --script res://tools/e2e_magic.gd -- --out=/tmp/magic.png
 
 ## Magia e secondi dopo il lancio per lo screenshot.
-const PLAN := [
+var PLAN := [
 	[&"giudizio", 0.05], [&"fire_jet", 0.5], [&"fire_columns", 0.6], [&"water_tide", 0.7], [&"earth_wall", 0.6],
 	[&"air_cyclone", 0.6], [&"fire_meteor", 0.55], [&"water_rain", 0.9], [&"earth_quake", 0.4], [&"orbe", 0.22],
 	[&"tridente", 0.12], [&"fire_volley", 0.3], [&"zoltraak", 0.06], [&"dardo", 0.1], [&"fire_bolt", 0.14],
-	[&"air_slash", 0.1], [&"water_hydrant", 0.6], [&"earth_rock", 0.5], [&"air_updraft", 1.1],
+	[&"air_slash", 0.1], [&"water_hydrant", 0.6], [&"earth_rock", 0.5], [&"earth_twins", 0.2], [&"earth_spikes", 0.35], [&"air_updraft", 1.1],
 ]
+## --only=a,b: solo queste magie (prove veloci); i controlli finali si allentano.
+var _only := false
+## --phone: finestra 1600×720 e 1 dp = 1,83 unita' (telefono 2400×1080 a 440 dpi).
+var _phone := false
 
 var _game: GameRoot
 var _frame := 0
@@ -38,6 +42,12 @@ func _initialize() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--out="):
 			_out = a.substr(6)
+		elif a == "--phone":
+			_phone = true
+		elif a.begins_with("--only="):
+			var keep := a.substr(7).split(",")
+			PLAN = PLAN.filter(func(x: Array) -> bool: return keep.has(String(x[0])))
+			_only = true
 	_game = (load("res://scenes/main.tscn") as PackedScene).instantiate()
 	root.add_child(_game)
 
@@ -65,7 +75,11 @@ func _shot(name: String) -> void:
 	_shots[name] = true
 	var path := _out.replace(".png", "_%s.png" % name)
 	root.get_texture().get_image().save_png(path)
-	_log.append("screenshot " + path)
+	var labels: Array[String] = []
+	for c in _game._texts.get_children():
+		if c is Label3D:
+			labels.append((c as Label3D).text)
+	_log.append("screenshot %s · scritte %s" % [path, labels])
 
 
 func _process(dt: float) -> bool:
@@ -84,6 +98,10 @@ func _process(dt: float) -> bool:
 				_game._day.paused = true
 				_game._camera_rig.set_zoom(1.25)
 				_game._camera_rig.zoom = 1.25
+				if _phone:
+					DisplayServer.window_set_size(Vector2i(1600, 720))
+					_game._touch.dp_scale = 1.83
+					_game._touch._layout()
 				# Tutto il libro noto, Output largo: si provano le forme, non la progressione.
 				for sp in SpellDefinition.all():
 					m.known[sp.id] = true
@@ -147,6 +165,10 @@ func _cast_step(m: MagicSystem) -> void:
 		_game.dev_output = 400.0
 		for d in _game._dummies.dummies:
 			d.respawn()
+		# L'eroe guarda verso destra sullo schermo: la mano e cio' che ci si
+		# accumula si vedono di lato (di spalle li copre la testa).
+		var gr := _game._camera_rig.ground_right()
+		_game._avatar.facing = CombatController.heading(Vector2(gr.x, gr.z))
 		_game._dummies.place_around(_game.motor.position, _game._avatar.facing, 3, 5.0)
 		_game._refresh_spellbar()
 		_cast_t = -1.0
@@ -168,6 +190,8 @@ func _cast_step(m: MagicSystem) -> void:
 		_game._camera_rig.set_zoom(z)
 		_game._camera_rig.zoom = _game._camera_rig.zoom_target
 		_zoomed = close
+	if _cast_t > 0.0 and _clock >= _cast_t + wait * 0.4:
+		_shot("%s_early" % id)
 	if _cast_t > 0.0 and _clock >= _cast_t + wait and not _shots.has(String(id)):
 		_shot(String(id))
 		_log.append("%s: strutture %d, effetti %d" % [id, m.runtime.structs.size(), m.runtime.effects.size()])
@@ -187,13 +211,13 @@ func _finish(m: MagicSystem) -> void:
 	var h := _total
 	_log.append("colpi sui manichini: %d" % h)
 	_log.append("eventi: %s" % [_seen])
-	_ok = _ok and h >= 12
-	for k in ["area", "wave", "struct", "burst_ring", "mark", "contact", "impact", "hit", "rise"]:
+	_ok = _ok and (h >= 12 or _only)
+	for k in ([] if _only else ["area", "wave", "struct", "burst_ring", "mark", "contact", "impact", "hit", "rise"]):
 		if not _seen.has(k):
 			_log.append("manca l'evento %s" % k)
 			_ok = false
 	var st := _game.make_save_state()
-	_ok = _ok and st.has("magic") and (st["magic"]["bar"] as Array)[4] == "air_updraft"
+	_ok = _ok and st.has("magic") and (_only or (st["magic"]["bar"] as Array)[4] == "air_updraft")
 	_shot("hud")
 	for l in _log:
 		print(l)

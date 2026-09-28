@@ -62,6 +62,7 @@ var last_edit := ""
 var combat: CombatController
 var magic := MagicSystem.new(1931)
 var mfx := MagicFx.new()
+var _earth_fx: EarthFx
 var _texts: FloatingText
 var _magic_key := false
 var _audio: MagicAudio
@@ -137,6 +138,11 @@ func _ready() -> void:
 		select_weapon(weapon_index)
 	fx.grains = _grains
 	mfx.grains = _grains
+	# Zolle vere delle magie di terra (D-032), accanto ai grani.
+	_earth_fx = EarthFx.new()
+	_earth_fx.name = "EarthFx"
+	_grains.get_parent().add_child(_earth_fx)
+	mfx.earth = _earth_fx
 	sandbox.grains = _grains
 	if saved.is_empty():
 		items.starter_kit()
@@ -273,6 +279,8 @@ func _swap_world(w: WorldData) -> void:
 	combat.world = world
 	combat.opaque = catalog.opaque_table()
 	mfx.world = world
+	_earth_fx.world = world
+	_earth_fx.clear()
 	magic.world = world
 	magic.edits = edits
 	magic.tree_grid = _vegetation.tree_grid
@@ -353,6 +361,42 @@ func _physics_process(dt: float) -> void:
 	# Posa dell'eroe al passo della fisica (D-028): la lama che ferisce e' quella
 	# che si vede, anche quando piu' passi di fisica cadono in un fotogramma.
 	_avatar.animate(0.0 if combat.hitstop > 0.0 else dt, motor, combat, magic)
+
+
+## Numeri del danno delle magie (D-032). I colpi pieni escono subito; i colpi
+## continui (getti, aree che bruciano o investono, bruciatura) si sommano per
+## bersaglio e si mostrano ogni .35 s, cosi' un getto non riempie lo schermo.
+const DMG_COL := {"fire": Color(1.0, 0.62, 0.25), "water": Color(0.55, 0.8, 1.0), "air": Color(0.9, 0.97, 1.0),
+	"earth": Color(0.85, 0.7, 0.45), "karma": Color(0.82, 0.6, 1.0)}
+var _dmg_acc := {}
+
+
+func _damage_number(e: Dictionary) -> void:
+	var amount := float(e.get("damage", 0.0))
+	var tg: CombatTarget = e.get("target")
+	if amount < 0.5 or tg == null:
+		return
+	var col: Color = DMG_COL.get(e.get("el", "fire"), Color.WHITE)
+	var top := tg.position + Vector3(0, tg.height + 0.25, 0)
+	if e["type"] == "hit" and not e.get("quiet", false):
+		if e.get("crit", false):
+			col = Color(1.0, 0.9, 0.3)
+		_texts.number(top, amount, col, true)
+		return
+	var acc: Dictionary = _dmg_acc.get(tg, {"sum": 0.0, "t": 0.0, "col": col})
+	acc["sum"] = float(acc["sum"]) + amount
+	acc["col"] = col
+	_dmg_acc[tg] = acc
+
+
+func _flush_damage_numbers(dt: float) -> void:
+	for tg: CombatTarget in _dmg_acc.keys():
+		var acc: Dictionary = _dmg_acc[tg]
+		acc["t"] = float(acc["t"]) + dt
+		if float(acc["t"]) >= 0.35:
+			if float(acc["sum"]) >= 0.5 and tg.alive:
+				_texts.number(tg.position + Vector3(0, tg.height + 0.25, 0), float(acc["sum"]), acc["col"], false)
+			_dmg_acc.erase(tg)
 
 
 ## Scossa di un colpo di magia (RMNDWN triggerCombatJuice + cameraState): i
@@ -541,6 +585,7 @@ func _process(dt: float) -> void:
 	if _autosave_t >= AUTOSAVE_S and not _args.has("screenshot"):
 		save_game()
 	mfx.update(dt, magic, _avatar.rig.cast_point(), p)
+	_flush_damage_numbers(dt)
 	_apply_magic_globals(_avatar.rig.cast_point(), p)
 	_audio_n += 1
 	_audio.handle(magic.events, _audio_n)
@@ -561,9 +606,12 @@ func _process(dt: float) -> void:
 			_camera_rig.shake(0.12 if e["el"] != "earth" else 0.25)
 		elif e["type"] == "hit" and e.get("juice", false):
 			_hit_juice(e)
+		if e["type"] == "hit" or e["type"] == "dot":
+			_damage_number(e)
 	magic.events.clear()
 	var lt := TrainingGround._light_at(world, p + Vector3(0, 1.1, 0))
 	_avatar.set_light(lt.x, lt.y)
+	_earth_fx.set_light(lt.x, lt.y)
 	_dummies.sync_views(combat.lock_target if combat.is_busy() else null)
 	_camera_rig.update_camera(dt, p)
 	_vegetation.cull_grass(_camera_rig.camera.global_position, 46.0 + _camera_rig.tps_dist * 1.2 if _camera_rig.mode == CameraRig.Mode.TPS else 0.0)
@@ -586,6 +634,13 @@ func _process(dt: float) -> void:
 		last_edit = sandbox.message
 		sandbox.message = ""
 	var why := _magic_block_text()
+	# Avanzamento del lancio sullo slot scelto: raccolta (azzurro) e recupero (rosso).
+	var cph := 1 if magic.phase == MagicSystem.Phase.GATHER else (2 if magic.phase == MagicSystem.Phase.RECOVER else 0)
+	var cu := magic.w if cph == 1 else (1.0 - clampf(magic.t / maxf(magic.spell().recover, 0.01), 0.0, 1.0) if cph == 2 else 0.0)
+	if cph != _touch.cast_phase or absf(cu - _touch.cast_u) > 0.01:
+		_touch.cast_phase = cph
+		_touch.cast_u = cu
+		_touch.queue_redraw()
 	if absf(_touch.pressure - magic.pressure) > 0.004 or _touch.saturated != magic.saturated or why != _touch.magic_blocked:
 		_touch.pressure = magic.pressure
 		_touch.saturated = magic.saturated

@@ -434,17 +434,47 @@ func test_ascensione_non_solleva() -> void:
 	check_eq(d.hp, TrainingDummy.MAX_HP, "nessun danno")
 
 
-func test_aree_un_colpo_solo_al_contatto() -> void:
-	# elementResolveHit: il diluvio colpisce una volta a .36 s nella sfera 2,6.
+func test_diluvio_colpo_al_contatto_poi_continuo() -> void:
+	# D-032: fuoco e acqua ad area colpiscono al contatto (40%) e poi di continuo
+	# ogni .25 s per `tick_for` (il 60% spalmato): 1 + 12 colpi, danno totale ~42.
 	var s := Scene.new()
 	var a := TrainingDummy.new(Vector3(24.5, 4, 22.5))
 	var b := TrainingDummy.new(Vector3(26.0, 4, 22.5))
 	s.dummies.append_array([a, b])
+	s.magic.rng.seed = 4
 	s.cast_id(&"water_rain", 55)
 	s.step(int(4.5 / DT))
-	check_eq(a.hits, 1, "un colpo sul bersaglio")
-	check_eq(b.hits, 1, "e uno sul vicino nella sfera")
+	check_eq(a.hits, 13, "contatto + 12 colpi continui sul bersaglio")
+	check_eq(b.hits, 13, "e sul vicino nella sfera")
+	var tot := 0.0
+	var full := 0
+	for e in s.events:
+		if e["type"] == "hit" and e["target"] == a:
+			tot += float(e["damage"])
+			if not e["quiet"]:
+				full += 1
+	check_eq(full, 1, "un solo colpo pieno (il contatto)")
+	check(tot > 42.0 * 0.8 and tot < 42.0 * 1.35, "danno totale vicino a 42 (%f)" % tot)
 	check(s.events.filter(func(e: Dictionary) -> bool: return e["type"] == "contact").size() == 1, "un contatto")
+
+
+func test_aree_d_aria_un_colpo_solo() -> void:
+	var s := Scene.new()
+	var a := TrainingDummy.new(Vector3(24.5, 4, 22.5))
+	s.dummies.append(a)
+	s.cast_id(&"air_cyclone", 70)
+	s.step(int(3.5 / DT))
+	check_eq(a.hits, 1, "il ciclone colpisce una volta al contatto")
+
+
+func test_bruciatura_manda_colpi_continui() -> void:
+	var s := Scene.new()
+	var a := TrainingDummy.new(Vector3(24.5, 4, 25.5))
+	s.dummies.append(a)
+	s.magic.apply_status(a, "burn")
+	s.step(int(1.0 / DT))
+	var dots := s.events.filter(func(e: Dictionary) -> bool: return e["type"] == "dot")
+	check_eq(dots.size(), 2, "due tick di bruciatura in 1 s (ogni .45 s)")
 
 
 func test_palla_di_fuoco_danno_pieno_nell_area() -> void:
@@ -597,3 +627,24 @@ func test_libro_e_barra_salvati() -> void:
 	check(m2.known.has(&"nova"), "conosciuta dopo il caricamento")
 	check_eq(m2.bar[4], &"nova", "barra ripristinata")
 	check_eq(m2.bar_index, 4, "scelta ripristinata")
+
+
+func test_coni_gemelli() -> void:
+	# Si alzano ai lati del caster (±1 m), restano .45 s, poi partono e colpiscono.
+	var s := Scene.new()
+	var d := TrainingDummy.new(Vector3(24.5, 4, 24.5))
+	s.dummies.append(d)
+	s.cast_id(&"earth_twins", 30)
+	var cones := s.magic.darts.filter(func(x: MagicSystem.Dart) -> bool: return x.spell.id == &"earth_twins")
+	check_eq(cones.size(), 2, "due coni")
+	if cones.size() == 2:
+		var a: MagicSystem.Dart = cones[0]
+		var b: MagicSystem.Dart = cones[1]
+		check(a.hold > 0.0 and absf(a.p.x - b.p.x) > 1.6, "fermi ai lati (%f)" % absf(a.p.x - b.p.x))
+	s.step(int(1.2 / DT))
+	check_eq(d.hits, 2, "entrambi i coni colpiscono")
+	var dmg := 0.0
+	for e in s.events:
+		if e["type"] == "hit" and e["target"] == d:
+			dmg += float(e["damage"])
+	check(dmg > 46.0 * 0.8 and dmg < 46.0 * 1.6, "danno dei due coni ~46 (%f)" % dmg)

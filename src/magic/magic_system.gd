@@ -64,8 +64,12 @@ class Dart:
 	var dead := false
 	## Punto di partenza (i raggi del Karma sono accesi da qui alla testa).
 	var origin := Vector3.ZERO
-	## Secondi ancora fermi davanti alla mano (il masso che si compone).
+	## Secondi ancora fermo mentre si compone (masso davanti alla mano, coni ai
+	## lati del caster), posizione trattenuta (destra, su, avanti rispetto al
+	## caster; ZERO = davanti alla mano) e velocita' del lancio (0 = arriva in hold).
 	var hold := 0.0
+	var hold_at := Vector3.ZERO
+	var hold_speed := 0.0
 	## Distanza oltre la quale un proiettile elementale si ferma (la mira).
 	var reach := INF
 	## Dopo il contatto: secondi di dissolvenza del raggio (niente collisioni).
@@ -280,8 +284,6 @@ func blocked_reason(s: SpellDefinition) -> String:
 func reset() -> void:
 	phase = Phase.NONE
 	arm_w = 0.0
-	glyph = 0.0
-	glyph_shed = 1.0
 	recoils.clear()
 	darts.clear()
 	statuses.clear()
@@ -484,11 +486,21 @@ func _shot(s: SpellDefinition, i: int, hand: Vector3, motor: PlayerMotor) -> voi
 			var o := hand + _fwd(face) * 0.45 + Vector3(0, 0.22, 0)
 			var dd := aim - o
 			var dist := maxf(1.0, dd.length())
-			var fly := s.hit_at * 0.5
 			var r := _spawn_dart(s, o, dd / dist)
-			r.hold = fly
-			r.v = dd / dist * (dist / fly)
+			r.hold = s.hold
+			r.v = dd / dist * (dist / maxf(0.05, s.hit_at - s.hold))
 			r.reach = dist
+		"twins":
+			# Coni gemelli (RMNDWN earth_twins: gap 2,0, avanti .85, su .55): si
+			# alzano ai lati del caster, poi partono insieme verso la mira.
+			for side in [-1.0, 1.0]:
+				var loc := Vector3(side * 1.0, 1.0, 0.85)
+				var o2 := _held_point(loc, hand)
+				var tw := _spawn_dart(s, o2, (aim - o2).normalized())
+				tw.hold = s.hold
+				tw.hold_at = loc
+				tw.hold_speed = s.speed
+				tw.reach = maxf(1.0, (aim - o2).length())
 		"meteor":
 			var from := aim + Vector3(-1.2, 7.5, 1.0)
 			var dm := (aim - from).normalized()
@@ -554,14 +566,15 @@ func _step_darts(dt: float, motor: PlayerMotor, targets: Array, hand: Vector3 = 
 			i -= 1
 			continue
 		if P.hold > 0.0:
-			# Il masso si compone davanti alla mano e la segue.
+			# Il costrutto si compone e segue il caster, poi parte verso la mira.
 			P.hold -= dt
-			P.p = hand + _fwd(face) * 0.45 + Vector3(0, 0.22, 0)
+			P.p = _held_point(P.hold_at, hand)
 			P.prev = P.p
 			P.origin = P.p
 			var dd := aim - P.p
 			var dist0 := maxf(1.0, dd.length())
-			P.v = dd / dist0 * (dist0 / maxf(0.05, S.hit_at * 0.5))
+			var sp := P.hold_speed if P.hold_speed > 0.0 else dist0 / maxf(0.05, S.hit_at - S.hold)
+			P.v = dd / dist0 * sp
 			P.reach = dist0
 			i -= 1
 			continue
@@ -666,6 +679,16 @@ func _step_darts(dt: float, motor: PlayerMotor, targets: Array, hand: Vector3 = 
 				_impact(P, P.p, Vector3.UP, {"kind": "air"})
 			_end_dart(i)
 		i -= 1
+
+
+## Punto trattenuto di un costrutto: `loc` = (destra, su, avanti) dai piedi del
+## caster, ZERO = davanti alla mano.
+func _held_point(loc: Vector3, hand: Vector3) -> Vector3:
+	var f := _fwd(face)
+	if loc == Vector3.ZERO:
+		return hand + f * 0.45 + Vector3(0, 0.22, 0)
+	var right := Vector3(-f.z, 0, f.x)
+	return _player_pos + right * loc.x + Vector3(0, loc.y, 0) + f * loc.z
 
 
 ## Fine di un dardo: i raggi del Karma restano ancora un poco per spegnersi
@@ -824,7 +847,7 @@ func spell_hit(tg: CombatTarget, S: SpellDefinition, base: float, dir: Vector2, 
 func _impact(P: Dart, p: Vector3, n: Vector3, info: Dictionary) -> void:
 	var S := P.spell
 	var el := S.el
-	events.append({"type": "impact", "el": el, "p": p, "n": n, "spell": S})
+	events.append({"type": "impact", "el": el, "p": p, "n": n, "spell": S, "dart": P})
 	if not S.is_legacy():
 		_impact_new(P, p, n, info)
 		return
@@ -901,19 +924,17 @@ func _impact_new(P: Dart, p: Vector3, n: Vector3, info: Dictionary) -> void:
 	runtime.world_touch(S, p, maxf(S.burst_r, S.area))
 
 
-# ---------------------------------------------------------------- posa e glifo
+# ---------------------------------------------------------------- posa
 
 ## Braccio teso (KARMAP): sale in .34 della raccolta, resta finche' qualcosa del
-## lancio vive (raccolta, recupero, salva, colpi in volo, effetti sostenuti) e
-## il glifo si spegne (tiene .16 s, si sfalda in .28 s; Karma .46 s), poi scende
-## in .34 s. Il glifo si disegna dal 6% al 72% della raccolta.
+## lancio vive (raccolta, recupero, salva, colpi in volo, effetti sostenuti),
+## poi tiene ancora .44 s (Karma .62 s) e scende in .34 s. (Il glifo di
+## RMNDWN e' stato tolto in D-032: la sostanza si accumula nel palmo.)
 const ARM_UP := 0.34
 const ARM_LOWER := 0.34
-const GLYPH_KEEP := 0.16
+const ARM_KEEP := 0.16
 var arm_w := 0.0
 var cast_commit := 0.0
-var glyph := 0.0
-var glyph_shed := 1.0
 ## Magia della posa (resta anche dopo il recupero finche' il braccio scende).
 var cast_spell: SpellDefinition
 var _idle_t := 99.0
@@ -945,23 +966,18 @@ func _step_pose(dt: float, s: SpellDefinition) -> void:
 		var dur := s.cast_dur * gather_mul()
 		cast_spell = s
 		arm_w = maxf(arm_w, smoother5(t / maxf(1e-3, dur * ARM_UP)))
-		glyph = clampf((t - 0.06 * dur) / (dur * 0.72 - 0.06 * dur), 0.0, 1.0)
 		cast_commit = smoother5((w - 0.78) / 0.22)
-		glyph_shed = 0.0
 	if _cast_alive():
 		_idle_t = 0.0
 		if phase != Phase.GATHER:
 			arm_w = 1.0
-			glyph = 1.0
 	else:
 		_idle_t += dt
-		var shed := 0.46 if cast_spell != null and cast_spell.el == "karma" else 0.28
-		glyph_shed = clampf((_idle_t - GLYPH_KEEP) / shed, 0.0, 1.0)
-		var down := clampf((_idle_t - GLYPH_KEEP - shed) / ARM_LOWER, 0.0, 1.0)
+		var keep := ARM_KEEP + (0.46 if cast_spell != null and cast_spell.el == "karma" else 0.28)
+		var down := clampf((_idle_t - keep) / ARM_LOWER, 0.0, 1.0)
 		arm_w = minf(arm_w, 1.0 - down)
 		if arm_w <= 0.0:
 			cast_commit = 0.0
-			glyph = 0.0
 	var i := recoils.size() - 1
 	while i >= 0:
 		var r := recoils[i]
@@ -1263,7 +1279,11 @@ func _step_status(dt: float) -> void:
 				st["tick"] = float(st["tick"]) + dt
 				if float(st["tick"]) >= float(D["tick"]):
 					st["tick"] = float(st["tick"]) - float(D["tick"])
-					tg.take_hit(Vector3.ZERO, float(D["dps"]) * float(D["tick"]) * int(st["st"]))
+					var burn := float(D["dps"]) * float(D["tick"]) * int(st["st"])
+					tg.take_hit(Vector3.ZERO, burn)
+					# La bruciatura e' un colpo continuo anche lei: numero ed ember.
+					if tg != player:
+						events.append({"type": "dot", "el": "fire", "target": tg, "damage": burn, "p": tg.position + Vector3(0, tg.height * 0.7, 0)})
 			if float(st["t"]) <= 0.0:
 				s.erase(n)
 		if s.is_empty():
