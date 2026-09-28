@@ -55,6 +55,8 @@ var buffer_t := 0.0
 var dodge_dir := Vector2.ZERO
 var cooldown := 0.0
 var hitstop := 0.0
+## Attacchi iniziati (l'avatar ci riconosce un colpo nuovo, anche in catena).
+var starts := 0
 var lock_target: CombatTarget
 ## Guida del motore: velocita' imposta (scatti, capriole) o scala dello stick.
 var drive_on := false
@@ -262,7 +264,15 @@ func _start_attack(id: StringName, motor: PlayerMotor, targets: Array, stick: Ve
 	_lunge_speed = dist_goal / maxf(lt, 1e-3)
 	if a.plunge:
 		motor.velocity.y = maxf(motor.velocity.y, 3.0)
+	starts += 1
 	events.append({"type": "start", "attack": a})
+
+
+## Metri che lo scatto del colpo in corso fa percorrere (passo delle gambe).
+func lunge_dist() -> float:
+	if attack == null:
+		return 0.0
+	return _lunge_speed * (attack.windup * 0.6 + attack.active * 0.35)
 
 
 func _pick_target(from: Vector3, want: float, targets: Array, a: AttackDefinition) -> CombatTarget:
@@ -341,6 +351,9 @@ func _step_attack(dt: float, motor: PlayerMotor, targets: Array, stick: Vector2)
 	if blade:
 		if ph == 1 or (ph == 2 and phase_u() <= FOLLOW):
 			_blade_hits(motor.position, targets, dt)
+		# Affondo perforante: oltre la lama, la striscia prende tutta la fila.
+		if a.pierce > 0.0 and a.shape == AttackDefinition.Shape.THRUST and ph == 1:
+			_thrust_hits(motor.position, targets, phase_u())
 		_prev_boxes = hitboxes.duplicate()
 	elif ph == 1 and not a.plunge:
 		var u := phase_u()
@@ -465,7 +478,7 @@ func _arc_hits(from: Vector3, targets: Array, u0: float, u1: float) -> void:
 
 func _thrust_hits(from: Vector3, targets: Array, u: float) -> void:
 	var e := 1.0 - pow(1.0 - clampf(u, 0.0, 1.0), 3.0)
-	var extent := lerpf(attack.reach_min, attack.reach, e)
+	var extent := lerpf(attack.reach_min, attack.reach + attack.pierce, e)
 	var f := forward(_attack_facing)
 	var left := forward(_attack_facing + PI * 0.5)
 	for o in targets:

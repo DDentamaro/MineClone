@@ -40,6 +40,12 @@ enum Shape { ARC, THRUST, RADIAL }
 ## Distanza di contatto di questo colpo (m); < 0 = quella dell'arma (D-033).
 @export var strike := -1.0
 @export var move_scale := 0.12
+## Affondo perforante (D-034, lancia): la striscia colpita continua per questi
+## metri oltre la punta e prende ogni bersaglio in fila, non solo il primo.
+@export var pierce := 0.0
+## Piede che fa il passo d'attacco (-1 sinistro, +1 destro, 0 = nessun passo:
+## giri e picchiate); l'altro resta piantato finche' il corpo non lo trascina.
+@export var step_foot := -1.0
 @export var next_light: StringName = &""
 @export var next_heavy: StringName = &""
 ## > 0: lo stesso bersaglio puo' essere ricolpito dopo questo intervallo.

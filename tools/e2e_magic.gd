@@ -106,6 +106,9 @@ func _process(dt: float) -> bool:
 				for sp in SpellDefinition.all():
 					m.known[sp.id] = true
 				_game.dev_output = 400.0
+				# La barra di prova (D-034) e' piena: si svuota lo slot 5 per il libro.
+				m.bar[4] = &""
+				_game._refresh_spellbar()
 				_phase = 1
 				_frame = 0
 		1:
@@ -173,12 +176,29 @@ func _cast_step(m: MagicSystem) -> void:
 		_game._refresh_spellbar()
 		_cast_t = -1.0
 		_hits0 = _count_hits()
-	# Si tiene premuto fino all'impegno, poi si rilascia (il lancio parte al 100%).
+	# Mira alla Brawl Stars (D-034): si preme il pulsante, si trascina verso i
+	# manichini (a destra sullo schermo) per mostrare la fascia, si rilascia e
+	# la magia parte in quella direzione. Una magia su due si lancia con un
+	# tocco secco (mira automatica).
+	var drag := _step % 2 == 0
 	if _frame == 4:
 		_touch(5, btn, true)
-	if _frame > 4 and _cast_t < 0.0 and _game._touch.is_held(&"magic") and (m.committed or m.phase == MagicSystem.Phase.RECOVER):
+	if _frame == 8 and drag:
+		var e := InputEventScreenDrag.new()
+		e.index = 5
+		# Le magie a punto cadono sui manichini (a 5 m), le altre a fascia piena.
+		var sp := SpellDefinition.by_id(id)
+		var frac := clampf(5.0 / sp.aim_range(), 0.3, 1.0) if sp.aim_shape() == "point" else 0.8
+		e.position = btn + Vector2(_game._touch.dp(TouchControls.AIM_RADIUS_DP) * frac, 0.0)
+		Input.parse_input_event(e)
+	if _frame == 14 and drag:
+		_ok = _ok and _game._touch.aim_active and _game._aim_ind.visible
+		_shot("aim_%s" % id)
+	if _frame == 16:
 		_touch(5, btn, false)
-	if _frame > 4 and _cast_t < 0.0 and m.phase == MagicSystem.Phase.RECOVER:
+	if _frame == 18 and drag:
+		_ok = _ok and not _game._aim_ind.visible
+	if _frame > 16 and _cast_t < 0.0 and m.phase == MagicSystem.Phase.RECOVER:
 		_cast_t = _clock
 	# Da vicino durante la raccolta: il glifo davanti al palmo e il braccio teso
 	# (lo zoom si imposta un fotogramma prima dello screenshot).

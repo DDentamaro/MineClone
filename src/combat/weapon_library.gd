@@ -11,11 +11,16 @@ extends RefCounted
 ## D-033: ogni arma ha la sua distanza vera di contatto (`strike_dist`, misurata
 ## con le hitbox del rig) e i colpi di catena spingono poco il bersaglio, cosi'
 ## resta a portata; spinge forte solo il colpo finale della catena.
-## - Lancia: due affondi lunghi, spazzata bassa; forte = affondo in carica
-##   lungo 6 unita'; L+forte = mulinello.
-## - Martello: laterale, montante, schianto ad area; forte = terremoto caricato.
-## - Spadone: tagli larghi avanti e indietro, calata; forte = turbine (due giri
-##   con colpi ripetuti).
+## - Lancia (D-034, ritmo veloce e a distanza): due stoccate secche perforanti,
+##   spazzata bassa, infilzata finale che trapassa la fila per 1,6 m; forte =
+##   affondo in carica lungo 6 unita' che trapassa per 2,2 m; L+forte = mulinello.
+## - Martello (D-034, lento: carica e rientro x1,35): laterale, montante,
+##   schianto ad area; forte = terremoto caricato.
+## - Spadone (D-034, lento: x1,3): tagli larghi avanti e indietro, calata;
+##   forte = turbine (due giri con colpi ripetuti).
+##
+## D-034: ogni colpo indica il piede che fa il passo (`step_foot`), l'IK delle
+## gambe lo porta davanti mentre l'altro resta piantato.
 ##
 ## Ogni arma ha anche un attacco dopo la schivata e uno in picchiata dall'aria.
 ## Pose in gradi: [x, y, z] per osso (vedi `AvatarRig` per gli assi).
@@ -70,6 +75,25 @@ const TUCK := {"leg_l": [70, 0, 0], "shin_l": [-100, 0, 0], "leg_r": [55, 0, 0],
 const SQUAT := {"leg_l": [55, 0, -6], "shin_l": [-70, 0, 0], "leg_r": [40, 0, 6], "shin_r": [-60, 0, 0], "body_pos": [0, -0.16, 0], "hips": [-10, 0, 0]}
 
 
+## Armi pesanti (D-034): carica e rientro piu' lunghi di `k`, arresto sul
+## colpo piu' marcato, quasi fermi mentre si colpisce. Le picchiate no (sono
+## gia' legate all'atterraggio) e gli attacchi in corsa partono comunque subito.
+static func _tempo(w: WeaponDefinition, k: float) -> void:
+	for a: AttackDefinition in w.attacks.values():
+		if a.plunge:
+			continue
+		if not String(a.id).begins_with("dash_"):
+			a.windup *= k
+		a.recovery *= k
+		# I giri tengono la loro velocita' (i colpi ripetuti restano a portata).
+		if a.spin == 0.0:
+			a.active *= 1.0 + (k - 1.0) * 0.4
+		# Arresto piu' marcato, ma non sui colpi ripetuti del turbine.
+		if a.rehit <= 0.0:
+			a.hitstop *= 1.25
+		a.move_scale *= 0.5
+
+
 static func _with(a: Dictionary, b: Dictionary) -> Dictionary:
 	var out := a.duplicate()
 	out.merge(b, true)
@@ -99,7 +123,7 @@ static func _fists() -> WeaponDefinition:
 		{"arm_l": [30, 0, -10], "fore_l": [120, 0, 0], "chest": [0, 20, 0]},
 		{"arm_l": [86, 8, 0], "fore_l": [4, 0, 0], "chest": [0, 32, 0], "head": [0, -20, 0]},
 		{"arm_l": [60, 5, -5], "fore_l": [60, 0, 0], "chest": [0, 22, 0]})
-	_atk(w, "cross", _with(jab, {"damage": 6.0, "knockback": 1.5, "next_light": "hook", "next_heavy": "rocket", "lunge": 0.45}),
+	_atk(w, "cross", _with(jab, {"damage": 6.0, "knockback": 1.5, "next_light": "hook", "next_heavy": "rocket", "lunge": 0.45, "step_foot": 1.0}),
 		_with(STANCE, {"arm_r": [30, 0, 12], "fore_r": [120, 0, 0], "chest": [0, -18, 0]}),
 		_with(STANCE, {"arm_r": [88, -8, 0], "fore_r": [2, 0, 0], "chest": [0, 38, 0], "head": [0, -30, 0], "arm_l": [30, 10, -10], "fore_l": [115, 0, 0]}),
 		_with(STANCE, {"arm_r": [60, -5, 5], "fore_r": [60, 0, 0], "chest": [0, 24, 0]}))
@@ -127,7 +151,7 @@ static func _fists() -> WeaponDefinition:
 		{"arm_r": [80, -80, 10], "fore_r": [70, 0, 0], "chest": [0, -35, 0]},
 		{"arm_r": [85, 35, 0], "fore_r": [65, 0, 0], "chest": [-10, 40, 0]},
 		{"arm_r": [60, 20, 5], "fore_r": [90, 0, 0], "chest": [0, 20, 0]})
-	_atk(w, "dive", {"windup": 0.1, "active": 0.2, "recovery": 0.3, "shape": AttackDefinition.Shape.RADIAL, "plunge": true,
+	_atk(w, "dive", {"windup": 0.1, "active": 0.2, "recovery": 0.3, "shape": AttackDefinition.Shape.RADIAL, "plunge": true, "step_foot": 0.0,
 		"radial_ahead": 0.5, "radial": 1.8, "damage": 9.0, "knockback": 6.0, "launch": 4.0, "hitstop": 0.1, "shake": 0.4, "fx": "dust", "trail": false},
 		_with(TUCK, {"arm_r": [170, 0, 20], "fore_r": [40, 0, 0], "arm_l": [170, 0, -20], "fore_l": [40, 0, 0]}),
 		_with(SQUAT, {"arm_r": [30, 0, 10], "fore_r": [10, 0, 0], "arm_l": [30, 0, -10], "fore_l": [10, 0, 0], "chest": [-30, 0, 0]}),
@@ -167,7 +191,7 @@ static func _sword() -> WeaponDefinition:
 		_with(STANCE, {"arm_r": [84, -78, 0], "fore_r": [22, 0, 0], "hand_r": [-104, 0, 0], "chest": [0, -45, 0], "spine": [0, -10, 0], "head": [0, 32, 0], "arm_l": [40, 30, -20], "fore_l": [60, 0, 0]}),
 		_with(STANCE, {"arm_r": [80, 72, 0], "fore_r": [6, 0, 0], "hand_r": [-86, 0, 0], "chest": [0, 50, 0], "spine": [0, 12, 0], "head": [0, -35, 0], "arm_l": [18, 0, -38], "fore_l": [30, 0, 0]}),
 		_with(STANCE, {"arm_r": [52, 66, 0], "fore_r": [36, 0, 0], "hand_r": [-70, 0, 0], "chest": [0, 32, 0], "arm_l": [20, 0, -25], "fore_l": [35, 0, 0]}))
-	_atk(w, "backhand", _with(base, {"arc_from": 80.0, "arc_to": -75.0, "damage": 10.0, "next_light": "cleave", "next_heavy": "rise"}),
+	_atk(w, "backhand", _with(base, {"arc_from": 80.0, "arc_to": -75.0, "damage": 10.0, "next_light": "cleave", "next_heavy": "rise", "step_foot": 1.0}),
 		_with(STANCE, {"arm_r": [88, 92, 0], "fore_r": [22, 0, 0], "hand_r": [-110, 0, 0], "chest": [0, 50, 0], "head": [0, -30, 0], "arm_l": [10, 0, -30]}),
 		_with(STANCE, {"arm_r": [84, -82, 0], "fore_r": [6, 0, 0], "hand_r": [-90, 0, 0], "chest": [0, -46, 0], "head": [0, 30, 0], "arm_l": [40, 40, -15], "fore_l": [70, 0, 0]}),
 		_with(STANCE, {"arm_r": [56, -70, 5], "fore_r": [30, 0, 0], "hand_r": [-70, 0, 0], "chest": [0, -30, 0]}))
@@ -179,7 +203,7 @@ static func _sword() -> WeaponDefinition:
 		_with(LUNGE, {"arm_r": [80, 5, 5], "fore_r": [10, 0, 0], "hand_r": [-95, 0, 0], "chest": [-15, 0, 0]}))
 	_atk(w, "whirl", {"windup": 0.16, "active": 0.26, "recovery": 0.36, "shape": AttackDefinition.Shape.ARC,
 		"arc_from": -180.0, "arc_to": 180.0, "reach_min": 0.2, "reach": 2.2, "damage": 14.0, "knockback": 9.0, "launch": 3.0,
-		"hitstop": 0.12, "shake": 0.35, "lunge": 0.8, "spin": 360.0, "next_heavy": "pierce"},
+		"hitstop": 0.12, "shake": 0.35, "lunge": 0.8, "spin": 360.0, "step_foot": 0.0, "next_heavy": "pierce"},
 		_with(SQUAT, {"arm_r": [76, -96, 0], "fore_r": [10, 0, 0], "hand_r": [-100, 0, 0], "chest": [0, -60, 0], "arm_l": [60, 40, -20], "fore_l": [60, 0, 0]}),
 		_with(STANCE, {"arm_r": [86, 30, 0], "fore_r": [4, 0, 0], "hand_r": [-90, 0, 0], "chest": [0, 22, 0], "arm_l": [60, 0, -60], "fore_l": [10, 0, 0]}),
 		_with(STANCE, {"arm_r": [50, 40, 10], "fore_r": [30, 0, 0], "hand_r": [-70, 0, 0], "chest": [0, 15, 0]}))
@@ -209,7 +233,7 @@ static func _sword() -> WeaponDefinition:
 		_with(LUNGE, {"arm_r": [70, -95, 0], "fore_r": [10, 0, 0], "hand_r": [-100, 0, 0], "chest": [-15, -40, 0]}),
 		_with(LUNGE, {"arm_r": [74, 80, 0], "fore_r": [4, 0, 0], "hand_r": [-90, 0, 0], "chest": [-15, 45, 0], "arm_l": [10, 0, -40]}),
 		_with(STANCE, {"arm_r": [50, 65, 0], "fore_r": [30, 0, 0], "hand_r": [-70, 0, 0], "chest": [0, 30, 0]}))
-	_atk(w, "plunge", {"windup": 0.1, "active": 0.2, "recovery": 0.32, "shape": AttackDefinition.Shape.RADIAL, "plunge": true,
+	_atk(w, "plunge", {"windup": 0.1, "active": 0.2, "recovery": 0.32, "shape": AttackDefinition.Shape.RADIAL, "plunge": true, "step_foot": 0.0,
 		"radial_ahead": 0.6, "radial": 2.0, "damage": 12.0, "knockback": 6.0, "launch": 5.0, "hitstop": 0.1, "shake": 0.45, "fx": "dust"},
 		_with(TUCK, {"arm_r": [172, 0, 10], "fore_r": [20, 0, 0], "hand_r": [-20, 0, 0], "chest": [10, 0, 0]}),
 		_with(SQUAT, {"arm_r": [22, 0, 0], "fore_r": [0, 0, 0], "hand_r": [-112, 0, 0], "chest": [-32, 0, 0]}),
@@ -235,32 +259,43 @@ static func _spear() -> WeaponDefinition:
 	w.move_mult = 1.0
 	w.relaxed = pose({"arm_r": [10, 0, 10], "fore_r": [70, 0, 0], "hand_r": [0, 0, 0], "arm_l": [4, 0, -6], "fore_l": [14, 0, 0]})
 	w.guard = pose({"arm_r": [8, 0, 12], "fore_r": [72, 0, 0], "hand_r": [-62, 0, 0], "chest": [0, -20, 0], "head": [0, 18, 0]})
-	var th := {"windup": 0.1, "active": 0.09, "recovery": 0.22, "chain_at": 0.2, "shape": AttackDefinition.Shape.THRUST,
-		"reach_min": 0.4, "reach": 2.75, "width": 0.4, "damage": 9.0, "knockback": 1.6, "hitstop": 0.06, "shake": 0.1, "lunge": 1.0, "strike": 1.3}
+	# Ritmo della lancia (D-034): due stoccate secche e ravvicinate che passano
+	# attraverso (perforanti), la spazzata bassa per fare spazio e l'infilzata
+	# finale lenta e lunga che trapassa tutta la fila.
+	var th := {"windup": 0.08, "active": 0.08, "recovery": 0.18, "chain_at": 0.12, "shape": AttackDefinition.Shape.THRUST,
+		"reach_min": 0.4, "reach": 2.75, "width": 0.35, "damage": 8.0, "knockback": 1.2, "hitstop": 0.05, "shake": 0.1, "lunge": 0.8,
+		"strike": 1.3, "pierce": 0.6}
 	var wind := _with(STANCE, {"arm_r": [-18, 0, 12], "fore_r": [86, 0, 0], "hand_r": [-68, 0, 0], "chest": [0, -40, 0], "head": [0, 34, 0]})
 	# L'affondo punta dritto: la spalla destra viene avanti (petto girato di 55°),
 	# altrimenti la lancia usciva di 43° di lato e passava accanto al bersaglio.
 	var strike := _with(LUNGE, {"arm_r": [86, -6, 2], "fore_r": [6, 0, 0], "hand_r": [-86, 0, 0], "chest": [-12, 55, 0], "head": [0, -40, 0]})
 	var follow := _with(STANCE, {"arm_r": [60, 0, 6], "fore_r": [30, 0, 0], "hand_r": [-90, 0, 0], "chest": [0, -20, 0]})
 	_atk(w, "thrust", _with(th, {"next_light": "thrust2", "next_heavy": "twirl"}), wind, strike, follow)
-	_atk(w, "thrust2", _with(th, {"damage": 10.0, "next_light": "sweep", "next_heavy": "twirl", "lunge": 1.1}), wind, strike, follow)
+	_atk(w, "thrust2", _with(th, {"damage": 9.0, "next_light": "sweep", "next_heavy": "twirl", "lunge": 0.9, "step_foot": 1.0}), wind, strike, follow)
 	_atk(w, "sweep", {"windup": 0.16, "active": 0.14, "recovery": 0.3, "chain_at": 0.2, "shape": AttackDefinition.Shape.ARC,
-		"arc_from": -110.0, "arc_to": 100.0, "reach_min": 0.8, "reach": 2.9, "y_max": 1.0, "damage": 11.0, "knockback": 3.0,
-		"launch": 2.0, "hitstop": 0.08, "shake": 0.2, "lunge": 0.4, "next_light": "thrust", "next_heavy": "charge"},
+		"arc_from": -110.0, "arc_to": 100.0, "reach_min": 0.8, "reach": 2.9, "y_max": 1.0, "damage": 11.0, "knockback": 2.0,
+		"launch": 1.5, "hitstop": 0.08, "shake": 0.2, "lunge": 0.4, "next_light": "impale", "next_heavy": "charge"},
 		_with(SQUAT, {"arm_r": [60, -90, 0], "fore_r": [10, 0, 0], "hand_r": [-72, 0, 0], "chest": [-10, -55, 0]}),
 		_with(SQUAT, {"arm_r": [62, 80, 0], "fore_r": [6, 0, 0], "hand_r": [-74, 0, 0], "chest": [-10, 55, 0]}),
 		_with(STANCE, {"arm_r": [50, 60, 0], "fore_r": [30, 0, 0], "hand_r": [-80, 0, 0], "chest": [0, 30, 0]}))
+	# Infilzata: carica lunga all'indietro, affondo col peso del corpo che
+	# trapassa per 1,6 m oltre la punta; chiude la catena e spinge lontano.
+	_atk(w, "impale", _with(th, {"windup": 0.22, "active": 0.13, "recovery": 0.36, "chain_at": 0.3, "reach": 2.9, "width": 0.45,
+		"damage": 15.0, "knockback": 8.0, "hitstop": 0.11, "shake": 0.3, "lunge": 1.4, "pierce": 1.6, "move_scale": 0.0,
+		"next_light": "thrust", "next_heavy": "charge"}),
+		_with(STANCE, {"arm_r": [-30, 0, 14], "fore_r": [96, 0, 0], "hand_r": [-66, 0, 0], "chest": [4, -55, 0], "spine": [0, -12, 0], "head": [0, 45, 0], "body_pos": [0, -0.02, 0.06]}),
+		strike, follow)
 	_atk(w, "twirl", {"windup": 0.12, "active": 0.3, "recovery": 0.32, "shape": AttackDefinition.Shape.ARC,
 		"arc_from": -180.0, "arc_to": 180.0, "reach_min": 0.4, "reach": 2.6, "damage": 12.0, "knockback": 8.0, "launch": 3.0,
-		"hitstop": 0.1, "shake": 0.3, "lunge": 0.3, "spin": 360.0},
+		"hitstop": 0.1, "shake": 0.3, "lunge": 0.3, "spin": 360.0, "step_foot": 0.0},
 		_with(STANCE, {"arm_r": [80, -60, 0], "fore_r": [10, 0, 0], "hand_r": [-90, 0, 0], "chest": [0, -45, 0]}),
 		_with(STANCE, {"arm_r": [84, 20, 0], "fore_r": [4, 0, 0], "hand_r": [-90, 0, 0], "chest": [0, 25, 0]}),
 		_with(STANCE, {"arm_r": [60, 20, 0], "fore_r": [30, 0, 0], "hand_r": [-80, 0, 0], "chest": [0, 10, 0]}))
 	_atk(w, "charge", _with(th, {"windup": 0.22, "active": 0.24, "recovery": 0.36, "chain_at": 0.0, "reach": 2.9, "width": 0.55,
 		"damage": 16.0, "knockback": 12.0, "launch": 2.0, "hitstop": 0.12, "shake": 0.35, "lunge": 6.0, "move_scale": 0.0,
-		"charge_max": 0.8, "charge_bonus": 1.0, "rehit": 0.0}), wind, strike, follow)
-	_atk(w, "dash_thrust", _with(th, {"windup": 0.04, "active": 0.12, "damage": 11.0, "knockback": 7.0, "lunge": 2.6, "next_light": "thrust2"}), wind, strike, follow)
-	_atk(w, "plunge", {"windup": 0.12, "active": 0.2, "recovery": 0.34, "shape": AttackDefinition.Shape.RADIAL, "plunge": true,
+		"charge_max": 0.8, "charge_bonus": 1.0, "rehit": 0.0, "pierce": 2.2}), wind, strike, follow)
+	_atk(w, "dash_thrust", _with(th, {"windup": 0.04, "active": 0.12, "damage": 11.0, "knockback": 7.0, "lunge": 2.6, "pierce": 1.0, "next_light": "thrust2"}), wind, strike, follow)
+	_atk(w, "plunge", {"windup": 0.12, "active": 0.2, "recovery": 0.34, "shape": AttackDefinition.Shape.RADIAL, "plunge": true, "step_foot": 0.0,
 		"radial_ahead": 0.9, "radial": 1.9, "damage": 13.0, "knockback": 5.0, "launch": 6.0, "hitstop": 0.1, "shake": 0.45, "fx": "dust"},
 		_with(TUCK, {"arm_r": [160, 0, 10], "fore_r": [30, 0, 0], "hand_r": [-40, 0, 0]}),
 		_with(SQUAT, {"arm_r": [40, 0, 0], "fore_r": [10, 0, 0], "hand_r": [-140, 0, 0], "chest": [-30, 0, 0]}),
@@ -314,11 +349,12 @@ static func _hammer() -> WeaponDefinition:
 		_with(LUNGE, {"arm_r": [60, -100, 0], "fore_r": [10, 0, 0], "hand_r": [-100, 0, 0], "chest": [-10, -50, 0]}),
 		_with(LUNGE, {"arm_r": [66, 76, 0], "fore_r": [6, 0, 0], "hand_r": [-88, 0, 0], "chest": [-10, 50, 0]}),
 		_with(STANCE, {"arm_r": [40, 70, 0], "fore_r": [30, 0, 0], "hand_r": [-80, 0, 0], "chest": [0, 45, 0]}))
-	_atk(w, "meteor", {"windup": 0.14, "active": 0.2, "recovery": 0.44, "shape": AttackDefinition.Shape.RADIAL, "plunge": true,
+	_atk(w, "meteor", {"windup": 0.14, "active": 0.2, "recovery": 0.44, "shape": AttackDefinition.Shape.RADIAL, "plunge": true, "step_foot": 0.0,
 		"radial_ahead": 1.0, "radial": 2.8, "damage": 20.0, "knockback": 9.0, "launch": 7.0, "hitstop": 0.14, "shake": 0.65, "fx": "dust"},
 		_with(TUCK, {"arm_r": [176, 0, 10], "fore_r": [30, 0, 0], "hand_r": [-30, 0, 0], "chest": [16, 0, 0]}),
 		_with(SQUAT, {"arm_r": [96, 0, 4], "fore_r": [0, 0, 0], "hand_r": [-110, 0, 0], "chest": [-40, 0, 0]}),
 		_with(SQUAT, {"arm_r": [90, 0, 6], "fore_r": [4, 0, 0], "hand_r": [-104, 0, 0], "chest": [-30, 0, 0]}))
+	_tempo(w, 1.35)
 	return w
 
 
@@ -358,7 +394,7 @@ static func _greatsword() -> WeaponDefinition:
 		_with(LUNGE, {"arm_r": [88, 0, 6], "fore_r": [6, 0, 0], "hand_r": [-100, 0, 0], "chest": [-26, 0, 0]}))
 	_atk(w, "cyclone", {"windup": 0.3, "active": 0.56, "recovery": 0.46, "shape": AttackDefinition.Shape.ARC,
 		"arc_from": -360.0, "arc_to": 360.0, "reach_min": 0.3, "reach": 2.6, "damage": 11.0, "knockback": 7.0, "launch": 2.5,
-		"hitstop": 0.07, "shake": 0.25, "lunge": 1.4, "rehit": 0.2, "spin": 720.0, "charge_max": 0.8, "charge_bonus": 0.8, "move_scale": 0.35},
+		"hitstop": 0.07, "shake": 0.25, "lunge": 1.4, "rehit": 0.1, "spin": 720.0, "step_foot": 0.0, "charge_max": 0.8, "charge_bonus": 0.8, "move_scale": 0.35},
 		_with(SQUAT, {"arm_r": [76, -110, 0], "fore_r": [10, 0, 0], "hand_r": [-100, 0, 0], "chest": [0, -70, 0]}),
 		_with(STANCE, {"arm_r": [84, 20, 0], "fore_r": [4, 0, 0], "hand_r": [-90, 0, 0], "chest": [0, 20, 0]}),
 		_with(STANCE, {"arm_r": [50, 30, 0], "fore_r": [30, 0, 0], "hand_r": [-74, 0, 0], "chest": [0, 20, 0]}))
@@ -366,9 +402,10 @@ static func _greatsword() -> WeaponDefinition:
 		_with(LUNGE, {"arm_r": [70, -100, 0], "fore_r": [12, 0, 0], "hand_r": [-104, 0, 0], "chest": [-12, -55, 0]}),
 		_with(LUNGE, {"arm_r": [74, 80, 0], "fore_r": [6, 0, 0], "hand_r": [-90, 0, 0], "chest": [-12, 55, 0]}),
 		_with(STANCE, {"arm_r": [50, 72, 0], "fore_r": [30, 0, 0], "hand_r": [-74, 0, 0], "chest": [0, 40, 0]}))
-	_atk(w, "plunge", {"windup": 0.14, "active": 0.2, "recovery": 0.4, "shape": AttackDefinition.Shape.RADIAL, "plunge": true,
+	_atk(w, "plunge", {"windup": 0.14, "active": 0.2, "recovery": 0.4, "shape": AttackDefinition.Shape.RADIAL, "plunge": true, "step_foot": 0.0,
 		"radial_ahead": 1.0, "radial": 2.5, "damage": 18.0, "knockback": 8.0, "launch": 6.0, "hitstop": 0.13, "shake": 0.55, "fx": "dust"},
 		_with(TUCK, {"arm_r": [174, 0, 10], "fore_r": [30, 0, 0], "hand_r": [-30, 0, 0], "chest": [14, 0, 0]}),
 		_with(SQUAT, {"arm_r": [30, 0, 0], "fore_r": [0, 0, 0], "hand_r": [-112, 0, 0], "chest": [-36, 0, 0]}),
 		_with(SQUAT, {"arm_r": [36, 0, 6], "fore_r": [10, 0, 0], "hand_r": [-104, 0, 0], "chest": [-26, 0, 0]}))
+	_tempo(w, 1.3)
 	return w

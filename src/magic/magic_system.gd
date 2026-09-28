@@ -264,6 +264,22 @@ func release() -> void:
 	held = false
 
 
+## Mira alla Brawl Stars (D-034): direzione nel piano XZ (vuota = mira
+## automatica) e distanza 0..1 della portata per le magie a punto.
+var aim_dir := Vector2.ZERO
+var aim_frac := 1.0
+## La magia in corso ha una mira scelta dal giocatore.
+var aimed := false
+## Cono stretto in cui un bersaglio viene preso lungo la direzione scelta.
+const AIM_SNAP := 0.26
+
+
+func press_aimed(dir: Vector2, frac: float) -> void:
+	aim_dir = dir.normalized() if dir.length() > 1e-3 else Vector2.ZERO
+	aim_frac = clampf(frac, 0.0, 1.0)
+	press()
+
+
 func is_casting() -> bool:
 	return phase != Phase.NONE or not _pending.is_empty()
 
@@ -359,10 +375,17 @@ func step(dt: float, motor: PlayerMotor, targets: Array, facing: float, hand: Ve
 					auto_fire = ((tap or queued) and not held) or not s.is_legacy()
 					# La pressione sale quando la raccolta parte (RMNDWN L33895).
 					_press_add(s)
-					if not s.at_self:
-						lock_target = _pick_target(motor.position, facing, targets)
-					else:
+					aimed = aim_dir != Vector2.ZERO and s.aim_shape() != "self"
+					if aimed:
+						facing = atan2(-aim_dir.x, -aim_dir.y)
+						face = facing
+					if s.at_self or (aimed and s.aim_shape() == "point"):
 						lock_target = null
+					elif aimed:
+						lock_target = _pick_target(motor.position, facing, targets, AIM_SNAP, s.aim_range())
+					else:
+						lock_target = _pick_target(motor.position, facing, targets)
+					aim_dir = Vector2.ZERO
 					aim = _resolve_aim(motor, facing, s)
 					events.append({"type": "gather", "el": s.el, "spell": s})
 		Phase.GATHER:
@@ -403,7 +426,7 @@ func step(dt: float, motor: PlayerMotor, targets: Array, facing: float, hand: Ve
 	_step_pose(dt, s)
 
 
-func _pick_target(from: Vector3, facing: float, targets: Array) -> CombatTarget:
+func _pick_target(from: Vector3, facing: float, targets: Array, cone: float = LOCK_CONE, max_range: float = LOCK_RANGE) -> CombatTarget:
 	var best: CombatTarget = null
 	var score := INF
 	for o in targets:
@@ -412,10 +435,10 @@ func _pick_target(from: Vector3, facing: float, targets: Array) -> CombatTarget:
 			continue
 		var v := Vector2(tg.position.x - from.x, tg.position.z - from.z)
 		var d := v.length()
-		if d > LOCK_RANGE or d < 0.3:
+		if d > max_range or d < 0.3:
 			continue
 		var ang := absf(wrapf(atan2(-v.x, -v.y) - facing, -PI, PI))
-		if ang > LOCK_CONE:
+		if ang > cone:
 			continue
 		var sc := d + ang * 4.0
 		if sc < score:
@@ -429,6 +452,11 @@ func _pick_target(from: Vector3, facing: float, targets: Array) -> CombatTarget:
 func _resolve_aim(motor: PlayerMotor, facing: float, s: SpellDefinition = null) -> Vector3:
 	if lock_target != null and lock_target.alive:
 		return lock_target.position + Vector3(0, lock_target.height * 0.55, 0)
+	if aimed and s != null:
+		# Mira scelta: punto a distanza (aree) o fondo della fascia (proiettili).
+		var r := s.aim_range()
+		var dist := clampf(aim_frac * r, 1.5, r) if s.aim_shape() == "point" else r
+		return motor.position + _fwd(face) * dist + Vector3(0, 0.55, 0)
 	var dist := AIM_DIST if s == null or s.is_legacy() else 10.0
 	return motor.position + _fwd(facing) * dist + Vector3(0, 0.55, 0)
 

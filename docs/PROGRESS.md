@@ -7,6 +7,23 @@ si possano riprendere (5 minuti), selezione delle magie più chiara, hitbox/hurt
 armi e ai pugni, ritorno all'eroe del prototipo (più piccolo) con un passo migliore tenendo le
 animazioni di combattimento (D-028).
 
+Seguito del 28/09/2026 (D-034): magie lanciate alla Brawl Stars (pulsante tenuto e direzionato,
+fascia, cerchio o anello a terra), tutte le magie note per la prova, ritmi e moveset per arma
+(spadone e martello più lenti, lancia perforante con l'infilzata), passo delle gambe nei colpi.
+
+### Test realmente eseguiti (D-034)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 218/218 PASS, log pulito (nuovi: mira direzionata sul bersaglio di lato, tocco secco a mira automatica, punto delle aree alla distanza trascinata, pulsante Magia come joystick, lancia perforante, ritmi per arma, passo d'attacco con piede piantato) |
+| `tools/e2e_magic.gd` completo | OK: 21 magie, una su due mirata trascinando il pulsante (fascia o cerchio visibili, spariti al rilascio), 85 colpi, nessun errore di script |
+| `tools/e2e_magic.gd --phone` | OK |
+| `tools/e2e_moveset.gd` (nuove voci: passo e infilzata) | OK: tutte le catene e i forti a segno; piede del colpo avanti di 0,20–0,38 m (prima della correzione fino a 1,2 m); infilzata su due manichini in fila: [1, 1] |
+| `e2e_combat`, `e2e_touch`, `e2e_sandbox`, `e2e_walk`, `e2e_drop`, `e2e_armory`, `e2e_swim`, `e2e_options`, `e2e_options --phone` | OK, nessun errore di script |
+| Export Android debug 0.13.0-m5 (versionCode 15) + `apksigner verify` + `aapt2 dump badging` | OK; mai installato su un telefono |
+
+Non verificato: sensazione del joystick della magia su un telefono vero; FPS su telefono.
+Da ricordare: `GameRoot.TEST_ALL_SPELLS` è acceso solo per questa prova.
+
 Seguito del 28/09/2026 (D-033): opzioni come pannello modale che entra nel telefono, mira
 assistita leggera, catene che vanno a segno con ogni arma, forte della spada a terra.
 

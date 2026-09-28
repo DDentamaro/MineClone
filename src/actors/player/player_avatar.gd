@@ -13,6 +13,8 @@ var animator := AvatarAnimator.new()
 ## Gambe del prototipo: piedi piantati e IK (D-028).
 var gait := GaitLegs.new()
 var _gait_w := 1.0
+## Ultimo attacco visto (`CombatController.starts`): un numero nuovo = passo.
+var _starts := 0
 var _last_pos := Vector3.INF
 var trail: WeaponTrail
 var anim_state := AvatarAnimator.State.new()
@@ -148,6 +150,7 @@ func animate(dt: float, motor: PlayerMotor, combat: CombatController, magic: Mag
 		if xf.origin.distance_to(_last_pos) > 2.0:
 			gait.reset()
 		_last_pos = xf.origin
+		_attack_step(motor, combat, s)
 		gait.update(dt, xf, motor.velocity, motor.on_ground and not motor.swimming, PlayerMotor.SPEED,
 			func(x: float, z: float) -> float:
 				return VoxelQuery.field_height(world, x, z, motor.position.y + 0.6) if world != null else motor.position.y)
@@ -168,6 +171,33 @@ func animate(dt: float, motor: PlayerMotor, combat: CombatController, magic: Mag
 		emit = s.phase == 1
 	trail.color = Color(1.0, 0.78, 0.4) if combat.charge_fraction() > 0.5 else Color(0.72, 0.86, 1.0)
 	trail.push(dt, rig.blade_segment(), emit and dt > 0.0)
+
+
+## IK delle gambe nei colpi (D-034): all'avvio di ogni colpo il piede indicato
+## fa un passo fin oltre il punto d'arrivo dello scatto, l'altro resta piantato
+## (lo segue solo se il corpo va troppo avanti). Giri e picchiate: passo normale.
+func _attack_step(motor: PlayerMotor, combat: CombatController, s: AvatarAnimator.State) -> void:
+	var a := s.attack
+	gait.hold = a != null and motor.on_ground and a.step_foot != 0.0 and not a.plunge
+	if combat.starts == _starts:
+		return
+	_starts = combat.starts
+	if not gait.hold:
+		return
+	var f := CombatController.forward(combat.facing)
+	var fw := Vector3(f.x, 0, f.y)
+	var rt := Vector3(-fw.z, 0, fw.x)
+	var end := motor.position + fw * combat.lunge_dist()
+	var to := end + fw * GaitLegs.LEAD + rt * (a.step_foot * GaitLegs.HIP_W)
+	var dur := clampf(a.windup + a.active * 0.35, 0.1, 0.45)
+	gait.step_to(a.step_foot, to, dur)
+	# L'altro piede: resta piantato negli scatti corti; negli scatti lunghi
+	# segue saltellando un filo dopo; se e' davanti all'arrivo torna dietro
+	# (cambio di guardia).
+	var rear := gait.legs[1] if a.step_foot < 0.0 else gait.legs[0]
+	var lunge := combat.lunge_dist()
+	if lunge > GaitLegs.LEASH or (rear.foot - end).dot(fw) > -GaitLegs.REAR * 0.5:
+		gait.step_to(-a.step_foot, end - fw * GaitLegs.REAR - rt * (a.step_foot * GaitLegs.HIP_W), dur * 1.2)
 
 
 func set_light(sun: float, blk: float) -> void:

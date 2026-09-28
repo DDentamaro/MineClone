@@ -90,3 +90,35 @@ func test_gradino_e_aria() -> void:
 	for l in a.g.legs:
 		check(not l.planted, "in aria niente appoggio")
 		check(l.ankle.y > GaitLegs.FOOT_H + 0.05, "gambe raccolte (%f)" % l.ankle.y)
+
+
+## D-034: passo d'attacco. Il piede indicato va avanti, l'altro resta
+## piantato con uno scatto corto e segue con uno lungo; il bacino scende.
+func test_passo_d_attacco_e_piede_piantato() -> void:
+	var w := Walker.new()
+	for i in 20:
+		w.step(Vector3.ZERO)
+	var left := w.g.legs[0]
+	var right := w.g.legs[1]
+	var r0 := right.foot
+	w.g.hold = true
+	w.g.step_to(-1.0, Vector3(9.9, 4, 10 - 0.15 - GaitLegs.LEAD), 0.2)
+	for i in int(0.2 / DT):
+		w.step(Vector3(0, 0, -0.15 / 0.2))
+	for i in 10:
+		w.step(Vector3.ZERO)
+	check(left.planted and left.foot.z < 9.78, "piede sinistro avanti (%.2f)" % left.foot.z)
+	check(right.planted and right.foot.distance_to(r0) < 1e-3, "destro fermo con uno scatto corto")
+	check(w.g.drop > 0.005, "bacino piu' basso nell'affondo (%.3f)" % w.g.drop)
+	# Scatto lungo: il piede dietro segue.
+	for i in int(0.3 / DT):
+		w.step(Vector3(0, 0, -3.0))
+	for i in 20:
+		w.step(Vector3.ZERO)
+	check(right.foot.z < r0.z - 0.5, "il destro ha seguito (%.2f)" % right.foot.z)
+	# Fine del colpo: i piedi tornano sotto le anche.
+	w.g.hold = false
+	for i in 60:
+		w.step(Vector3.ZERO)
+	for l in w.g.legs:
+		check(Vector2(l.foot.x - (w.pos.x + l.side * GaitLegs.HIP_W), l.foot.z - w.pos.z).length() <= GaitLegs.SETTLE_DIST + 1e-3, "in guardia")

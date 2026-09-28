@@ -63,6 +63,7 @@ var combat: CombatController
 var magic := MagicSystem.new(1931)
 var mfx := MagicFx.new()
 var _earth_fx: EarthFx
+var _aim_ind: AimIndicator
 var _texts: FloatingText
 var _magic_key := false
 var _audio: MagicAudio
@@ -138,6 +139,9 @@ func _ready() -> void:
 		select_weapon(weapon_index)
 	fx.grains = _grains
 	mfx.grains = _grains
+	_aim_ind = AimIndicator.new()
+	_aim_ind.name = "AimIndicator"
+	_grains.get_parent().add_child(_aim_ind)
 	# Zolle vere delle magie di terra (D-032), accanto ai grani.
 	_earth_fx = EarthFx.new()
 	_earth_fx.name = "EarthFx"
@@ -227,16 +231,17 @@ func _ready() -> void:
 			open_bag(null, "magic"))
 	_touch.button_down.connect(func(id: StringName) -> void:
 		if id == &"heavy":
-			combat.press_heavy()
-		elif id == &"magic":
-			magic.press())
+			combat.press_heavy())
 	_touch.button_up.connect(func(id: StringName) -> void:
 		if id == &"heavy":
-			combat.release_heavy()
-		elif id == &"magic":
-			magic.release())
+			combat.release_heavy())
+	# Magia alla Brawl Stars (D-034): si lancia al rilascio del pulsante, nella
+	# direzione trascinata (tocco secco = mira automatica).
+	_touch.magic_aim_released.connect(_on_magic_aim)
 	if not saved.is_empty():
 		_restore(saved)
+	if TEST_ALL_SPELLS:
+		_unlock_all_spells(saved.is_empty())
 	_refresh_labels()
 	_refresh_held()
 	_refresh_spellbar()
@@ -280,6 +285,7 @@ func _swap_world(w: WorldData) -> void:
 	combat.opaque = catalog.opaque_table()
 	mfx.world = world
 	_earth_fx.world = world
+	_aim_ind.world = world
 	_earth_fx.clear()
 	magic.world = world
 	magic.edits = edits
@@ -361,6 +367,37 @@ func _physics_process(dt: float) -> void:
 	# Posa dell'eroe al passo della fisica (D-028): la lama che ferisce e' quella
 	# che si vede, anche quando piu' passi di fisica cadono in un fotogramma.
 	_avatar.animate(0.0 if combat.hitstop > 0.0 else dt, motor, combat, magic)
+
+
+## Direzione nel mondo (piano XZ) del joystick della magia (schermo: x destra, y giu').
+func _aim_world(aim: Vector2) -> Vector2:
+	var w := _camera_rig.stick_to_world(Vector2(aim.x, -aim.y))
+	return w.normalized() if w.length() > 1e-4 else Vector2.ZERO
+
+
+func _on_magic_aim(aim: Vector2, aimed: bool, canceled: bool) -> void:
+	if canceled:
+		return
+	if aimed:
+		magic.press_aimed(_aim_world(aim), aim.length())
+	else:
+		magic.press_aimed(Vector2.ZERO, 0.0)
+	magic.release()
+
+
+## Fascia, cerchio o anello a terra mentre il dito direziona la magia.
+func _update_aim_indicator(p: Vector3) -> void:
+	if not _touch.aim_active or _touch.blocked:
+		_aim_ind.hide_aim()
+		return
+	var sp := magic.spell()
+	var shape := sp.aim_shape() if not sp.is_legacy() else "line"
+	var aimed := _touch.aim_vec.length() >= TouchControls.AIM_DEAD
+	var dir := _aim_world(_touch.aim_vec) if aimed else CombatController.forward(_avatar.facing)
+	var rng := sp.aim_range()
+	var dist := clampf(_touch.aim_vec.length() * rng, 1.5, rng)
+	var col := sp.color() if aimed else Color(sp.color(), 0.5)
+	_aim_ind.show_aim(shape, p, dir, dist, rng, sp.aim_width(), col)
 
 
 ## Numeri del danno delle magie (D-032). I colpi pieni escono subito; i colpi
@@ -586,6 +623,7 @@ func _process(dt: float) -> void:
 		save_game()
 	mfx.update(dt, magic, _avatar.rig.cast_point(), p)
 	_flush_damage_numbers(dt)
+	_update_aim_indicator(p)
 	_apply_magic_globals(_avatar.rig.cast_point(), p)
 	_audio_n += 1
 	_audio.handle(magic.events, _audio_n)
@@ -940,6 +978,20 @@ func _refresh_hotbar() -> void:
 
 ## Output aggiunto per le prove (e2e): tutte le magie del libro lanciabili.
 var dev_output := 0.0
+## Build di prova (D-034): tutte le magie conosciute e Output per lanciarle
+## tutte, cosi' si possono giudicare. Da spegnere per il gioco normale.
+const TEST_ALL_SPELLS := true
+const TEST_OUTPUT := 200.0
+
+
+func _unlock_all_spells(fresh: bool) -> void:
+	for sp in SpellDefinition.all():
+		magic.known[sp.id] = true
+	dev_output = maxf(dev_output, TEST_OUTPUT)
+	if fresh:
+		# Partita nuova: una barra con una magia per scuola, il resto dal libro.
+		magic.bar = [&"fire_columns", &"water_rain", &"earth_twins", &"air_slash", &"zoltraak"] as Array[StringName]
+		magic.bar_index = 0
 
 
 ## Statistiche dell'equipaggiamento applicate a colpi, magia e movimento.

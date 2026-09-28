@@ -585,3 +585,44 @@ fluido; il secondo pugno non colpisce mai; il colpo forte che salta in aria non 
   pugni, montante della spada e del martello: saltelli ridotti a 4–5 cm.
 - **Esito misurato:** tutte le catene vanno a segno al primo giro (pugni: jab, diretto, gancio,
   montante), tutti i colpi forti colpiscono, nessuno solleva l'eroe.
+
+## D-034 — Lancio alla Brawl Stars, tutte le magie per la prova, moveset per arma, passo nei colpi
+Richiesta del proprietario: continuare a rifinire il combattimento con un moveset proprio per ogni
+arma e ritmi diversi, lancia perforante, spadone e martello più lenti, IK delle gambe nei colpi;
+lasciare tutte le magie usabili per la prossima prova; lanciare le magie come in Brawl Stars
+(pulsante tenuto e direzionato, con una fascia davanti al giocatore che mostra la direzione).
+- **Lancio alla Brawl Stars:** il pulsante Magia è un joystick (raggio 72 dp, zona morta 25%).
+  Tenendolo premuto compare a terra l'indicatore della magia scelta, del colore della scuola: una
+  **fascia** dal giocatore nella direzione del dito per proiettili, raggi e getti (lunga quanto la
+  portata, larga almeno 0,7 m); un **cerchio** sul punto scelto per le magie ad area (la distanza
+  segue quanto si trascina, da 1,5 m alla portata); un **anello** attorno all'eroe per le magie su
+  di sé. Al rilascio la magia parte in quella direzione: si aggancia solo un bersaglio entro 15°
+  dalla fascia (prima: il più vicino nel cono di 80°). Un tocco fermo (sotto la zona morta) lancia
+  con la mira automatica di prima. Trascinare e annullare il tocco non lancia. L'indicatore segue il
+  terreno e si vede sopra l'erba.
+  Nota: prima il lancio partiva alla pressione e la raccolta si allungava tenendo premuto; ora la
+  pressione serve a mirare e la raccolta parte al rilascio (come in Brawl Stars). Tutte le magie
+  del libro si lanciano da sole alla piena raccolta.
+- **Tutte le magie per la prova:** `GameRoot.TEST_ALL_SPELLS` rende note tutte le 39 magie e alza
+  l'Output a 200 in ogni partita; in una partita nuova la barra parte con una magia per scuola
+  (Colonne di fuoco, Diluvio, Coni gemelli, Fendente d'aria, Zoltraak), il resto si mette dal libro.
+  Da spegnere dopo la prova.
+- **Ritmi per arma** (carica + attivo + rientro del primo colpo): pugni .28 s, lancia .34 s, spada
+  .47 s, spadone .82 s, martello .94 s. Spadone e martello: carica e rientro ×1,3 e ×1,35, arresto
+  sul colpo ×1,25 (non nei colpi ripetuti del turbine), quasi fermi mentre colpiscono; i giri
+  tengono la loro velocità e il turbine ricolpisce dopo .1 s (prima .2: con la carica più lenta il
+  secondo passaggio arrivava prima e non contava).
+- **Lancia perforante:** nuovo `AttackDefinition.pierce`: la striscia colpita va oltre la punta e
+  prende ogni bersaglio in fila, non solo il primo. Stoccate veloci perforanti (.6 m), spazzata
+  bassa, e la nuova **infilzata** finale (carica lunga all'indietro, 1,6 m oltre la punta, spinge
+  lontano); il forte in carica trapassa per 2,2 m, lo scatto dopo la capriola per 1 m.
+- **IK delle gambe nei colpi:** prima nei colpi girava il passo della camminata (lo scatto del colpo
+  muoveva il corpo e le gambe facevano passi di corsa). Ora `GaitLegs.hold` ferma il ciclo del
+  passo durante il colpo; all'avvio di ogni colpo il piede indicato da `step_foot` (sinistro di
+  norma, destro nel diretto, nel rovescio e nella seconda stoccata) fa un passo fino a 12 cm oltre
+  il punto d'arrivo dello scatto; l'altro resta piantato negli scatti corti e, negli scatti oltre
+  24 cm, segue saltellando un filo dopo; se è davanti all'arrivo torna dietro (cambio di guardia).
+  Il bacino scende quanto serve perché la gamba tesa arrivi a terra (affondo). A fine colpo i piedi
+  tornano sotto le anche col passo d'assestamento. Giri e picchiate usano il passo normale.
+  Misura (`tools/e2e_moveset.gd`, nuova voce): piede del colpo davanti all'altro di 0,20–0,38 m in
+  ogni colpo; prima della correzione del piede dietro si arrivava a 1,2 m con gambe da 0,3 m.

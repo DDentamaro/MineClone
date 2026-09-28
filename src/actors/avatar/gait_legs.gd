@@ -28,6 +28,11 @@ const SETTLE_DIST := 0.11
 const SETTLE_DUR := 0.22
 const MOVE_SPEED := 0.45
 const DROP_MAX := 0.13
+## Colpi (D-034): il piede del passo va oltre l'arrivo del corpo di LEAD, quello
+## dietro resta piantato finche' non resta piu' indietro di LEASH, poi segue.
+const LEAD := 0.12
+const REAR := 0.08
+const LEASH := 0.24
 
 
 class Leg:
@@ -59,6 +64,9 @@ var _was_ground := true
 ## Uscite per il corpo: quota del bacino (bob, caduta, schiacciamento),
 ## inclinazione in avanti e ondeggio laterale.
 var body_y := 0.0
+## In un colpo (D-034): niente ciclo del passo ne' assestamento; i piedi si
+## muovono solo col passo d'attacco (`step_to`) o quando il corpo li trascina.
+var hold := false
 
 
 func _init() -> void:
@@ -75,6 +83,19 @@ func reset() -> void:
 		l.swing = {}
 
 
+## Passo d'attacco: il piede `side` va a `to` (mondo, la quota la prende il
+## terreno) in `dur` secondi, con un arco basso.
+func step_to(side: float, to: Vector3, dur: float) -> void:
+	var l := legs[0] if side < 0.0 else legs[1]
+	var from := l.foot
+	if not l.planted and l.swing.is_empty():
+		return
+	if Vector2(to.x - from.x, to.z - from.z).length() < 0.03:
+		return
+	l.swing = {"kind": "attack", "u": 0.0, "dur": maxf(0.06, dur), "from": from, "to": to, "goal": to}
+	l.planted = false
+
+
 ## Un passo. `xf` = trasformazione globale del rig (origine ai piedi, ruotata col
 ## personaggio); `vel` = velocita' del corpo; `ground` = func(x, z) -> quota.
 func update(dt: float, xf: Transform3D, vel: Vector3, on_ground: bool, max_speed: float, ground: Callable) -> void:
@@ -83,7 +104,7 @@ func update(dt: float, xf: Transform3D, vel: Vector3, on_ground: bool, max_speed
 	var inv := xf.affine_inverse()
 	var P := xf.origin
 	var speed := Vector2(vel.x, vel.z).length()
-	var moving := on_ground and speed > MOVE_SPEED
+	var moving := on_ground and speed > MOVE_SPEED and not hold
 	var move_target := minf(1.0, speed / maxf(0.001, max_speed)) if on_ground else 0.0
 	move_k += (move_target - move_k) * (1.0 - exp(-dt * 10.0))
 	jump_lift += ((0.0 if on_ground else 1.0) - jump_lift) * (1.0 - exp(-dt * 12.0))
@@ -139,7 +160,14 @@ func update(dt: float, xf: Transform3D, vel: Vector3, on_ground: bool, max_speed
 			l.planted = false
 		if not moving and l.planted and l.swing.is_empty():
 			var other := legs[1] if l.side < 0 else legs[0]
-			if Vector2(l.foot.x - home.x, l.foot.z - home.z).length() > SETTLE_DIST and other.planted:
+			var off := Vector2(l.foot.x - home.x, l.foot.z - home.z).length()
+			if hold:
+				# Il corpo scatta avanti: il piede rimasto indietro lo segue
+				# subito, anche a passo in corso (passo saltellato dell'affondo).
+				if off > LEASH:
+					l.swing = {"kind": "follow", "u": 0.0, "dur": SETTLE_DUR * 0.8, "from": l.foot, "to": l.foot}
+					l.planted = false
+			elif off > SETTLE_DIST and other.planted:
 				l.swing = {"kind": "settle", "u": 0.0, "dur": SETTLE_DUR, "from": l.foot, "to": l.foot}
 				l.planted = false
 		if not l.swing.is_empty():
@@ -150,11 +178,15 @@ func update(dt: float, xf: Transform3D, vel: Vector3, on_ground: bool, max_speed
 			var t := home
 			if sw["kind"] == "gait":
 				t = home + Vector3(vel.x, 0, vel.z) * rem + dir * stance_travel * 0.5
+			elif sw["kind"] == "attack":
+				t = sw["goal"]
+			elif sw["kind"] == "follow":
+				t = home + Vector3(vel.x, 0, vel.z) * rem - fw * REAR
 			var to := Vector3(t.x, ground.call(t.x, t.z), t.z)
 			sw["to"] = to
 			var e := u * u * (3.0 - 2.0 * u)
 			var arc := 9.481481 * pow(1.0 - u, 3.0) * u
-			var h := ARC_H * (0.7 + 0.3 * move_target) if sw["kind"] == "gait" else 0.05
+			var h := ARC_H * (0.7 + 0.3 * move_target) if sw["kind"] == "gait" else (0.06 if sw["kind"] == "attack" else 0.05)
 			var from: Vector3 = sw["from"]
 			l.foot = from.lerp(to, e) + Vector3(0, arc * h, 0)
 			if u >= 1.0:
@@ -168,6 +200,14 @@ func update(dt: float, xf: Transform3D, vel: Vector3, on_ground: bool, max_speed
 		for l in legs:
 			if l.planted:
 				dr = maxf(dr, minf(DROP_MAX, (P.y + base_off - l.foot.y) - 0.015))
+				if hold:
+					# Piedi larghi nel colpo: il bacino scende quanto serve
+					# perche' la gamba tesa arrivi a terra (affondo).
+					var hp := P + right * (l.side * HIP_W)
+					var hd := Vector2(l.foot.x - hp.x, l.foot.z - hp.z).length()
+					var reach := (L1 + L2) * 0.97
+					var need := sqrt(maxf(0.0, reach * reach - hd * hd)) + FOOT_H
+					dr = maxf(dr, minf(DROP_MAX, HIP_Y - need))
 	drop += (dr - drop) * (1.0 - exp(-dt * (25.0 if dr > drop else 9.0)))
 	# Bob a doppia frequenza, ondeggio, inclinazione.
 	var gait_s := sin(phase * TAU)

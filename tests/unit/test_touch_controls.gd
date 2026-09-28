@@ -185,3 +185,27 @@ func test_barra_magie_entra_nello_schermo_del_telefono() -> void:
 			_up(tc, 1, c)
 			check(_buttons.has(StringName("sp%d" % i)), "%s: slot %d premuto" % [case, i + 1])
 		tc.queue_free()
+
+
+## D-034: il pulsante Magia fa da joystick; il rilascio porta la direzione,
+## un tocco fermo e' un lancio a mira automatica.
+func test_pulsante_magia_come_joystick() -> void:
+	var tc := _make()
+	var got: Array = []
+	tc.magic_aim_released.connect(func(a: Vector2, aimed: bool, c: bool) -> void: got.append([a, aimed, c]))
+	var c := tc.button_rect(&"magic").get_center()
+	_down(tc, 4, c)
+	check(tc.aim_active, "mira attiva")
+	_move(tc, 4, c + Vector2(tc.dp(TouchControls.AIM_RADIUS_DP) * 2.0, 0))
+	check(tc.aim_vec.is_equal_approx(Vector2(1, 0)), "vettore limitato a 1 (%s)" % tc.aim_vec)
+	_up(tc, 4, c)
+	check_eq(got.size(), 1, "un rilascio")
+	if got.size() == 1:
+		check(got[0][1] and not got[0][2], "rilascio mirato")
+	check(not tc.aim_active, "mira chiusa")
+	_down(tc, 4, c)
+	_up(tc, 4, c)
+	check_eq(got.size(), 2, "tocco secco")
+	if got.size() == 2:
+		check(not got[1][1], "tocco secco non mirato")
+	tc.free()

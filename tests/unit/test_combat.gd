@@ -309,3 +309,31 @@ func test_catena_leggera_resta_a_portata() -> void:
 		r.step(int(0.3 / DT))
 	r.settle(1.0)
 	check(d.hits >= 4, "jab, diretto, gancio e montante a segno (%d)" % d.hits)
+
+
+## D-034: la lancia perfora; l'infilzata prende anche chi sta dietro al primo.
+func test_lancia_perforante() -> void:
+	var r := Rig.new(&"spear")
+	var a := r.dummy(Vector2(0, -1.8))
+	var b := r.dummy(Vector2(0, -3.6))
+	for i in 4:
+		r.combat.press_light()
+		r.step(int(0.26 / DT))
+	r.settle()
+	check_eq(r.started, [&"thrust", &"thrust2", &"sweep", &"impale"] as Array[StringName], "catena della lancia")
+	check(a.hits >= 1 and b.hits >= 1, "entrambi in fila colpiti (%d, %d)" % [a.hits, b.hits])
+	var imp := WeaponLibrary.by_id(&"spear").attack(&"impale")
+	check(imp.pierce >= 1.5, "infilzata perforante")
+
+
+## D-034: ritmi diversi, spadone e martello piu' lenti della spada.
+func test_ritmi_per_arma() -> void:
+	var sw := WeaponLibrary.by_id(&"sword").attack(&"slash")
+	var gs := WeaponLibrary.by_id(&"greatsword").attack(&"sweep")
+	var hm := WeaponLibrary.by_id(&"hammer").attack(&"swing")
+	var sp := WeaponLibrary.by_id(&"spear").attack(&"thrust")
+	var fi := WeaponLibrary.by_id(&"fists").attack(&"jab")
+	check(fi.total() < sp.total() and sp.total() < sw.total(), "pugni < lancia < spada")
+	check(gs.total() > sw.total() * 1.4 and hm.total() > sw.total() * 1.4, "spadone e martello lenti (%.2f, %.2f)" % [gs.total(), hm.total()])
+	check(gs.windup >= 0.25 and hm.windup >= 0.3, "carica lunga")
+	check(hm.move_scale < sw.move_scale, "quasi fermi mentre colpiscono")

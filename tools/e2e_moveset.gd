@@ -4,6 +4,8 @@ extends SceneTree
 ## colpo forte, su un manichino davanti; registra la catena, quali colpi vanno
 ## a segno, quanto l'eroe gira verso un bersaglio fuori asse (aiuto alla mira)
 ## e l'altezza massima raggiunta. Screenshot a meta' di ogni colpo.
+## D-034: registra anche il passo dei piedi (piede avanti rispetto a quello
+## dietro a meta' colpo) e, per la lancia, l'infilzata su due manichini in fila.
 ## Uso: xvfb-run -a godot --path . --script res://tools/e2e_moveset.gd -- --out=/tmp/moves.png [--weapon=fists]
 
 var _game: GameRoot
@@ -24,6 +26,7 @@ var _shots := {}
 var _gap := {}
 var _dist := {}
 var _tips := {}
+var _stag := {}
 
 
 func _initialize() -> void:
@@ -67,6 +70,7 @@ func _setup(dist: float, off_deg: float) -> void:
 	_prev_hits = 0
 	_gap.clear()
 	_tips.clear()
+	_stag.clear()
 	_t = 0.0
 	_press_t = 0.0
 
@@ -116,6 +120,13 @@ func _sample() -> void:
 			_tips[key] = " ".join(tips.slice(maxi(0, tips.size() - 2)))
 		var dist := Vector2(tg.position.x - _game.motor.position.x, tg.position.z - _game.motor.position.z).length()
 		_dist[key] = dist
+		# Passo: quanto il piede del colpo sta davanti all'altro (m, lungo lo sguardo).
+		if c.phase() == 1 and a.step_foot != 0.0:
+			var gl := _game._avatar.gait.legs
+			var lead: GaitLegs.Leg = gl[0] if a.step_foot < 0.0 else gl[1]
+			var rear: GaitLegs.Leg = gl[1] if a.step_foot < 0.0 else gl[0]
+			var fw := CombatController.forward(c.facing)
+			_stag[key] = maxf(float(_stag.get(key, -INF)), Vector2(lead.foot.x - rear.foot.x, lead.foot.z - rear.foot.z).dot(fw))
 
 
 func _collect() -> void:
@@ -166,6 +177,14 @@ func _process(dt: float) -> bool:
 				_log.append("%s catena: %s · colpi %s" % [GameRoot.WEAPONS[_w], chain, _hits])
 				for k: String in _gap:
 					_log.append("      %s: distanza minima %.2f m (manichino a %.2f m) punta %s" % [k, float(_gap[k]), float(_dist.get(k, 0.0)), _tips.get(k, "")])
+				for k: String in _stag:
+					_log.append("      %s: piede del colpo avanti di %.2f m" % [k, float(_stag[k])])
+					if float(_stag[k]) < 0.04:
+						_log.append("   NO   %s senza passo" % k)
+						_ok = false
+					elif float(_stag[k]) > 0.55:
+						_log.append("   NO   %s piedi troppo larghi (gambe da 0,3 m)" % k)
+						_ok = false
 				# Il primo giro della catena deve andare tutto a segno (dopo il colpo
 				# finale il manichino e' lontano: e' voluto).
 				var first: Array[String] = []
@@ -206,6 +225,31 @@ func _process(dt: float) -> bool:
 			if _t > 0.6:
 				var turned := rad_to_deg(absf(wrapf(g._avatar.facing - _face0, -PI, PI)))
 				_log.append("%s aiuto alla mira: girato di %.0f° verso un bersaglio a 40°/2,4 m, colpi %s" % [GameRoot.WEAPONS[_w], turned, _hits])
+				if GameRoot.WEAPONS[_w] == &"spear":
+					# Infilzata su due manichini in fila (1,6 e 3,4 m).
+					_setup(1.6, 0.0)
+					var f := CombatController.forward(g._avatar.facing)
+					var mp := g.motor.position
+					var p2 := Vector3(mp.x + f.x * 3.4, mp.y, mp.z + f.y * 3.4)
+					p2.y = VoxelQuery.field_height(g.world, p2.x, p2.z, mp.y + 2.0)
+					g._dummies.add_dummy(p2)
+					g.combat._start_attack(&"impale", g.motor, g._dummies.dummies, Vector2.ZERO)
+					_phase = 6
+				else:
+					_w += 1
+					_phase = 1
+		6:
+			_t += dt
+			if g.combat.attack != null and g.combat.phase() == 1:
+				_shot("spear_infilzata")
+			if _t > 1.2:
+				var hs: Array[int] = []
+				for d in g._dummies.dummies:
+					hs.append(d.hits)
+				_log.append("spear infilzata su due in fila: colpi %s" % [hs])
+				if hs.size() < 2 or hs[0] < 1 or hs[1] < 1:
+					_log.append("   NO   l'infilzata non trapassa")
+					_ok = false
 				_w += 1
 				_phase = 1
 	return false
