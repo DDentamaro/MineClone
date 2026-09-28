@@ -83,13 +83,13 @@ func test_raccolta_e_rilascio() -> void:
 	s.magic.press()
 	s.step(1)
 	check_eq(s.magic.phase, MagicSystem.Phase.GATHER, "raccolta")
+	check(s.magic.pressure > 0.1, "la pressione sale appena parte la raccolta (%f)" % s.magic.pressure)
 	s.step(int(0.5 / DT))
 	check_eq(s.magic.darts.size(), 0, "tenuto: il dardo aspetta il rilascio")
 	s.magic.release()
 	s.step(1)
 	check_eq(s.magic.darts.size(), 1, "dardo partito al rilascio")
 	check_eq(s.magic.phase, MagicSystem.Phase.RECOVER, "recupero")
-	check(s.magic.pressure > 0.1, "il lancio alza la pressione (%f)" % s.magic.pressure)
 
 
 func test_tocco_lancia_da_solo() -> void:
@@ -197,7 +197,9 @@ func test_fuoco_su_bagnato_fa_vapore_senza_danno() -> void:
 	check_eq(s.magic.status_react(d, "fire"), 0.0, "moltiplicatore 0")
 	check(not s.magic.has_status(d, "wet"), "bagnato consumato")
 	s.magic.apply_status(d, "burn")
-	check_eq(s.magic.status_react(d, "water"), 1.25, "shock termico")
+	var hp0 := d.hp
+	check_eq(s.magic.status_react(d, "water"), 1.0, "shock termico: moltiplicatore 1")
+	check(absf(hp0 - d.hp - 4.0) < 1e-4, "4 × pile di danno silenzioso (%f)" % (hp0 - d.hp))
 	check(not s.magic.has_status(d, "burn"), "fuoco spento")
 	check_eq(s.magic.status_react(d, "earth"), 1.0, "neutro")
 	var t := []
@@ -207,20 +209,20 @@ func test_fuoco_su_bagnato_fa_vapore_senza_danno() -> void:
 	check(t.has("VAPORE") and t.has("SHOCK TERMICO"), "scritte %s" % [t])
 
 
-func test_aria_su_bagnato_spinge_di_piu() -> void:
-	var dry := Scene.new()
-	var d1 := TrainingDummy.new(Vector3(24.5, 4, 26.5))
-	dry.dummies.append(d1)
-	dry.cast(3, 20)
-	dry.step(5)
-	var wet := Scene.new()
-	var d2 := TrainingDummy.new(Vector3(24.5, 4, 26.5))
-	wet.dummies.append(d2)
-	wet.magic.apply_status(d2, "wet")
-	wet.cast(3, 20)
-	wet.step(5)
-	check(d1.hits == 1 and d2.hits == 1, "entrambi colpiti")
-	check(d2.home.distance_to(d2.position) > d1.home.distance_to(d1.position) * 1.4, "spinta ×1,8 sul bagnato")
+func test_acqua_e_aria_spingono() -> void:
+	# statusFromHit (RMNDWN L21619): acqua e aria con |knockback| >= .6 danno SPINTO.
+	var s := Scene.new()
+	var a := TrainingDummy.new(Vector3(24.5, 4, 25.5))
+	var b := TrainingDummy.new(Vector3(20.5, 4, 25.5))
+	var c := TrainingDummy.new(Vector3(28.5, 4, 25.5))
+	s.dummies.append_array([a, b, c])
+	s.magic._targets_cache = s.dummies
+	s.magic.spell_hit(a, SpellDefinition.by_id(&"water_bolt"), 10.0, Vector2(0, -1), a.position)
+	s.magic.spell_hit(b, SpellDefinition.by_id(&"air_lash"), 10.0, Vector2(0, -1), b.position)
+	s.magic.spell_hit(c, SpellDefinition.by_id(&"fire_bolt"), 10.0, Vector2(0, -1), c.position)
+	check(s.magic.has_status(a, "pushed") and s.magic.has_status(a, "wet"), "acqua: bagnato e spinto")
+	check(s.magic.has_status(b, "pushed"), "aria: spinto")
+	check(not s.magic.has_status(c, "pushed") and s.magic.has_status(c, "burn"), "fuoco: brucia, non spinge")
 
 
 func test_fuoco_sull_erba_si_propaga_e_brucia() -> void:
@@ -298,6 +300,17 @@ func test_voci_sintetizzate() -> void:
 	check(b > a * 3.0, "la raccolta cresce (%f -> %f)" % [a, b])
 
 
+## Un colpo del Karma lanciato da `from` verso il manichino: danno fatto.
+func _karma_shot(s: Scene, id: StringName, d: TrainingDummy) -> float:
+	var sp := SpellDefinition.by_id(id)
+	s.magic._targets_cache = s.dummies
+	var from := s.hand()
+	var aim := d.position + Vector3(0, 0.8, 0)
+	s.magic._spawn_dart(sp, from, (aim - from).normalized())
+	s.step(int(0.8 / DT))
+	return TrainingDummy.MAX_HP - d.hp
+
+
 func test_raggio_coerenza_cala_con_la_distanza() -> void:
 	var sp := SpellDefinition.by_id(&"zoltraak")
 	var got := []
@@ -305,15 +318,49 @@ func test_raggio_coerenza_cala_con_la_distanza() -> void:
 		var s := Scene.new()
 		var d := TrainingDummy.new(Vector3(24.5, 4, 30.5 - dist))
 		s.dummies.append(d)
-		s.magic._targets_cache = s.dummies
 		s.magic.rng.seed = 3
-		var from := s.hand()
-		var aim := d.position + Vector3(0, 0.8, 0)
-		s.magic.runtime.beam(sp, from, (aim - from).normalized())
-		got.append(TrainingDummy.MAX_HP - d.hp)
+		got.append(_karma_shot(s, &"zoltraak", d))
 	check(got[0] > 0.0 and got[1] > 0.0, "colpiti entrambi %s" % [got])
 	check(got[0] > got[1] * 1.6, "vicino piu' forte (%s)" % [got])
 	check(absf(MagicSystem.coherence(sp, 10.0) - sp.coh_floor) < 1e-4, "minimo della coerenza")
+
+
+func test_karma_testa_che_si_ferma_sul_primo_corpo() -> void:
+	# RMNDWN L29483: la testa viaggia a `speed` e si ferma sul primo corpo.
+	var s := Scene.new()
+	var a := TrainingDummy.new(Vector3(24.5, 4, 26.5))
+	var b := TrainingDummy.new(Vector3(24.5, 4, 22.5))
+	s.dummies.append_array([a, b])
+	s.magic._targets_cache = s.dummies
+	var sp := SpellDefinition.by_id(&"zoltraak")
+	var from := s.hand()
+	s.magic._spawn_dart(sp, from, (b.position + Vector3(0, 0.8, 0) - from).normalized())
+	s.step(1)
+	check_eq(a.hits, 0, "al primo passo non e' ancora arrivato (64 m/s)")
+	s.step(int(0.3 / DT))
+	check_eq(a.hits, 1, "colpito il primo")
+	check_eq(b.hits, 0, "il secondo e' coperto: niente trapasso")
+
+
+func test_karma_a_fine_portata_svanisce() -> void:
+	var s := Scene.new()
+	var sp := SpellDefinition.by_id(&"ago")
+	s.magic._spawn_dart(sp, s.hand() + Vector3(0, 6, 0), Vector3(0, 0, -1))
+	s.step(int(1.2 / DT))
+	check(not s.events.any(func(e: Dictionary) -> bool: return e["type"] == "impact"), "nessun impatto a fine portata")
+	check(s.events.any(func(e: Dictionary) -> bool: return e["type"] == "karma_fade"), "si dissolve")
+	check(s.magic.darts.is_empty(), "sparito")
+
+
+func test_roster_karma_come_rmndwn() -> void:
+	var ago := SpellDefinition.by_id(&"ago")
+	var spina := SpellDefinition.by_id(&"spina")
+	var dardo := SpellDefinition.by_id(&"dardo")
+	check_eq(ago.salvo_n, 1, "Ago: un colpo solo")
+	check_eq(spina.salvo_n, 1, "Spina: un raggio solo")
+	check(absf(dardo.r - 0.085) < 1e-5 and absf(dardo.body_len - 2.40) < 1e-5 and absf(dardo.decoh - 5.2) < 1e-5 and absf(dardo.coh_floor - 0.62) < 1e-5,
+		"Dardo: r .085, fascio 2,40, decoerenza 5,2, minimo .62")
+	check(SpellDefinition.by_id(&"fire_volley").fan_deg == 0.0, "la raffica di fuoco non si apre a ventaglio")
 
 
 func test_raffica_sei_colpi() -> void:
@@ -357,30 +404,107 @@ func test_getto_indipendente_dal_frame_rate() -> void:
 
 func test_vuoto_attira() -> void:
 	var s := Scene.new()
-	# Il primo e' agganciato (centro del vuoto), il secondo sta di lato.
+	# Il primo e' agganciato (centro del vuoto), il secondo sta nella sfera 1,8.
 	s.dummies.append(TrainingDummy.new(Vector3(24.5, 4, 22.5)))
-	var d := TrainingDummy.new(Vector3(27.5, 4, 22.5))
+	var d := TrainingDummy.new(Vector3(25.9, 4, 22.5))
 	s.dummies.append(d)
 	s.cast_id(&"air_vacuum", 50)
 	var c := s.magic.aim
 	var d0 := Vector2(d.position.x - c.x, d.position.z - c.z).length()
 	var best := d0
-	for i in int(1.6 / DT):
+	var pushed := false
+	for i in int(1.0 / DT):
 		s.step(1)
 		best = minf(best, Vector2(d.position.x - c.x, d.position.z - c.z).length())
-	check(best < d0 - 0.8, "trascinato verso il centro (%f -> %f)" % [d0, best])
+		pushed = pushed or s.magic.has_status(d, "pushed")
+	check(best < d0 - 0.5, "trascinato verso il centro (%f -> %f)" % [d0, best])
+	check(pushed, "spinto")
 
 
-func test_ascensione_solleva() -> void:
+func test_ascensione_non_solleva() -> void:
+	# RMNDWN: nessun sollevamento, solo lo stagger (24) al contatto dopo 2,3 s.
 	var s := Scene.new()
 	var d := TrainingDummy.new(Vector3(24.5, 4, 20.5))
 	s.dummies.append(d)
 	s.cast_id(&"air_updraft", 70)
 	var top := d.position.y
-	for i in int(2.0 / DT):
+	for i in int(1.5 / DT):
 		s.step(1)
 		top = maxf(top, d.position.y)
-	check(top > 5.0, "sollevato (%f)" % top)
+	check(top < 4.05, "resta a terra (%f)" % top)
+	check_eq(d.stagger_total, 0.0, "prima del contatto niente")
+	s.step(int(1.2 / DT))
+	check(absf(d.stagger_total - 24.0) < 1e-3, "stagger 24 al contatto (%f)" % d.stagger_total)
+	check_eq(d.hp, TrainingDummy.MAX_HP, "nessun danno")
+
+
+func test_aree_un_colpo_solo_al_contatto() -> void:
+	# elementResolveHit: il diluvio colpisce una volta a .36 s nella sfera 2,6.
+	var s := Scene.new()
+	var a := TrainingDummy.new(Vector3(24.5, 4, 22.5))
+	var b := TrainingDummy.new(Vector3(26.0, 4, 22.5))
+	s.dummies.append_array([a, b])
+	s.cast_id(&"water_rain", 55)
+	s.step(int(4.5 / DT))
+	check_eq(a.hits, 1, "un colpo sul bersaglio")
+	check_eq(b.hits, 1, "e uno sul vicino nella sfera")
+	check(s.events.filter(func(e: Dictionary) -> bool: return e["type"] == "contact").size() == 1, "un contatto")
+
+
+func test_palla_di_fuoco_danno_pieno_nell_area() -> void:
+	var s := Scene.new()
+	var a := TrainingDummy.new(Vector3(24.5, 4, 25.5))
+	var b := TrainingDummy.new(Vector3(25.7, 4, 25.2))
+	s.dummies.append_array([a, b])
+	s.magic.rng.seed = 9
+	s.cast_id(&"fire_ball", 50)
+	s.step(int(1.5 / DT))
+	var dmg := {}
+	for e in s.events:
+		if e["type"] == "hit":
+			dmg[e["target"]] = float(e["damage"])
+	check(dmg.has(a) and dmg.has(b), "entrambi nell'area")
+	check(float(dmg.get(b, 0.0)) > 58.0 * 0.85, "il vicino prende il danno pieno (%f)" % float(dmg.get(b, 0.0)))
+
+
+func test_braci_non_feriscono() -> void:
+	var s := Scene.new()
+	var d := TrainingDummy.new(Vector3(24.5, 4, 29.3))
+	s.dummies.append(d)
+	s.cast_id(&"fire_embers", 40)
+	s.step(int(2.0 / DT))
+	check_eq(d.hp, TrainingDummy.MAX_HP, "difesa: niente danno")
+	check_eq(d.hits, 0, "niente colpi")
+
+
+func test_schiocco_alla_mira() -> void:
+	# La frusta arriva al bersaglio a 6 m (contatto .44 s), primo corpo soltanto.
+	var s := Scene.new()
+	var d := TrainingDummy.new(Vector3(24.5, 4, 24.5))
+	s.dummies.append(d)
+	s.cast_id(&"air_lash", 20)
+	check_eq(d.hits, 0, "non ancora")
+	s.step(int(0.6 / DT))
+	check_eq(d.hits, 1, "colpito a distanza")
+
+
+func test_hitstop_breve_e_refrattario() -> void:
+	var s := Scene.new()
+	var a := TrainingDummy.new(Vector3(24.5, 4, 25.5))
+	s.dummies.append(a)
+	s.magic._targets_cache = s.dummies
+	var fb := SpellDefinition.by_id(&"fire_bolt")
+	s.magic.spell_hit(a, fb, 24.0, Vector2(0, -1), a.position)
+	# .025 × famiglia .30 × fuoco .55 ≈ 4 ms (il vecchio port: 17 ms).
+	check(absf(s.magic.hitstop - 0.025 * 0.30 * 0.55) < 1e-5, "hitstop %f" % s.magic.hitstop)
+	s.magic.hitstop = 0.0
+	s.magic.spell_hit(a, fb, 24.0, Vector2(0, -1), a.position)
+	check_eq(s.magic.hitstop, 0.0, "nel refrattario (.16 s) niente hitstop")
+	var juice := s.magic.events.filter(func(e: Dictionary) -> bool: return e["type"] == "hit" and e["juice"])
+	check_eq(juice.size(), 1, "una sola scossa")
+	s.step(int(0.2 / DT))
+	s.magic.spell_hit(a, fb, 24.0, Vector2(0, -1), a.position)
+	check(s.magic.hitstop > 0.0, "dopo il refrattario si")
 
 
 func _raised(s: Scene) -> int:
@@ -396,11 +520,13 @@ func _raised(s: Scene) -> int:
 func test_muraglia_si_alza_e_crolla() -> void:
 	var s := Scene.new()
 	s.cast_id(&"earth_wall", 40)
-	s.step(5)
+	var first := _raised(s)
+	check(first > 0 and first < 13, "sale dal suolo a strati (%d)" % first)
+	s.step(int(0.8 / DT))
 	var n := _raised(s)
-	check_eq(n, 15, "5 × 3 blocchi di terra")
-	check_eq(s.magic.runtime.struct_cells().size(), 15, "celle della struttura")
-	s.step(int(6.5 / DT))
+	check_eq(n, 13, "5 × 3 blocchi con gli angoli in alto arrotondati")
+	check_eq(s.magic.runtime.struct_cells().size(), 13, "celle della struttura")
+	s.step(int(3.2 / DT))
 	check_eq(_raised(s), 0, "crollata")
 	check(s.events.any(func(e: Dictionary) -> bool: return e["type"] == "crumble"), "evento del crollo")
 
@@ -409,9 +535,12 @@ func test_colonna_solleva_il_giocatore() -> void:
 	var s := Scene.new()
 	var y0 := s.motor.position.y
 	s.cast_id(&"earth_pillar", 45)
-	s.step(10)
+	check(s.motor.position.y < y0 + 2.0, "sale piano (%f)" % s.motor.position.y)
+	s.step(int(1.4 / DT))
 	check(s.motor.position.y >= y0 + 2.9, "in cima alla colonna (%f)" % s.motor.position.y)
 	check(s.motor.on_ground, "ci sta sopra")
+	s.step(int(1.6 / DT))
+	check_eq(s.magic.runtime.struct_cells().size(), 0, "regge 2,8 s poi crolla")
 
 
 func test_ventaglio_aria_sul_fuoco() -> void:
@@ -421,6 +550,9 @@ func test_ventaglio_aria_sul_fuoco() -> void:
 	s.dummies.append_array([a, b])
 	s.magic._targets_cache = s.dummies
 	s.magic.apply_status(a, "burn")
+	s.magic.spell_hit(a, SpellDefinition.by_id(&"air_lash"), 10.0, Vector2(0, -1), a.position)
+	check_eq(int(s.magic.statuses[a]["burn"]["st"]), 1, "la pila rispetta l'intervallo di .9 s")
+	s.magic.statuses[a]["burn"]["since"] = 1.0
 	s.magic.spell_hit(a, SpellDefinition.by_id(&"air_lash"), 10.0, Vector2(0, -1), a.position)
 	check_eq(int(s.magic.statuses[a]["burn"]["st"]), 2, "una pila in piu'")
 	check(s.magic.has_status(b, "burn"), "la fiamma passa al vicino")
@@ -437,6 +569,8 @@ func test_conduzione_karma_sul_bagnato() -> void:
 	for d in s.dummies:
 		s.magic.apply_status(d, "wet")
 	s.magic.spell_hit(a, SpellDefinition.by_id(&"dardo"), 20.0, Vector2(0, -1), a.position)
+	check(absf(a.stagger_total - 20.0 * 1.8) < 1e-3, "stagger ×1,8 (%f)" % a.stagger_total)
+	check(s.magic.has_status(a, "wet"), "il bagnato resta")
 	check(b.hp < TrainingDummy.MAX_HP, "la scossa salta sul vicino bagnato")
 	check_eq(c.hp, TrainingDummy.MAX_HP, "troppo lontano")
 	check(s.magic.events.any(func(e: Dictionary) -> bool: return e["type"] == "arc"), "arco")

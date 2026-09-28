@@ -54,6 +54,31 @@ var push := 0.0
 var reach := 0.0
 ## Vecchie regole del prototipo (costo in mana, impegno al 35%).
 var cost := 0.0
+## Stagger (poise) del colpo: fa vacillare il corpo (RMNDWN `stagger`).
+var stagger := 12.0
+## Hitstop dell'attacco prima dei moltiplicatori di famiglia (RMNDWN `hitstop`).
+var hit_stop := 0.025
+## Juice: ampiezza della scossa e altezza del suono d'impatto (`juice.shake/sfx`).
+var shake := 0.006
+var sfx := 1.0
+## Calcio del campo visivo in gradi (`juice.fov`).
+var fov := 0.18
+## Colpo pesante (`hitbox.forceHeavy`).
+var heavy := false
+## Ruolo (colpo, rosa, area, difesa, utilita): "difesa" non fa mai danno.
+var role := "colpo"
+## Istante del contatto dopo il rilascio (timeline v78); <0 = volo del proiettile.
+var hit_at := -1.0
+## Getti: secondi di emissione (finestra in cui feriscono) e sezioni del cono.
+var emit := 0.0
+var r0 := 0.0
+var r1 := 0.0
+## Stagger al secondo dei getti.
+var poise := 0.0
+## Fasci del Karma: lunghezza del bastone luminoso (0 = raggio intero).
+var body_len := 0.0
+## Scoppio delle sfere: stagger.
+var burst_stag := 0.0
 ## Descrizione breve per il libro.
 var note := ""
 
@@ -167,6 +192,20 @@ static func _e(id: String, n: String, el: String, tier: int, kind: String, o: Di
 	s.decoh = o.get("decoh", 0.0)
 	s.scatter = o.get("scatter", 0.0)
 	s.coh_floor = o.get("floor", 1.0)
+	s.stagger = o.get("stag", 12.0)
+	s.hit_stop = o.get("stop", 0.025)
+	s.shake = o.get("shake", 0.006)
+	s.sfx = o.get("sfx", 1.0)
+	s.fov = o.get("fov", 0.18)
+	s.heavy = o.get("heavy", false)
+	s.role = o.get("role", "colpo")
+	s.hit_at = o.get("at", -1.0)
+	s.emit = o.get("emit", 0.0)
+	s.r0 = o.get("r0", 0.0)
+	s.r1 = o.get("r1", 0.0)
+	s.poise = o.get("poise", 0.0)
+	s.body_len = o.get("body", 0.0)
+	s.burst_stag = o.get("burst_stag", 0.0)
 	s.status = o.get("status", {"fire": "burn", "water": "wet", "earth": "slow", "air": "", "karma": ""}[el])
 	s.note = o.get("note", "")
 	_add(s)
@@ -178,42 +217,43 @@ static func _build() -> void:
 	_legacy(&"water", "Dardo d'acqua", "water", 12, .40, .24, 14, 1.0, .04, 1.7, .14, 0, 20, 4.4, 1.5, "wet")
 	_legacy(&"earth", "Masso", "earth", 18, .55, .30, 11, 1.0, 0, 2.2, .22, 0, 34, 6.0, 1.2, "slow")
 	_legacy(&"air", "Spina d'aria", "air", 9, .22, .16, 38, 0, 0, .40, .12, .45, 14, 8.0, .9, "pushed")
-	# FUOCO (RMNDWN ELEMENTAL_SPELLS, tempi SpellForge v78).
-	_e("fire_bolt", "Proiettile di fuoco", "fire", 1, "bolt", {"output": 25, "cast": .26, "rec": .24, "speed": 21, "life": .8, "r": .15, "dmg": 24, "kb": .75})
-	_e("fire_volley", "Raffica di fuoco", "fire", 1, "volley", {"output": 35, "cast": .30, "rec": .34, "speed": 19, "life": .8, "r": .10, "dmg": 11, "kb": .35, "n": 6, "gap": .11, "fan": 8, "note": "Sei proiettili a ventaglio"})
-	_e("fire_jet", "Lanciafiamme", "fire", 2, "jet", {"output": 65, "cast": .30, "rec": .42, "fx": 1.45, "w": .58, "area": .62, "dmg": 16, "kb": .55, "dps": 34, "reach": 6.5, "note": "Getto sostenuto che segue la mira"})
-	_e("fire_embers", "Braci", "fire", 2, "spray", {"output": 55, "cast": .38, "rec": .34, "speed": 8, "fx": 1.55, "self": true, "area": 1.9, "dmg": 9, "kb": .35, "note": "Anello di braci attorno a sé"})
-	_e("fire_ball", "Palla di fuoco", "fire", 3, "ball", {"output": 125, "cast": .68, "rec": .48, "speed": 6.2, "life": 1.4, "r": .36, "area": 1.55, "dmg": 58, "kb": 2.0, "burst_r": 1.55, "burst_dmg": 29, "burst_kb": 1.4, "note": "Lenta, esplode ad area"})
-	_e("fire_columns", "Colonne di fuoco", "fire", 3, "column", {"output": 135, "cast": .72, "rec": .52, "fx": 1.8, "area": 2.1, "h": 3.3, "dmg": 46, "kb": 1.35, "note": "Fiamme dal suolo nel punto mirato"})
-	_e("fire_meteor", "Meteorite di fuoco", "fire", 4, "meteor", {"output": 240, "cast": .95, "rec": .72, "speed": 21, "life": 1.6, "r": .58, "area": 2.8, "dmg": 118, "kb": 3.6, "burst_r": 2.8, "burst_dmg": 60, "burst_kb": 2.6, "note": "Cade dal cielo sul punto mirato"})
+	# FUOCO (RMNDWN ELEMENTAL_SPELLS L20181–L20225; contatto e vita dalla
+	# timeline SpellForge v78: `at` = contatto, `fx` = travel + impatto + residuo).
+	_e("fire_bolt", "Proiettile di fuoco", "fire", 1, "bolt", {"output": 25, "cast": .26, "rec": .24, "speed": 21, "life": .8, "fx": .95, "r": .15, "dmg": 24, "stag": 14, "kb": .75})
+	_e("fire_volley", "Raffica di fuoco", "fire", 1, "volley", {"output": 35, "cast": .30, "rec": .34, "speed": 19, "life": .8, "fx": 1.05, "r": .10, "dmg": 11, "stag": 7, "kb": .35, "n": 6, "gap": .11, "role": "rosa", "note": "Sei proiettili che convergono sul bersaglio"})
+	_e("fire_jet", "Lanciafiamme", "fire", 2, "jet", {"output": 65, "cast": .30, "rec": .42, "fx": 3.1, "emit": 1.6, "w": .58, "area": .62, "dmg": 16, "stag": 10, "kb": .55, "dps": 34, "poise": 16, "reach": 6.5, "r0": .16, "r1": .70, "role": "area", "note": "Getto sostenuto che segue la mira"})
+	_e("fire_embers", "Braci", "fire", 2, "spray", {"output": 55, "cast": .38, "rec": .34, "speed": 8, "fx": 3.6, "self": true, "area": 1.9, "dmg": 9, "stag": 5, "kb": .35, "role": "difesa", "note": "Braci tutt'attorno: accendono il suolo, non feriscono"})
+	_e("fire_ball", "Palla di fuoco", "fire", 3, "ball", {"output": 125, "cast": .68, "rec": .48, "speed": 6.2, "life": 1.4, "fx": 1.75, "r": .36, "area": 1.55, "dmg": 58, "stag": 42, "kb": 2.0, "heavy": true, "role": "area", "note": "Lenta; all'impatto colpisce tutti nel raggio"})
+	_e("fire_columns", "Colonne di fuoco", "fire", 3, "column", {"output": 135, "cast": .72, "rec": .52, "fx": 4.65, "at": .57, "area": 2.1, "h": 3.3, "dmg": 46, "stag": 34, "kb": 1.35, "role": "area", "note": "Sei colonne di fiamma sul punto mirato"})
+	_e("fire_meteor", "Meteorite di fuoco", "fire", 4, "meteor", {"output": 240, "cast": .95, "rec": .72, "speed": 21, "life": 1.6, "fx": 1.8, "r": .58, "area": 2.8, "dmg": 118, "stag": 92, "kb": 3.6, "heavy": true, "note": "Cade dal cielo sul punto mirato"})
 	# ACQUA.
-	_e("water_hydrant", "Idrante", "water", 1, "jet", {"output": 25, "cast": .36, "rec": .30, "fx": 1.45, "w": .20, "area": .38, "dmg": 0, "kb": 2.8, "dps": 0, "push": 28, "reach": 7.0, "note": "Spinta continua, bagna"})
-	_e("water_bolt", "Proiettile d'acqua", "water", 1, "bolt", {"output": 30, "cast": .34, "rec": .25, "speed": 18, "life": .9, "r": .15, "dmg": 23, "kb": .85})
-	_e("water_tide", "Marea", "water", 2, "wave", {"output": 65, "cast": .62, "rec": .42, "speed": 5.6, "life": 2.0, "fx": 1.75, "w": 3.8, "h": .9, "area": 2.0, "dmg": 18, "kb": 3.3, "note": "Un'onda larga che avanza"})
-	_e("water_pressure", "Getto pressurizzato", "water", 2, "jet", {"output": 70, "cast": .44, "rec": .36, "fx": 1.25, "w": .06, "area": .16, "dmg": 44, "kb": 2.8, "dps": 56, "push": 24, "reach": 9.0, "note": "Getto sottile e potente"})
-	_e("water_ball", "Sfera d'acqua", "water", 3, "ball", {"output": 120, "cast": .66, "rec": .48, "speed": 6.8, "life": 1.4, "r": .42, "area": 1.25, "dmg": 52, "kb": 3.45, "burst_r": 1.25, "burst_dmg": 24, "burst_kb": 2.4})
-	_e("water_geyser", "Geyser", "water", 3, "column", {"output": 130, "cast": .66, "rec": .50, "fx": 1.75, "area": 1.1, "h": 4.3, "dmg": 34, "kb": 2.8, "note": "Getto verticale che lancia in aria"})
-	_e("water_rain", "Diluvio", "water", 4, "rain", {"output": 220, "cast": .70, "rec": .66, "fx": 2.15, "area": 2.6, "h": 5.0, "dmg": 42, "kb": .6, "note": "Pioggia battente ad area"})
+	_e("water_hydrant", "Idrante", "water", 1, "jet", {"output": 25, "cast": .36, "rec": .30, "fx": 3.7, "emit": 2.0, "w": .20, "area": .38, "dmg": 0, "stag": 10, "kb": 2.8, "dps": 0, "poise": 10, "push": 28, "reach": 7.0, "r0": .10, "r1": .40, "role": "area", "note": "Spinta continua, bagna e rallenta"})
+	_e("water_bolt", "Dardo d'acqua", "water", 1, "bolt", {"output": 30, "cast": .34, "rec": .25, "speed": 18, "life": .9, "fx": 1.0, "r": .15, "dmg": 23, "stag": 15, "kb": .85})
+	_e("water_tide", "Marea", "water", 2, "wave", {"output": 65, "cast": .62, "rec": .42, "speed": 5.6, "life": 2.0, "fx": 1.75, "w": 3.8, "h": .9, "area": 2.0, "dmg": 18, "stag": 20, "kb": 3.3, "role": "area", "note": "Un'onda larga che avanza"})
+	_e("water_pressure", "Getto pressurizzato", "water", 2, "jet", {"output": 70, "cast": .44, "rec": .36, "fx": 2.42, "emit": 1.1, "w": .06, "area": .16, "dmg": 44, "stag": 26, "kb": 2.8, "dps": 56, "poise": 20, "push": 24, "reach": 9.0, "r0": .06, "r1": .16, "note": "Getto sottile e potente"})
+	_e("water_ball", "Sfera d'acqua", "water", 3, "ball", {"output": 120, "cast": .66, "rec": .48, "speed": 6.8, "life": 1.4, "fx": 1.7, "r": .42, "area": 1.25, "dmg": 52, "stag": 44, "kb": 3.45, "heavy": true})
+	_e("water_geyser", "Geyser", "water", 3, "column", {"output": 130, "cast": .66, "rec": .50, "fx": 3.9, "at": .27, "area": 1.1, "h": 4.3, "dmg": 34, "stag": 38, "kb": 2.8, "role": "area", "note": "Quattro getti verticali attorno al punto mirato"})
+	_e("water_rain", "Diluvio", "water", 4, "rain", {"output": 220, "cast": .70, "rec": .66, "fx": 4.8, "emit": 3.6, "at": .36, "area": 2.6, "h": 5.0, "dmg": 42, "stag": 34, "kb": .6, "role": "area", "note": "Pioggia battente ad area"})
 	# ARIA.
-	_e("air_lash", "Schiocco", "air", 1, "lash", {"output": 20, "cast": .22, "rec": .20, "fx": .72, "r": .08, "dmg": 18, "kb": 1.15, "note": "Frusta d'aria rapida"})
-	_e("air_push", "Spinta", "air", 1, "push", {"output": 25, "cast": .26, "rec": .24, "fx": .88, "area": .9, "dmg": 0, "kb": 3.5, "status": "pushed", "note": "Allontana tutto ciò che ha davanti"})
-	_e("air_slash", "Taglio d'aria", "air", 2, "slash", {"output": 55, "cast": .17, "rec": .30, "fx": .82, "area": 1.15, "dmg": 40, "kb": 1.65})
-	_e("air_vacuum", "Vuoto", "air", 3, "vacuum", {"output": 120, "cast": .72, "rec": .48, "fx": 1.65, "area": 1.8, "dmg": 0, "kb": -3.1, "note": "Attira verso il centro"})
-	_e("air_updraft", "Ascensione", "air", 4, "updraft", {"output": 210, "cast": .95, "rec": .66, "fx": 2.1, "area": 1.95, "h": 5.4, "dmg": 0, "kb": 0, "note": "Solleva in aria"})
-	_e("air_cyclone", "Ciclone", "air", 4, "cyclone", {"output": 240, "cast": 1.0, "rec": .78, "fx": 2.5, "area": 1.65, "h": 5.0, "dmg": 54, "kb": 2.3, "note": "Spirale che colpisce e trascina"})
+	_e("air_lash", "Schiocco", "air", 1, "lash", {"output": 20, "cast": .22, "rec": .20, "fx": .72, "at": .44, "r": .08, "dmg": 18, "stag": 9, "kb": 1.15, "note": "Frusta d'aria fino al bersaglio"})
+	_e("air_push", "Spinta", "air", 1, "push", {"output": 25, "cast": .26, "rec": .24, "fx": .88, "at": .45, "area": .9, "dmg": 0, "stag": 10, "kb": 3.5, "role": "utilita", "note": "Un'onda d'urto che allontana"})
+	_e("air_slash", "Taglio d'aria", "air", 2, "slash", {"output": 55, "cast": .17, "rec": .30, "fx": .82, "at": .04, "area": 1.15, "dmg": 40, "stag": 18, "kb": 1.65, "note": "Mezzaluna che compare sul bersaglio"})
+	_e("air_vacuum", "Vuoto", "air", 3, "vacuum", {"output": 120, "cast": .72, "rec": .48, "fx": 2.45, "at": .28, "area": 1.8, "dmg": 0, "stag": 20, "kb": -3.1, "role": "utilita", "note": "Attira verso il centro"})
+	_e("air_updraft", "Ascensione", "air", 4, "updraft", {"output": 210, "cast": .95, "rec": .66, "fx": 3.85, "at": 2.3, "area": 1.95, "h": 5.4, "dmg": 0, "stag": 24, "kb": 0, "role": "utilita", "note": "Colonna d'aria che ricade di schianto"})
+	_e("air_cyclone", "Ciclone", "air", 4, "cyclone", {"output": 240, "cast": 1.0, "rec": .78, "fx": 3.8, "at": .28, "area": 1.65, "h": 5.0, "dmg": 54, "stag": 34, "kb": 2.3, "role": "area", "note": "Spirale che colpisce e trascina"})
 	# TERRA.
-	_e("earth_spikes", "Punte", "earth", 1, "spikes", {"output": 30, "cast": .34, "rec": .28, "fx": 1.15, "area": 1.25, "dmg": 30, "kb": 1.1})
-	_e("earth_rock", "Masso scagliato", "earth", 1, "throw", {"output": 35, "cast": .42, "rec": .30, "speed": 14, "life": 2.0, "r": .34, "dmg": 36, "kb": 1.45, "grav": .42})
-	_e("earth_wall", "Muraglia", "earth", 2, "wall", {"output": 80, "cast": .55, "rec": .42, "fx": 6.0, "w": 4.8, "h": 2.7, "dmg": 0, "kb": 0, "note": "Muro di terra per qualche secondo"})
-	_e("earth_pillar", "Colonna tellurica", "earth", 2, "pillar", {"output": 78, "cast": .58, "rec": .42, "fx": 8.0, "self": true, "h": 3.35, "dmg": 0, "kb": 0, "note": "Ti solleva su una colonna"})
-	_e("earth_quake", "Sisma", "earth", 4, "quake", {"output": 250, "cast": .85, "rec": .78, "fx": 2.7, "area": 3.8, "dmg": 68, "kb": 2.7, "note": "Quattro anelli di faglia"})
-	# KARMA (materia neutra; roster K29 con l'Output di K33).
-	_e("ago", "Ago", "karma", 1, "beam", {"output": 15, "cast": .28, "rec": .20, "speed": 110, "life": .70, "r": .026, "dmg": 18, "kb": .38, "decoh": 2.7, "scatter": .42, "floor": .82, "n": 3, "gap": .032, "fan": 6, "note": "Tre aghi quasi istantanei"})
-	_e("zoltraak", "Zoltraak", "karma", 1, "beam", {"output": 30, "cast": .55, "rec": .34, "speed": 64, "life": .5, "r": .052, "dmg": 42, "kb": 1.15, "decoh": 7.6, "scatter": 1.2, "floor": .30, "note": "Raggio: forte da vicino, si disperde lontano"})
-	_e("dardo", "Dardo", "karma", 1, "shaft", {"output": 20, "cast": .48, "rec": .26, "speed": 26, "life": .9, "r": .055, "dmg": 26, "kb": .9, "decoh": 11, "scatter": 1.4, "floor": .5})
-	_e("flusso", "Flusso", "karma", 1, "buff", {"output": 20, "cast": .22, "rec": .12, "fx": 4.5, "self": true, "dmg": 0, "kb": 0, "status": "flow", "note": "Velocità ×1,55 per 4,5 s"})
-	_e("tridente", "Tridente", "karma", 2, "shaft", {"output": 60, "cast": .58, "rec": .40, "speed": 31, "life": .78, "r": .074, "dmg": 18, "kb": .72, "decoh": 5.0, "scatter": .92, "floor": .62, "n": 3, "gap": .045, "fan": 12})
-	_e("spina", "Spina", "karma", 2, "beam", {"output": 70, "cast": .62, "rec": .36, "speed": 84, "life": .55, "r": .095, "dmg": 64, "kb": 1.45, "decoh": 3.6, "scatter": 1.0, "floor": .64, "n": 2, "gap": .055})
-	_e("orbe", "Orbe", "karma", 2, "orb", {"output": 85, "cast": .60, "rec": .38, "speed": 20, "life": 1.2, "r": .24, "dmg": 46, "kb": 1.6, "decoh": 4.6, "scatter": .32, "floor": .78, "burst_r": 1.6, "burst_dmg": 22, "burst_kb": 1.1})
-	_e("giudizio", "Giudizio", "karma", 3, "beam", {"output": 175, "cast": 1.20, "rec": .70, "speed": 104, "life": .8, "r": .30, "dmg": 132, "kb": 3.6, "decoh": 2.2, "scatter": .85, "floor": .60})
-	_e("nova", "Nova", "karma", 3, "orb", {"output": 150, "cast": 1.05, "rec": .66, "speed": 27, "life": 1.15, "r": .38, "dmg": 92, "kb": 3.1, "decoh": 3.4, "scatter": .30, "floor": .82, "burst_r": 2.6, "burst_dmg": 48, "burst_kb": 2.2})
+	_e("earth_spikes", "Punte", "earth", 1, "spikes", {"output": 30, "cast": .34, "rec": .28, "fx": 1.15, "at": .30, "area": 1.25, "dmg": 30, "stag": 24, "kb": 1.1, "role": "area"})
+	_e("earth_rock", "Masso", "earth", 1, "throw", {"output": 35, "cast": .42, "rec": .30, "speed": 14, "life": 2.0, "fx": 1.25, "at": 1.5, "r": .34, "dmg": 36, "stag": 30, "kb": 1.45, "note": "Si compone davanti alla mano, poi vola"})
+	_e("earth_wall", "Muraglia", "earth", 2, "wall", {"output": 80, "cast": .55, "rec": .42, "fx": 3.5, "at": .53, "w": 4.8, "h": 2.7, "dmg": 0, "stag": 0, "kb": 0, "role": "difesa", "note": "Muro di terra che sale dal suolo"})
+	_e("earth_pillar", "Colonna tellurica", "earth", 2, "pillar", {"output": 78, "cast": .58, "rec": .42, "fx": 2.8, "self": true, "h": 3.35, "dmg": 0, "stag": 0, "kb": 0, "role": "utilita", "note": "Ti solleva su una colonna"})
+	_e("earth_quake", "Sisma", "earth", 4, "quake", {"output": 250, "cast": .85, "rec": .78, "fx": 3.85, "at": .31, "area": 3.8, "dmg": 68, "stag": 78, "kb": 2.7, "heavy": true, "role": "area", "note": "Quattro anelli di faglia"})
+	# KARMA (materia coerente; roster finale di K122: teste che viaggiano).
+	_e("ago", "Ago", "karma", 1, "beam", {"output": 15, "cast": .28, "rec": .20, "speed": 110, "life": .70, "r": .026, "dmg": 18, "stag": 8, "kb": .38, "stop": .018, "shake": .0042, "fov": 0.12, "sfx": 1.36, "decoh": 2.7, "scatter": .42, "floor": .82, "note": "Ago quasi istantaneo"})
+	_e("zoltraak", "Zoltraak", "karma", 1, "beam", {"output": 30, "cast": .55, "rec": .34, "speed": 64, "life": .5, "r": .052, "dmg": 42, "stag": 34, "kb": 1.15, "stop": .032, "shake": .0105, "fov": 0.34, "sfx": 1.16, "decoh": 7.6, "scatter": 1.2, "floor": .30, "note": "Raggio: forte da vicino, si disperde lontano"})
+	_e("dardo", "Dardo", "karma", 1, "shaft", {"output": 20, "cast": .48, "rec": .26, "speed": 26, "life": .9, "r": .085, "body": 2.40, "dmg": 26, "stag": 20, "kb": .9, "stop": .028, "shake": .0072, "fov": 0.24, "sfx": 1.30, "decoh": 5.2, "scatter": .90, "floor": .62})
+	_e("flusso", "Flusso", "karma", 1, "buff", {"output": 20, "cast": .22, "rec": .12, "fx": 4.5, "self": true, "dmg": 0, "stag": 0, "kb": 0, "status": "flow", "note": "Velocità ×1,55 per 4,5 s"})
+	_e("tridente", "Tridente", "karma", 2, "shaft", {"output": 60, "cast": .58, "rec": .40, "speed": 31, "life": .78, "r": .074, "body": 2.25, "dmg": 18, "stag": 14, "kb": .72, "stop": .024, "shake": .0068, "fov": 0.23, "sfx": 1.24, "decoh": 5.0, "scatter": .92, "floor": .62, "n": 3, "gap": .045, "fan": 12})
+	_e("spina", "Spina", "karma", 2, "beam", {"output": 70, "cast": .62, "rec": .36, "speed": 84, "life": .55, "r": .095, "dmg": 64, "stag": 42, "kb": 1.45, "stop": .038, "shake": .0110, "fov": 0.36, "sfx": 1.10, "decoh": 3.6, "scatter": 1.0, "floor": .64})
+	_e("orbe", "Orbe", "karma", 2, "orb", {"output": 85, "cast": .60, "rec": .38, "speed": 20, "life": 1.2, "r": .24, "dmg": 46, "stag": 34, "kb": 1.6, "stop": .040, "shake": .0130, "fov": 0.44, "sfx": .98, "decoh": 4.6, "scatter": .32, "floor": .78, "burst_r": 1.6, "burst_dmg": 22, "burst_stag": 18, "burst_kb": 1.1})
+	_e("giudizio", "Giudizio", "karma", 3, "beam", {"output": 175, "cast": 1.20, "rec": .70, "speed": 104, "life": .8, "r": .30, "dmg": 132, "stag": 98, "kb": 3.6, "stop": .075, "shake": .0195, "fov": 0.72, "sfx": .68, "heavy": true, "decoh": 2.2, "scatter": .85, "floor": .60})
+	_e("nova", "Nova", "karma", 3, "orb", {"output": 150, "cast": 1.05, "rec": .66, "speed": 27, "life": 1.15, "r": .38, "dmg": 92, "stag": 72, "kb": 3.1, "stop": .062, "shake": .0195, "fov": 0.7, "sfx": .70, "heavy": true, "decoh": 3.4, "scatter": .30, "floor": .82, "burst_r": 2.6, "burst_dmg": 48, "burst_stag": 40, "burst_kb": 2.2})

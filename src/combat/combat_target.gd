@@ -19,3 +19,8 @@ func take_hit(_impulse: Vector3, _damage: float) -> void:
 ## contare come colpo. `max_speed` limita la velocita' orizzontale risultante.
 func push(_dv: Vector3, _max_speed: float = 6.0) -> void:
 	pass
+
+
+## Stagger (poise) di un colpo: fa vacillare il corpo senza spostarlo.
+func stagger(_amount: float, _dir: Vector2) -> void:
+	pass

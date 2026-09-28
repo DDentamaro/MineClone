@@ -4,16 +4,23 @@ extends RefCounted
 ## senza nodi, deterministica con il suo generatore.
 ##
 ## - Lancio: nessuna → raccolta → recupero. Niente mana (D-027, RMNDWN): ogni
-##   magia ha un Output che non puo' superare il tetto del caster, e ogni lancio
-##   alza la Pressione del nucleo (satura a 1, riparte sotto .85). Impegno al 35%
-##   (dardi del prototipo) o al 78% (RMNDWN); rilascio prima dell'impegno dopo
-##   0,2 s = annullato; tocco breve = lancio automatico; coda dal 55%.
+##   magia ha un Output che non puo' superare il tetto del caster, e ogni
+##   raccolta, appena parte, alza la Pressione del nucleo (satura a 1, riparte
+##   sotto .85). Magie del libro (RMNDWN, D-031): una pressione avvia una
+##   raccolta che finisce da sola, niente carica tenuta; la annullano solo la
+##   spinta prima dell'impegno (78%) o la capriola; coda dal 55%. Dardi del
+##   prototipo: impegno al 35%, rilascio prima dell'impegno dopo 0,2 s =
+##   annullato, tocco breve = lancio automatico.
 ## - Mira: bersaglio agganciato al 55% dell'altezza, altrimenti 7 unita' avanti.
 ## - Dardi balistici (gravita' 18 × grav, attrito), compensazione balistica,
 ##   collisione con bersagli (4 campioni), voxel (DDA), tronchi. L'aria trapassa.
-## - Stati (bruciatura, bagnato, lento, spinto) e `status_react`: fuoco su bagnato
-##   = vapore e niente danno; acqua su bruciante = shock termico ×1,25; aria su
-##   bagnato = spinta ×1,8.
+## - Stati (bruciatura, bagnato, lento, spinto) e `status_react` come RMNDWN:
+##   fuoco su bagnato = vapore e niente danno; acqua su bruciante = shock termico
+##   (4 × pile di danno silenzioso); aria su bruciante = ventaglio; Karma su
+##   bagnato = conduzione (stagger ×1,8 e scossa ai vicini bagnati).
+## - Karma: ogni colpo e' una testa che viaggia e si ferma sul primo corpo; a
+##   fine portata svanisce senza impatto. Hitstop e scossa con le famiglie
+##   d'impatto di RMNDWN (HITFAM) e il loro refrattario.
 ## - Mondo: fuoco su erba/legno/foglie con automa a tick 0,25 s, bagnato che
 ##   spegne e impedisce l'accensione, cratere del masso, vento che soffia le braci.
 ##
@@ -55,6 +62,17 @@ class Dart:
 	var bounces := 0
 	var acc := 0
 	var dead := false
+	## Punto di partenza (i raggi del Karma sono accesi da qui alla testa).
+	var origin := Vector3.ZERO
+	## Secondi ancora fermi davanti alla mano (il masso che si compone).
+	var hold := 0.0
+	## Distanza oltre la quale un proiettile elementale si ferma (la mira).
+	var reach := INF
+	## Dopo il contatto: secondi di dissolvenza del raggio (niente collisioni).
+	var fade := 0.0
+	var fade_life := 0.0
+	## Coerenza al contatto (per il disegno dell'impatto).
+	var k := 1.0
 
 
 class FireCell:
@@ -117,6 +135,8 @@ const PRESS_GAIN := 0.85
 const ALT_BONUS := 0.55
 const COMMIT_NEW := 0.78
 const QUEUE_FROM := 0.55
+## Passo massimo durante la magia (RMNDWN ACTP.strikeEntryCap, m/s).
+const CAST_WALK := 1.75
 var output_bonus := 0.0
 ## Rigenerazione dell'equipaggiamento: accelera il calo della pressione.
 var decay_bonus := 0.0
@@ -310,6 +330,8 @@ func step(dt: float, motor: PlayerMotor, targets: Array, facing: float, hand: Ve
 	_targets_cache = targets
 	_player_pos = motor.position
 	_press_step(dt)
+	for f: String in _refr:
+		_refr[f] = maxf(0.0, float(_refr[f]) - dt)
 	var tap := _tap
 	_tap = false
 	match phase:
@@ -327,7 +349,10 @@ func step(dt: float, motor: PlayerMotor, targets: Array, facing: float, hand: Ve
 					t = 0.0
 					w = 0.0
 					committed = false
-					auto_fire = (tap or queued) and not held
+					# RMNDWN: la raccolta finisce da sola; i dardi del prototipo si tengono.
+					auto_fire = ((tap or queued) and not held) or not s.is_legacy()
+					# La pressione sale quando la raccolta parte (RMNDWN L33895).
+					_press_add(s)
 					if not s.at_self:
 						lock_target = _pick_target(motor.position, facing, targets)
 					else:
@@ -365,7 +390,7 @@ func step(dt: float, motor: PlayerMotor, targets: Array, facing: float, hand: Ve
 			if t >= s.recover and _pending.is_empty():
 				phase = Phase.NONE
 	_step_pending(dt, hand, motor)
-	_step_darts(dt, motor, targets)
+	_step_darts(dt, motor, targets, hand)
 	runtime.step(dt, motor, targets, hand)
 	_step_fire(dt, motor, all)
 	_step_status(dt)
@@ -403,7 +428,6 @@ func _resolve_aim(motor: PlayerMotor, facing: float, s: SpellDefinition = null) 
 
 ## Fine della raccolta: pressione, poi la forma della magia (salve comprese).
 func _cast(s: SpellDefinition, hand: Vector3, motor: PlayerMotor) -> void:
-	_press_add(s)
 	phase = Phase.RECOVER
 	t = 0.0
 	if s.is_legacy():
@@ -432,7 +456,8 @@ func shot_dir(s: SpellDefinition, i: int, hand: Vector3) -> Vector3:
 	var d := aim - hand
 	var l := d.length()
 	d = d / l if l > 1e-4 else _fwd(face)
-	if s.fan_deg > 0.0 and s.salvo_n > 1:
+	# Il ventaglio esiste solo per i raggi del Karma (la raffica di fuoco converge).
+	if s.fan_deg > 0.0 and s.salvo_n > 1 and s.el == "karma":
 		var off := (float(i) - (s.salvo_n - 1) * 0.5) / maxf(1.0, (s.salvo_n - 1) * 0.5)
 		d = d.rotated(Vector3.UP, deg_to_rad(s.fan_deg) * off)
 	return d
@@ -442,12 +467,28 @@ func _shot(s: SpellDefinition, i: int, hand: Vector3, motor: PlayerMotor) -> voi
 	var d := shot_dir(s, i, hand)
 	events.append({"type": "release", "el": s.el, "p": hand + d * 0.12, "dir": d, "spell": s})
 	match s.kind:
-		"bolt", "volley", "ball", "shaft", "orb", "throw":
+		"beam", "shaft", "orb":
+			# Karma: una testa che viaggia per speed·lifetime (RMNDWN L29483).
 			_spawn_dart(s, hand + d * 0.12, d)
+		"bolt", "volley", "ball":
+			var dart := _spawn_dart(s, hand + d * 0.12, d)
+			dart.reach = maxf(0.5, (aim - dart.p).length())
+		"throw":
+			# Il masso si compone davanti alla mano per meta' del viaggio, poi vola
+			# e arriva al contatto a 1,5 s (v78 struct throw).
+			var o := hand + _fwd(face) * 0.45 + Vector3(0, 0.22, 0)
+			var dd := aim - o
+			var dist := maxf(1.0, dd.length())
+			var fly := s.hit_at * 0.5
+			var r := _spawn_dart(s, o, dd / dist)
+			r.hold = fly
+			r.v = dd / dist * (dist / fly)
+			r.reach = dist
 		"meteor":
 			var from := aim + Vector3(-1.2, 7.5, 1.0)
 			var dm := (aim - from).normalized()
-			_spawn_dart(s, from, dm)
+			var met := _spawn_dart(s, from, dm)
+			met.reach = (aim - from).length()
 		_:
 			runtime.cast(s, i, hand, d, motor)
 
@@ -457,6 +498,7 @@ func _spawn_dart(s: SpellDefinition, o: Vector3, d: Vector3) -> Dart:
 	dart.spell = s
 	dart.p = o
 	dart.prev = o
+	dart.origin = o
 	dart.v = d * s.speed
 	if s.grav > 0.0:
 		var dist := Vector2(aim.x - o.x, aim.z - o.z).length()
@@ -493,12 +535,31 @@ static func coherence(s: SpellDefinition, t_fly: float) -> float:
 	return maxf(s.coh_floor, exp(-s.decoh * t_fly))
 
 
-func _step_darts(dt: float, motor: PlayerMotor, targets: Array) -> void:
+func _step_darts(dt: float, motor: PlayerMotor, targets: Array, hand: Vector3 = Vector3.ZERO) -> void:
 	var opaque := catalog.opaque_table() if catalog != null else PackedByteArray()
 	var i := darts.size() - 1
 	while i >= 0:
 		var P := darts[i]
 		var S := P.spell
+		if P.fade > 0.0:
+			# Raggio gia' arrivato: resta solo il disegno che si spegne.
+			P.fade -= dt
+			if P.fade <= 0.0:
+				darts.remove_at(i)
+			i -= 1
+			continue
+		if P.hold > 0.0:
+			# Il masso si compone davanti alla mano e la segue.
+			P.hold -= dt
+			P.p = hand + _fwd(face) * 0.45 + Vector3(0, 0.22, 0)
+			P.prev = P.p
+			P.origin = P.p
+			var dd := aim - P.p
+			var dist0 := maxf(1.0, dd.length())
+			P.v = dd / dist0 * (dist0 / maxf(0.05, S.hit_at * 0.5))
+			P.reach = dist0
+			i -= 1
+			continue
 		P.t += dt
 		P.prev = P.p
 		P.v.y -= MG * S.grav * dt
@@ -509,29 +570,35 @@ func _step_darts(dt: float, motor: PlayerMotor, targets: Array) -> void:
 		var dist := maxf(seg.length(), 1e-6)
 		var dir := seg / dist
 		var done := false
-		# 1) bersagli: sfera contro cilindro su 4 campioni del segmento.
+		# 1) bersagli: sfera contro cilindro su 4 campioni del segmento. Il Karma
+		# si allarga man mano che perde coerenza: r0·(1 + scatter·(1 − coh)).
 		var rr := S.r + S.wide * 0.5
+		if S.el == "karma":
+			rr = S.r * (1.0 + S.scatter * (1.0 - exp(-S.decoh * P.t)))
 		for o in targets:
 			var tg := o as CombatTarget
 			if tg == null or not tg.alive or P.hits.has(tg):
 				continue
 			var hit := false
+			var at := P.p
 			for k in 4:
 				var q := P.prev + seg * (k / 3.0)
 				if Vector2(q.x - tg.position.x, q.z - tg.position.z).length() < tg.radius + rr \
 						and q.y > tg.position.y - rr and q.y < tg.position.y + tg.height + rr:
 					hit = true
+					at = q
 					break
 			if not hit:
 				continue
 			P.hits[tg] = true
+			P.p = at
 			_hit_target(P, tg)
 			if not (S.el == "air" and S.is_legacy()):
 				_impact(P, P.p, -dir, {"kind": "target"})
 				done = true
 				break
 		if done:
-			darts.remove_at(i)
+			_end_dart(i)
 			i -= 1
 			continue
 		# 2) voxel lungo il segmento.
@@ -548,8 +615,9 @@ func _step_darts(dt: float, motor: PlayerMotor, targets: Array) -> void:
 					events.append({"type": "burst", "el": "earth", "p": q, "n": n, "k": 0.5})
 					i -= 1
 					continue
+				P.p = q
 				_impact(P, q, n, {"kind": "block", "cell": h.cell, "id": h.id})
-				darts.remove_at(i)
+				_end_dart(i)
 				i -= 1
 				continue
 		# 3) tronchi.
@@ -559,7 +627,7 @@ func _step_darts(dt: float, motor: PlayerMotor, targets: Array) -> void:
 			var el := Vector2(e.x, e.z).normalized() if e.length() > 1e-4 else Vector2(0, 1)
 			events.append({"type": "shake_tree", "tree": tree, "dir": -el, "k": 1.0})
 			_impact(P, P.p, e.normalized() if e.length() > 1e-4 else Vector3.UP, {"kind": "tree"})
-			darts.remove_at(i)
+			_end_dart(i)
 			i -= 1
 			continue
 		# 4) aria: vento lungo il passaggio, braci soffiate.
@@ -571,16 +639,39 @@ func _step_darts(dt: float, motor: PlayerMotor, targets: Array) -> void:
 				P.acc = 2
 				_blow_fire(P.p, 1.4, Vector2(dir.x, dir.z))
 				_shake_near(P.p, Vector2(dir.x, dir.z))
+		# 5) proiettili elementali: arrivati alla mira si fermano li' (RMNDWN
+		# risolve il colpo nel punto mirato all'istante del contatto).
+		if P.reach < INF and P.origin.distance_to(P.p) >= P.reach:
+			var dd := P.origin.direction_to(P.p)
+			P.p = P.origin + dd * P.reach
+			_impact(P, P.p, -dd, {"kind": "aim"})
+			_end_dart(i)
+			i -= 1
+			continue
 		var outside := world != null and not world.inside(floori(P.p.x), floori(P.p.y), floori(P.p.z)) and P.p.y >= 0.0
 		if P.t >= S.life or outside or (world != null and P.p.y < 0.0):
-			if S.burst_r > 0.0 or S.kind == "meteor":
+			if S.el == "karma":
+				# A fine portata il Karma svanisce: niente impatto ne' scoppio.
+				events.append({"type": "karma_fade", "p": P.p, "spell": S})
+			elif S.burst_r > 0.0 or S.kind == "meteor" or S.area > 0.0:
 				_impact(P, P.p, Vector3.UP, {"kind": "air"})
-			elif S.el == "fire" or S.el == "air" or S.el == "karma":
+			elif S.el == "fire" or S.el == "air":
 				events.append({"type": "burst", "el": S.el, "p": P.p, "n": dir, "k": 0.45})
 			else:
 				_impact(P, P.p, Vector3.UP, {"kind": "air"})
-			darts.remove_at(i)
+			_end_dart(i)
 		i -= 1
+
+
+## Fine di un dardo: i raggi del Karma restano ancora un poco per spegnersi
+## verso il punto d'arrivo (fade .30 s di Zoltraak), il resto sparisce.
+func _end_dart(i: int) -> void:
+	var P := darts[i]
+	if P.spell.el == "karma" and P.spell.kind != "orb":
+		P.fade = 0.30
+		P.fade_life = 0.30
+	else:
+		darts.remove_at(i)
 
 
 ## La spina d'aria scuote gli alberi entro 1,8 dal suo passaggio.
@@ -614,30 +705,62 @@ func _hit_target(P: Dart, tg: CombatTarget) -> void:
 	var S := P.spell
 	var hv := Vector2(P.v.x, P.v.z)
 	var d := hv.normalized() if hv.length() > 1e-4 else Vector2(0, -1)
-	spell_hit(tg, S, S.dmg * coherence(S, P.t), d, P.p)
+	P.k = coherence(S, P.t)
+	if S.is_legacy() or S.area <= 0.0:
+		spell_hit(tg, S, S.dmg * P.k, d, P.p, 1.0, -1.0, false, S.stagger * P.k, P.k)
 
 
-## Spinta dei nuovi incantesimi: il knockback di RMNDWN in m/s (×2,4).
+## Spinta dei nuovi incantesimi: il knockback di RMNDWN in m/s (×2,4, perche' il
+## manichino ha l'attrito del prototipo).
 const KNOCK_SCALE := 2.4
-## Grammatica d'impatto per elemento (IMPACT_GRAMMAR di RMNDWN): scossa e hitstop.
-const GRAMMAR := {"fire": [0.78, 0.55], "water": [1.05, 1.0], "air": [0.55, 0.45], "earth": [1.4, 1.35], "karma": [1.0, 1.0]}
+## Grammatica d'impatto per elemento (IMPACT_GRAMMAR, RMNDWN L18502):
+## [scossa, hitstop, durata, frequenza, campo visivo].
+const GRAMMAR := {"fire": [0.78, 0.55, 0.70, 1.75, 0.95], "water": [1.05, 1.0, 1.0, 0.95, 1.0], "air": [0.55, 0.45, 0.85, 1.15, 1.15],
+	"earth": [1.4, 1.35, 1.55, 0.60, 0.80], "karma": [1.0, 1.0, 0.90, 1.30, 1.20]}
+## Famiglie d'impatto (HITFAM L18462): hitstop, scossa, suono e refrattario
+## (in quella finestra niente hitstop, scossa, lampo ne' suono).
+const FAMILY := {"spell": {"stop": 0.30, "shake": 0.55, "sfx": 0.85, "refr": 0.16},
+	"sustain": {"stop": 0.0, "shake": 0.32, "sfx": 0.55, "refr": 0.22}}
+## Materiale della forza (ELEMENT_FORCE_MATERIAL): l'aria ferma meno.
+const FORCE_STOP := {"air": 0.45}
+var _refr := {"spell": 0.0, "sustain": 0.0}
 
 
-## Colpo di una magia su un bersaglio: reazioni, critico, danno, spinta, stati.
-## Vale per dardi, raggi, getti, aree. `base` e' il danno prima dei moltiplicatori.
-func spell_hit(tg: CombatTarget, S: SpellDefinition, base: float, dir: Vector2, p: Vector3, knock_mul: float = 1.0, lift: float = -1.0, quiet: bool = false) -> void:
+## Vicinanza al giocatore (0,18..1): scossa e suono calano con la distanza.
+func near_k(p: Vector3) -> float:
+	return clampf(1.0 - (_player_pos.distance_to(p) - 4.5) / (14.0 - 4.5), 0.18, 1.0)
+
+
+## Stati dati dal colpo (statusFromHit, RMNDWN L21619).
+static func statuses_from(S: SpellDefinition, knock: float) -> Array[String]:
+	var out: Array[String] = []
+	if S.status != "" and S.status != "flow":
+		out.append(S.status)
+	if (S.el == "air" or S.el == "water") and absf(knock) >= 0.6 and not out.has("pushed"):
+		out.append("pushed")
+	return out
+
+
+## Colpo di una magia su un bersaglio (applyCombatHit + elementResolveHit):
+## reazioni, danno, stagger, spinta, stati, hitstop e scossa col refrattario.
+## `k` = coerenza del Karma (1 per gli elementi); `quiet` = colpo sostenuto.
+func spell_hit(tg: CombatTarget, S: SpellDefinition, base: float, dir: Vector2, p: Vector3, knock_mul: float = 1.0, lift: float = -1.0,
+		quiet: bool = false, stag: float = -1.0, k: float = 1.0) -> void:
 	if tg == player:
+		return
+	# Le magie di difesa non feriscono mai (role 'difesa', RMNDWN L20835).
+	if S.role == "difesa":
 		return
 	var mul := status_react(tg, S.el)
 	var crit := rng.randf() < 0.10 and base > 0.0
 	var amount := base * rng.randf_range(0.9, 1.1) * (1.5 if crit else 1.0) * mul * power
-	var knock := S.knock * (1.0 if S.is_legacy() else KNOCK_SCALE) * knock_mul
-	if S.el == "air" and has_status(tg, "wet"):
-		knock *= 1.8
-	# Conduzione (RMNDWN statusConduct): il Karma sul bagnato spinge di piu' e
-	# meta' del danno salta sugli altri corpi bagnati entro 3 unita'.
+	var knock := S.knock * (1.0 if S.is_legacy() else KNOCK_SCALE * (1.12 if S.heavy else 1.0)) * knock_mul
+	var st := (S.stagger if stag < 0.0 else stag)
+	# Conduzione (RMNDWN statusConduct): il Karma sul bagnato fa vacillare ×1,8
+	# e meta' del danno salta sugli altri corpi bagnati entro 3 unita'.
 	if S.el == "karma" and has_status(tg, "wet"):
-		knock *= 1.8
+		st *= 1.8
+		events.append({"type": "conduct", "p": tg.position + Vector3(0, tg.height * 0.6, 0)})
 		var arcs := 0
 		for o in _targets_cache:
 			var other := o as CombatTarget
@@ -649,31 +772,46 @@ func spell_hit(tg: CombatTarget, S: SpellDefinition, base: float, dir: Vector2, 
 				events.append({"type": "arc", "from": tg.position + Vector3(0, tg.height * 0.6, 0), "to": other.position + Vector3(0, other.height * 0.6, 0)})
 		if arcs > 0:
 			events.append({"type": "text", "p": tg.position + Vector3(0, tg.height + 0.5, 0), "text": "CONDUZIONE"})
-	var up := lift if lift >= 0.0 else (1.2 if S.is_legacy() else 0.4 + 0.25 * absf(knock))
+	# Il knockback di RMNDWN e' orizzontale; i dardi del prototipo sollevano.
+	var up := lift if lift >= 0.0 else (1.2 if S.is_legacy() else 0.0)
 	if base > 0.0 or knock != 0.0:
 		tg.take_hit(Vector3(dir.x * knock, up, dir.y * knock), maxf(amount, 1.0 if mul > 0.0 and base > 0.0 else 0.0))
-	var g: Array = GRAMMAR.get(S.el, [1.0, 1.0])
-	if base <= 0.0 and knock == 0.0:
-		if mul > 0.0 and S.status != "":
-			apply_status(tg, S.status)
-		return
-	if not quiet:
-		# Colpi sostenuti e a ticchettio: niente hitstop (HITFAM "sustain").
-		hitstop = maxf(hitstop, 0.03 * float(g[1]) * (1.0 if base < 60.0 else 1.6))
-	events.append({"type": "hit", "el": S.el, "p": p, "target": tg, "damage": amount, "crit": crit, "shake": float(g[0]) * (0.4 if quiet else 1.0), "quiet": quiet})
-	# Ventaglio (RMNDWN statusReact): l'aria su chi brucia aggiunge una pila e
-	# sparge la fiamma sui corpi entro 3,2 unita'.
+	if st > 0.0 and mul > 0.0:
+		tg.stagger(st, dir)
+	if mul > 0.0:
+		for n in statuses_from(S, knock / (KNOCK_SCALE if not S.is_legacy() else 1.0)):
+			apply_status(tg, n)
+	# Ventaglio (RMNDWN statusReact): l'aria su chi brucia aggiunge una pila
+	# (col suo intervallo) e accende i corpi entro 3,2 unita', giocatore compreso.
 	if S.el == "air" and has_status(tg, "burn"):
-		apply_status(tg, "burn", true)
-		for o in _targets_cache:
+		apply_status(tg, "burn")
+		var near_bodies: Array = []
+		near_bodies.append_array(_targets_cache)
+		near_bodies.append(player)
+		for o in near_bodies:
 			var other := o as CombatTarget
 			if other != null and other != tg and other.alive and other.position.distance_to(tg.position) <= 3.2:
 				apply_status(other, "burn")
 		events.append({"type": "text", "p": tg.position + Vector3(0, tg.height + 0.5, 0), "text": "VENTAGLIO"})
-	if mul > 0.0 and S.status != "":
-		apply_status(tg, S.status)
+		events.append({"type": "fan_ring", "p": tg.position + Vector3(0, tg.height * 0.5, 0)})
 	if S.el == "air":
 		wind = {"x": tg.position.x, "z": tg.position.z, "dx": dir.x, "dz": dir.y, "t": 0.6, "pow": 0.35, "r": 1.8}
+	# Famiglia e refrattario: solo il primo colpo della finestra fa hitstop,
+	# scossa e suono (il lampo sul bersaglio c'e' sempre).
+	var fam := "sustain" if quiet else "spell"
+	var F: Dictionary = FAMILY[fam]
+	var juice := float(_refr[fam]) <= 0.0
+	if juice:
+		_refr[fam] = F["refr"]
+	var g: Array = GRAMMAR.get(S.el, GRAMMAR["karma"])
+	var near := near_k(p)
+	if juice and not S.is_legacy():
+		hitstop = maxf(hitstop, S.hit_stop * float(F["stop"]) * float(FORCE_STOP.get(S.el, 1.0)) * float(g[1]) * (0.35 + 0.65 * k))
+	elif juice:
+		hitstop = maxf(hitstop, 0.03 * float(g[1]))
+	events.append({"type": "hit", "el": S.el, "p": p, "target": tg, "damage": amount, "crit": crit, "quiet": quiet, "juice": juice,
+		"heavy": S.heavy, "dir": dir, "near": near, "sfx": S.sfx, "spell": S,
+		"shake": S.shake * float(F["shake"]) * near * float(g[0]) if juice else 0.0})
 
 
 func _impact(P: Dart, p: Vector3, n: Vector3, info: Dictionary) -> void:
@@ -722,21 +860,33 @@ func _impact(P: Dart, p: Vector3, n: Vector3, info: Dictionary) -> void:
 			_blow_fire(p, 1.6, Vector2(P.v.x, P.v.z))
 
 
-## Impatto dei nuovi dardi: scoppio delle sfere, reazioni col mondo, segni a terra.
+## Impatto dei nuovi dardi. Karma: la sfera scoppia (burst × coerenza) sui
+## corpi vicini non ancora colpiti. Elementi con area (palla, meteorite):
+## tutti i corpi nella sfera `area` prendono il danno pieno (elementResolveHit).
 func _impact_new(P: Dart, p: Vector3, n: Vector3, info: Dictionary) -> void:
 	var S := P.spell
-	if S.burst_r > 0.0:
+	if S.el == "karma" and S.burst_r > 0.0:
+		var k := coherence(S, P.t)
 		for o in _targets_cache:
 			var tg := o as CombatTarget
 			if tg == null or not tg.alive or P.hits.has(tg):
 				continue
-			var dd := Vector2(tg.position.x - p.x, tg.position.z - p.z)
-			if dd.length() > S.burst_r + tg.radius or absf(tg.position.y - p.y) > 2.5:
+			if not runtime.in_sphere(tg, p, S.burst_r):
 				continue
 			P.hits[tg] = true
-			spell_hit(tg, S, S.burst_dmg * coherence(S, P.t), dd.normalized() if dd.length() > 1e-3 else Vector2(0, -1), tg.position,
-				S.burst_knock / maxf(S.knock, 1e-3))
+			var dd := Vector2(tg.position.x - p.x, tg.position.z - p.z)
+			spell_hit(tg, S, S.burst_dmg * k, dd.normalized() if dd.length() > 1e-3 else Vector2(0, -1), tg.position,
+				S.burst_knock / maxf(S.knock, 1e-3), -1.0, false, S.burst_stag * k, k)
 		events.append({"type": "burst_ring", "el": S.el, "p": p, "r": S.burst_r})
+	elif S.el != "karma" and S.area > 0.0:
+		for o in _targets_cache:
+			var tg := o as CombatTarget
+			if tg == null or not tg.alive or not runtime.in_sphere(tg, p, S.area):
+				continue
+			P.hits[tg] = true
+			var dd := Vector2(tg.position.x - P.origin.x, tg.position.z - P.origin.z)
+			spell_hit(tg, S, S.dmg, dd.normalized() if dd.length() > 1e-3 else Vector2(0, -1), tg.position + Vector3(0, tg.height * 0.5, 0))
+		events.append({"type": "burst_ring", "el": S.el, "p": p, "r": S.area})
 	if world == null or info.get("kind") == "tree":
 		return
 	runtime.world_touch(S, p, maxf(S.burst_r, S.area))
@@ -972,7 +1122,8 @@ func player_speed() -> float:
 	return k
 
 
-## L'unico punto in cui un elemento sa dell'altro: moltiplicatore del danno.
+## L'unico punto in cui un elemento sa dell'altro: moltiplicatore del danno
+## (vapore = 0; lo shock termico toglie il fuoco con danno a parte).
 func status_react(tg: CombatTarget, el: String) -> float:
 	if not statuses.has(tg):
 		return 1.0
@@ -984,10 +1135,13 @@ func status_react(tg: CombatTarget, el: String) -> float:
 		events.append({"type": "text", "p": head + Vector3(0, 0.7, 0), "text": "VAPORE"})
 		return 0.0
 	if el == "water" and s.has("burn"):
+		# Shock termico: il fuoco si spegne con 4 × pile di danno silenzioso.
+		var stacks := int(s["burn"]["st"])
 		s.erase("burn")
+		tg.take_hit(Vector3.ZERO, 4.0 * stacks)
 		events.append({"type": "steam", "p": head, "n": 12})
 		events.append({"type": "text", "p": head + Vector3(0, 0.7, 0), "text": "SHOCK TERMICO"})
-		return 1.25
+		return 1.0
 	return 1.0
 
 

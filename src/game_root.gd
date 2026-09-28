@@ -328,7 +328,10 @@ func _physics_process(dt: float) -> void:
 		motor.drive = combat.drive
 		motor.move_scale = combat.move_scale * combat.weapon.move_mult
 		motor.move_scale *= _stats.speed
-		if magic.phase == MagicSystem.Phase.GATHER:
+		if magic.phase != MagicSystem.Phase.NONE and not magic.spell().is_legacy():
+			# Per tutta la magia si cammina al massimo a 1,75 m/s (ACTP.strikeEntryCap).
+			motor.move_scale = minf(motor.move_scale, MagicSystem.CAST_WALK / PlayerMotor.SPEED)
+		elif magic.phase == MagicSystem.Phase.GATHER:
 			motor.move_scale *= 0.35
 		motor.move_scale *= magic.player_speed()
 		motor.step(dt, _move_world, (_jump_key or _touch.is_held(&"jump")) and not combat.is_busy())
@@ -350,6 +353,21 @@ func _physics_process(dt: float) -> void:
 	# Posa dell'eroe al passo della fisica (D-028): la lama che ferisce e' quella
 	# che si vede, anche quando piu' passi di fisica cadono in un fotogramma.
 	_avatar.animate(0.0 if combat.hitstop > 0.0 else dt, motor, combat, magic)
+
+
+## Scossa di un colpo di magia (RMNDWN triggerCombatJuice + cameraState): i
+## dardi del prototipo scuotono come prima; le magie del libro con la scossa
+## direzionale lungo il colpo (la terra verso il basso) e il calcio del campo visivo.
+func _hit_juice(e: Dictionary) -> void:
+	var S: SpellDefinition = e["spell"]
+	if S.is_legacy():
+		_camera_rig.shake(0.09 * float(MagicSystem.GRAMMAR[S.el][0]))
+		return
+	var g: Array = MagicSystem.GRAMMAR.get(S.el, MagicSystem.GRAMMAR["karma"])
+	var dur := (0.20 if S.heavy else 0.14) * 0.85 * float(g[2])
+	var d: Vector2 = e["dir"]
+	var fov := S.fov * 0.55 * float(e["near"]) * float(g[4])
+	_camera_rig.spell_shake(float(e["shake"]), Vector3(d.x, 0, d.y), dur, float(g[3]), fov, S.el == "earth")
 
 
 ## Riquadri dei colpi (Hitbox) e cubo del cursore di costruzione.
@@ -539,13 +557,10 @@ func _process(dt: float) -> void:
 			var d: Vector2 = e["dir"]
 			RenderingServer.global_shader_parameter_set(&"tree_hit", Vector3(ts.seed_value, _day.clock, float(e["k"])))
 			RenderingServer.global_shader_parameter_set(&"tree_hit_dir", d)
-		elif e["type"] == "impact":
+		elif e["type"] == "impact" and (e["spell"] as SpellDefinition).is_legacy():
 			_camera_rig.shake(0.12 if e["el"] != "earth" else 0.25)
-		elif e["type"] == "hit" and not e.get("quiet", false):
-			# Grammatica d'impatto per elemento (RMNDWN IMPACT_GRAMMAR).
-			_camera_rig.shake(0.09 * float(e["shake"]))
-		elif e["type"] == "area" or e["type"] == "struct":
-			_camera_rig.shake(0.1 * float(MagicSystem.GRAMMAR.get(e.get("el", "earth"), [1.0])[0]))
+		elif e["type"] == "hit" and e.get("juice", false):
+			_hit_juice(e)
 	magic.events.clear()
 	var lt := TrainingGround._light_at(world, p + Vector3(0, 1.1, 0))
 	_avatar.set_light(lt.x, lt.y)

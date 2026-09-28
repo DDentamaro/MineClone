@@ -126,6 +126,18 @@ func ground(world: WorldData, x: float, z: float) -> float:
 	return VoxelQuery.field_height(world, x, z, position.y + 0.5)
 
 
+## Il manichino vacilla in proporzione allo stagger (e lo conta).
+var stagger_total := 0.0
+
+
+func stagger(amount: float, dir: Vector2) -> void:
+	if not alive:
+		return
+	stagger_total += amount
+	var d := dir.normalized() if dir.length() > 1e-4 else Vector2(0, -1)
+	tilt_v += Vector2(-d.y, d.x) * amount * 0.035
+
+
 func push(dv: Vector3, max_speed: float = 6.0) -> void:
 	if not alive:
 		return

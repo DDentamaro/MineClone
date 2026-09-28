@@ -56,6 +56,12 @@ var pixel_snap := true
 ## Scossa dei colpi (unita' di mondo circa), smorzata in pochi decimi di secondo.
 var shake_amt := 0.0
 var _shake_t := 0.0
+## Scossa direzionale delle magie (RMNDWN cameraState L36278–L36315): angoli
+## sull'orbita lungo l'asse del colpo e calcio del campo visivo in gradi.
+var _ss := {}
+var _sh_y := 0.0
+var _sh_p := 0.0
+var _fov_kick := 0.0
 
 # --- terza persona adattiva (frameTPS del prototipo, HTML 6859–6888)
 ## Situazione riempita dal gioco: velocita', direzione dell'eroe, "coperto"
@@ -120,6 +126,60 @@ func shake(amount: float) -> void:
 	shake_amt = maxf(shake_amt, amount)
 
 
+## `amp` in radianti (juice.shake × famiglia × vicinanza × grammatica), `axis`
+## nel mondo (spinta o direzione del colpo), `down` = asse verso il basso (terra).
+## Una nuova scossa sostituisce la corrente solo se piu' forte.
+func spell_shake(amp: float, axis: Vector3, dur: float, freq: float, fov_deg: float, down: bool = false) -> void:
+	if amp <= 0.0:
+		return
+	if not _ss.is_empty() and float(_ss["amp"]) * _ss_k(float(_ss["t"]), float(_ss["dur"])) > amp:
+		return
+	var dir := view_dir()
+	var basis := Basis.looking_at(-dir, Vector3.UP)
+	var fl := Vector3(-dir.x, 0, -dir.z).normalized()
+	var ax := axis.normalized() if axis.length() > 1e-4 else fl
+	var side := ax.dot(basis.x)
+	var fwd := ax.dot(fl)
+	var dy := side
+	var dp := -ax.y * 0.6 + fwd * 0.22
+	if down:
+		dy = side * 0.35
+		dp = -(0.85 + 0.15 * absf(fwd))
+	var l := Vector2(dy, dp).length()
+	if l < 1e-4:
+		dy = 0.0
+		dp = -1.0
+		l = 1.0
+	_ss = {"amp": amp, "dy": dy / l, "dp": dp / l, "dur": dur, "freq": freq, "t": 0.0, "ph": randf() * TAU, "fov": fov_deg}
+
+
+static func _ss_k(t: float, dur: float) -> float:
+	return exp(-t * 26.0 / maxf(0.35, dur / 0.14))
+
+
+func _step_spell_shake(dt: float) -> void:
+	_sh_y = 0.0
+	_sh_p = 0.0
+	_fov_kick = 0.0
+	if _ss.is_empty():
+		return
+	var t := float(_ss["t"]) + dt
+	_ss["t"] = t
+	var dur := float(_ss["dur"])
+	var k := _ss_k(t, dur)
+	if k < 0.01 and t > dur:
+		_ss = {}
+		return
+	var w := float(_ss["freq"]) * 38.0
+	var along := cos(t * w) * k
+	var cross := sin(float(_ss["ph"]) + 1.9 * t * w) * k * 0.22
+	var amp := float(_ss["amp"]) * 2.2
+	_sh_y = (float(_ss["dy"]) * along - float(_ss["dp"]) * cross) * amp
+	_sh_p = (float(_ss["dp"]) * along + float(_ss["dy"]) * cross) * amp
+	var u := clampf(t / maxf(dur, 1e-3), 0.0, 1.0)
+	_fov_kick = float(_ss["fov"]) * (1.0 - u) * (1.0 - u)
+
+
 func get_zoom() -> float:
 	return tps_zoom if mode == Mode.TPS else zoom_target
 
@@ -134,8 +194,9 @@ func set_zoom(z: float) -> void:
 
 ## Direzione dal punto guardato verso la camera.
 func view_dir() -> Vector3:
-	var p := tps_pitch if mode == Mode.TPS else pitch
-	return Vector3(cos(p) * sin(yaw), sin(p), cos(p) * cos(yaw)).normalized()
+	var p := (tps_pitch if mode == Mode.TPS else pitch) + _sh_p
+	var y := yaw + _sh_y
+	return Vector3(cos(p) * sin(y), sin(p), cos(p) * cos(y)).normalized()
 
 
 ## Base orizzontale della camera per l'input relativo (groundBasis del prototipo).
@@ -158,6 +219,7 @@ func update_camera(dt: float, target: Vector3) -> void:
 	yaw += (yaw_target - yaw) * k
 	pitch += (pitch_target - pitch) * k
 	zoom += (zoom_target - zoom) * k
+	_step_spell_shake(dt)
 	var look := target + LOOK_OFFSET
 	var dir := view_dir()
 	if shake_amt > 0.002:
@@ -275,8 +337,8 @@ func _frame_tps(dt: float, look_feet: Vector3) -> void:
 		tps_pitch += (1.22 - tps_pitch) * (1.0 - exp(-dt * 7.0))
 	var rate := 18.0 if free < tps_dist else (6.0 if free >= dist - 0.01 else 2.5)
 	tps_dist += (free - tps_dist) * (1.0 - exp(-dt * rate))
-	if absf(camera.fov - tps_fov) > 0.01:
-		camera.fov = tps_fov
+	if absf(camera.fov - tps_fov - _fov_kick) > 0.01:
+		camera.fov = tps_fov + _fov_kick
 	var pos := look + view_dir() * tps_dist
 	if world != null:
 		var gy := VoxelQuery.field_height(world, clampf(pos.x, 1.0, world.size_x - 2.0), clampf(pos.z, 1.0, world.size_z - 2.0), float(world.size_y))
