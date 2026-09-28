@@ -165,4 +165,4 @@ func test_ricette_predefinite_e_appunti() -> void:
 	check(a.to_dict() != b.to_dict(), "due eroi diversi")
 	check_eq(AvatarRecipe.from_json(b.to_json()).to_dict(), b.to_dict(), "JSON andata e ritorno")
 	check(AvatarRecipe.from_json("non json") == null, "testo non valido")
-	check(AvatarRecipe.from_json("{\"v\":2}") == null, "versione sconosciuta")
+	check(AvatarRecipe.from_json("{\"v\":9}") == null, "versione sconosciuta")

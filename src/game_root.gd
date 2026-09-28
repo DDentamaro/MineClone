@@ -18,8 +18,10 @@ const DEV_BUTTONS := [
 ## Pulsanti del pannello da tenere premuti (rotazione continua come rot-l/rot-r).
 const DEV_HOLD: Array[StringName] = [&"dev_rot_l", &"dev_rot_r"]
 ## Editor dell'eroe: un pulsante per parametro della ricetta.
-const HERO_BUTTONS := [[&"hero_skin", "skin"], [&"hero_hair", "hair"], [&"hero_hair_style", "hair_style"],
-	[&"hero_shirt", "shirt"], [&"hero_pants", "pants"], [&"hero_build", "build"], [&"hero_preset", ""], [&"hero_random", ""],
+const HERO_BUTTONS := [[&"hero_skin", "skin"], [&"hero_hair", "hair"], [&"hero_hairStyle", "hairStyle"], [&"hero_hat", "hat"],
+	[&"hero_eyes", "eyes"], [&"hero_brows", "brows"], [&"hero_mouth", "mouth"], [&"hero_beard", "beard"], [&"hero_face", "face"],
+	[&"hero_shirt", "shirt"], [&"hero_pants", "pants"], [&"hero_sleeves", "sleeves"], [&"hero_legs", "legs"], [&"hero_back", "back"],
+	[&"hero_belt", "belt"], [&"hero_preset", ""], [&"hero_random", ""],
 	[&"hero_copy", ""], [&"hero_paste", ""], [&"hero_close", ""]]
 const HERO_LABELS := {&"hero_preset": "Eroe 1/2", &"hero_random": "Casuale", &"hero_copy": "Copia ricetta",
 	&"hero_paste": "Incolla ricetta", &"hero_close": "Chiudi"}
@@ -761,9 +763,10 @@ func _on_button(id: StringName) -> void:
 		&"hero_random":
 			recipe = AvatarRecipe.random(randi())
 			_apply_recipe()
-		&"hero_skin", &"hero_hair", &"hero_hair_style", &"hero_shirt", &"hero_pants", &"hero_build":
-			recipe.cycle(String(id).substr(5))
-			_apply_recipe()
+		_:
+			if String(id).begins_with("hero_") and AvatarRecipe.FIELDS.has(String(id).substr(5)):
+				recipe.cycle(String(id).substr(5))
+				_apply_recipe()
 	_refresh_labels()
 
 

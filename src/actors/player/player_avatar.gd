@@ -10,6 +10,10 @@ const ATTACK_TURN := 40.0
 var facing := 0.0
 var rig: AvatarRig
 var animator := AvatarAnimator.new()
+## Gambe del prototipo: piedi piantati e IK (D-028).
+var gait := GaitLegs.new()
+var _gait_w := 1.0
+var _last_pos := Vector3.INF
 var trail: WeaponTrail
 var anim_state := AvatarAnimator.State.new()
 var _turn_prev := 0.0
@@ -130,7 +134,28 @@ func animate(dt: float, motor: PlayerMotor, combat: CombatController, magic: Mag
 	if s.dodge >= 0.0 or s.attack != null:
 		s.speed = 0.0 if s.attack != null else s.speed * 0.2
 	if dt > 0.0:
-		rig.apply_pose(animator.update(dt, s))
+		# Passo procedurale: piedi nel mondo, poi la posa dell'animatore sopra.
+		var world := motor.world
+		var xf := global_transform if is_inside_tree() else transform
+		# Teletrasporto (falo', caricamento): i piedi si ripiantano sul posto.
+		if xf.origin.distance_to(_last_pos) > 2.0:
+			gait.reset()
+		_last_pos = xf.origin
+		gait.update(dt, xf, motor.velocity, motor.on_ground and not motor.swimming, PlayerMotor.SPEED,
+			func(x: float, z: float) -> float:
+				return VoxelQuery.field_height(world, x, z, motor.position.y + 0.6) if world != null else motor.position.y)
+		var want := 0.0 if s.dodge >= 0.0 or s.swimming or motor.swimming else 1.0
+		_gait_w += (want - _gait_w) * (1.0 - exp(-dt * 14.0))
+		animator.gait = _gait_w > 0.5
+		animator.stride_phase = gait.phase * TAU
+		var pose := animator.update(dt, s)
+		var gp := pose.duplicate()
+		var gw := _gait_w
+		gp[&"body_pos"] = (gp.get(&"body_pos", Vector3.ZERO) as Vector3) + Vector3(gait.sway, gait.body_y, 0) * gw
+		gp[&"hips"] = (gp.get(&"hips", Vector3.ZERO) as Vector3) + Vector3(0, 0, -gait.sway * 1.6) * gw
+		gp[&"spine"] = (gp.get(&"spine", Vector3.ZERO) as Vector3) + Vector3(-gait.lean, 0, 0) * gw
+		rig.apply_pose(gp)
+		gait.apply(rig, gw)
 	var emit := s.attack != null and s.attack.trail and (s.phase == 1 or (s.phase == 2 and s.u < 0.12))
 	if s.attack != null and s.attack.plunge:
 		emit = s.phase == 1

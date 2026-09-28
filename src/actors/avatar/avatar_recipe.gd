@@ -1,86 +1,97 @@
 class_name AvatarRecipe
 extends RefCounted
-## Ricetta dell'eroe (M4): palette e proporzioni scelte nell'editor, salvate
-## nelle impostazioni (sezione "avatar"). Disegno nuovo, non la CHARGEN del
-## prototipo (D-022): pochi parametri leggibili, ognuno con un elenco di
-## scelte che l'editor fa scorrere.
+## Ricetta dell'eroe (D-028): il DNA di CHARGEN del prototipo (`HeroChargen`),
+## salvato nelle impostazioni (sezione "avatar"). L'editor fa scorrere le
+## scelte del prototipo (acconciatura, cappello, occhi, barba, abiti...) e le
+## palette dei colori.
 
-const SKINS: Array[Color] = [Color(0.93, 0.76, 0.60), Color(0.80, 0.60, 0.44), Color(0.62, 0.43, 0.30), Color(0.42, 0.28, 0.20), Color(0.97, 0.84, 0.72)]
-const HAIRS: Array[Color] = [Color(0.22, 0.14, 0.09), Color(0.55, 0.33, 0.14), Color(0.86, 0.70, 0.36), Color(0.12, 0.11, 0.12), Color(0.70, 0.26, 0.12), Color(0.82, 0.82, 0.78)]
-const CLOTHES: Array[Color] = [Color(0.20, 0.42, 0.62), Color(0.62, 0.20, 0.18), Color(0.28, 0.48, 0.26), Color(0.52, 0.38, 0.62), Color(0.78, 0.62, 0.26), Color(0.30, 0.30, 0.34)]
-const PANTS: Array[Color] = [Color(0.30, 0.24, 0.18), Color(0.20, 0.22, 0.30), Color(0.42, 0.36, 0.26), Color(0.18, 0.18, 0.18)]
-const HAIR_STYLES := ["corti", "ciuffo", "coda", "rasati", "lunghi"]
-const BUILDS := ["snello", "medio", "robusto"]
+## Campo dell'editor -> [chiave del DNA, tipo]: "opt" = OPTIONS di CHARGEN,
+## "col" = palette di colori, "bool" = si/no.
+const FIELDS := {
+	"skin": ["skin", "col"], "hair": ["hair", "col"], "hairStyle": ["hairStyle", "opt"], "hat": ["hat", "opt"],
+	"eyes": ["eyes", "opt"], "brows": ["brows", "opt"], "nose": ["nose", "opt"], "mouth": ["mouth", "opt"],
+	"beard": ["beard", "opt"], "scar": ["scar", "opt"], "paint": ["paint", "opt"], "face": ["face", "opt"],
+	"shirt": ["shirt", "col"], "pants": ["pants", "col"], "boots": ["boots", "col"], "accent": ["accent", "col"],
+	"sleeves": ["sleeves", "opt"], "legs": ["legs", "opt"], "belt": ["belt", "opt"], "back": ["back", "opt"],
+	"eye": ["eye", "col"], "tuft": ["tuft", "bool"], "ears": ["ears", "bool"], "freckles": ["freckles", "bool"],
+}
+const NAMES := {"skin": "Pelle", "hair": "Capelli", "hairStyle": "Acconciatura", "hat": "Cappello", "eyes": "Occhi",
+	"brows": "Sopracciglia", "nose": "Naso", "mouth": "Bocca", "beard": "Barba", "scar": "Cicatrice", "paint": "Pittura",
+	"face": "Viso", "shirt": "Maglia", "pants": "Pantaloni", "boots": "Stivali", "accent": "Dettagli", "sleeves": "Maniche",
+	"legs": "Gambe", "belt": "Cintura", "back": "Schiena", "eye": "Iridi", "tuft": "Ciuffo", "ears": "Orecchie", "freckles": "Lentiggini"}
 
-var skin := 0
-var hair := 0
-var hair_style := 0
-var shirt := 0
-var pants := 0
-var build := 1
-
-
-func skin_color() -> Color:
-	return SKINS[skin % SKINS.size()]
-
-
-func hair_color() -> Color:
-	return HAIRS[hair % HAIRS.size()]
+var dna := HeroChargen.preset(0)
 
 
-func shirt_color() -> Color:
-	return CLOTHES[shirt % CLOTHES.size()]
-
-
-func pants_color() -> Color:
-	return PANTS[pants % PANTS.size()]
-
-
-## Larghezza del busto e degli arti per la corporatura.
-func width() -> float:
-	return [0.88, 1.0, 1.16][build % BUILDS.size()]
-
-
-## Parametro successivo dell'editor; restituisce l'etichetta aggiornata.
-func cycle(field: String) -> String:
+func _palette(field: String) -> Array:
 	match field:
 		"skin":
-			skin = (skin + 1) % SKINS.size()
+			return HeroChargen.SKINS
 		"hair":
-			hair = (hair + 1) % HAIRS.size()
-		"hair_style":
-			hair_style = (hair_style + 1) % HAIR_STYLES.size()
-		"shirt":
-			shirt = (shirt + 1) % CLOTHES.size()
-		"pants":
-			pants = (pants + 1) % PANTS.size()
-		"build":
-			build = (build + 1) % BUILDS.size()
+			return HeroChargen.HAIRS
+		"boots":
+			return HeroChargen.BOOTS
+		"accent":
+			return HeroChargen.ACCENTS
+		"eye":
+			return HeroChargen.EYE_COLS
+	return HeroChargen.CLOTH
+
+
+## Scelta successiva dell'editor; restituisce l'etichetta aggiornata.
+func cycle(field: String) -> String:
+	if not FIELDS.has(field):
+		return field
+	var f: Array = FIELDS[field]
+	var key: String = f[0]
+	match String(f[1]):
+		"opt":
+			var o: Array = HeroChargen.OPTIONS[key]
+			var i := 0
+			for k in o.size():
+				if o[k][0] == dna.get(key):
+					i = k
+			dna[key] = o[(i + 1) % o.size()][0]
+		"col":
+			var pal := _palette(field)
+			dna[key] = pal[(pal.find(dna.get(key)) + 1) % pal.size()]
+			if field == "hair":
+				dna["brow"] = dna[key]
+				dna["beardCol"] = dna[key]
+		"bool":
+			dna[key] = not bool(dna.get(key, false))
 	return label(field)
 
 
 func label(field: String) -> String:
-	match field:
-		"skin":
-			return "Pelle %d" % (skin + 1)
-		"hair":
-			return "Capelli %d" % (hair + 1)
-		"hair_style":
-			return String(HAIR_STYLES[hair_style]).capitalize()
-		"shirt":
-			return "Veste %d" % (shirt + 1)
-		"pants":
-			return "Brache %d" % (pants + 1)
-		"build":
-			return String(BUILDS[build]).capitalize()
-	return field
+	if not FIELDS.has(field):
+		return field
+	var f: Array = FIELDS[field]
+	var key: String = f[0]
+	var v: Variant = dna.get(key)
+	match String(f[1]):
+		"opt":
+			for o: Array in HeroChargen.OPTIONS[key]:
+				if o[0] == v:
+					return "%s: %s" % [NAMES[field], o[1]]
+		"col":
+			return "%s %d" % [NAMES[field], _palette(field).find(v) + 1]
+		"bool":
+			return "%s %s" % [NAMES[field], "si" if v else "no"]
+	return NAMES[field]
 
 
-## Eroi predefiniti dell'editor ("Eroe 1", "Eroe 2" come nel prototipo).
+## Eroi predefiniti ("Eroe 1", "Eroe 2" come nel prototipo).
 static func preset(i: int) -> AvatarRecipe:
-	var d: Dictionary = [{"v": 1, "skin": 0, "hair": 0, "hair_style": 1, "shirt": 0, "pants": 0, "build": 1},
-		{"v": 1, "skin": 2, "hair": 4, "hair_style": 2, "shirt": 1, "pants": 1, "build": 0}][posmod(i, 2)]
-	return from_dict(d)
+	var r := AvatarRecipe.new()
+	r.dna = HeroChargen.preset(i)
+	return r
+
+
+static func random(seed_value: int) -> AvatarRecipe:
+	var r := AvatarRecipe.new()
+	r.dna = HeroChargen.random_dna(seed_value)
+	return r
 
 
 ## Ricetta come testo JSON (da copiare e incollare, come #c-dna del prototipo).
@@ -94,38 +105,36 @@ static func from_json(text: String) -> AvatarRecipe:
 	if j.parse(text) != OK:
 		return null
 	var d: Variant = j.data
-	if not (d is Dictionary) or int((d as Dictionary).get("v", 0)) != 1:
+	if not (d is Dictionary) or int((d as Dictionary).get("v", 0)) != 2:
 		return null
 	return from_dict(d)
 
 
-static func random(seed_value: int) -> AvatarRecipe:
-	var r := AvatarRecipe.new()
-	var rng := RandomNumberGenerator.new()
-	rng.seed = seed_value
-	r.skin = rng.randi() % SKINS.size()
-	r.hair = rng.randi() % HAIRS.size()
-	r.hair_style = rng.randi() % HAIR_STYLES.size()
-	r.shirt = rng.randi() % CLOTHES.size()
-	r.pants = rng.randi() % PANTS.size()
-	r.build = rng.randi() % BUILDS.size()
-	return r
-
-
 func to_dict() -> Dictionary:
-	return {"v": 1, "skin": skin, "hair": hair, "hair_style": hair_style, "shirt": shirt, "pants": pants, "build": build}
+	return dna.duplicate()
 
 
+## Le chiavi sconosciute si ignorano; i valori mancanti o non validi restano
+## quelli di "Eroe 1". Le ricette della v1 (eroe di M4) danno "Eroe 1".
 static func from_dict(d: Dictionary) -> AvatarRecipe:
 	var r := AvatarRecipe.new()
-	if int(d.get("v", 0)) != 1:
+	if int(d.get("v", 0)) != 2:
 		return r
-	r.skin = clampi(int(d.get("skin", 0)), 0, SKINS.size() - 1)
-	r.hair = clampi(int(d.get("hair", 0)), 0, HAIRS.size() - 1)
-	r.hair_style = clampi(int(d.get("hair_style", 0)), 0, HAIR_STYLES.size() - 1)
-	r.shirt = clampi(int(d.get("shirt", 0)), 0, CLOTHES.size() - 1)
-	r.pants = clampi(int(d.get("pants", 0)), 0, PANTS.size() - 1)
-	r.build = clampi(int(d.get("build", 1)), 0, BUILDS.size() - 1)
+	for k: String in HeroChargen.BASE:
+		if not d.has(k) or k == "v":
+			continue
+		var v: Variant = d[k]
+		var base: Variant = HeroChargen.BASE[k]
+		if base is bool:
+			r.dna[k] = bool(v)
+		elif base is int or base is float:
+			r.dna[k] = int(v)
+		elif HeroChargen.OPTIONS.has(k):
+			for o: Array in HeroChargen.OPTIONS[k]:
+				if o[0] == v:
+					r.dna[k] = v
+		elif String(v).begins_with("#") and String(v).length() == 7 and Color.html_is_valid(String(v)):
+			r.dna[k] = String(v)
 	return r
 
 

@@ -51,6 +51,7 @@ func _setup() -> void:
 		for c in row.size():
 			var cell: Dictionary = row[c]
 			var rig := AvatarRig.new()
+			rig.sync_ao = true
 			root.add_child(rig)
 			rig.build(AvatarRecipe.new())
 			rig.set_weapon(cell.get("weapon"))

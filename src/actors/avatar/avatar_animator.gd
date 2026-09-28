@@ -44,6 +44,9 @@ class State:
 
 
 var stride_phase := 0.0
+## Gambe e bob del passo li fa `GaitLegs` (D-028): qui restano braccia, busto e
+## la fase del passo arriva da fuori.
+var gait := false
 var time := 0.0
 var pose := {}
 var _vel := {}
@@ -104,7 +107,8 @@ func target_pose(dt: float, s: State) -> Dictionary:
 	_w_swim += ((1.0 if s.swimming else 0.0) - _w_swim) * (1.0 - exp(-dt * 6.0))
 	_w_wade += (clampf(s.wade * 2.0, 0.0, 1.0) - _w_wade) * k
 	_lean += (clampf(s.turn * 0.12, -0.35, 0.35) - _lean) * k
-	stride_phase = fmod(stride_phase + s.speed * dt / STRIDE * TAU, TAU)
+	if not gait:
+		stride_phase = fmod(stride_phase + s.speed * dt / STRIDE * TAU, TAU)
 
 	# Guardia dell'arma (parte alta del corpo).
 	if s.weapon != null:
@@ -137,10 +141,11 @@ func target_pose(dt: float, s: State) -> Dictionary:
 	var ph := stride_phase
 	var sn := sin(ph)
 	var cs := cos(ph)
-	p[&"leg_l"] += d(sn * 40.0 * r)
-	p[&"leg_r"] += d(-sn * 40.0 * r)
-	p[&"shin_l"] += d(-(8.0 + 62.0 * maxf(0.0, cs)) * r)
-	p[&"shin_r"] += d(-(8.0 + 62.0 * maxf(0.0, -cs)) * r)
+	if not gait:
+		p[&"leg_l"] += d(sn * 40.0 * r)
+		p[&"leg_r"] += d(-sn * 40.0 * r)
+		p[&"shin_l"] += d(-(8.0 + 62.0 * maxf(0.0, cs)) * r)
+		p[&"shin_r"] += d(-(8.0 + 62.0 * maxf(0.0, -cs)) * r)
 	var free_r := 0.35 if s.weapon != null and s.weapon.kind != WeaponDefinition.Kind.FISTS else 0.6
 	p[&"arm_l"] += d(-sn * 34.0 * r * (0.35 if s.weapon != null and s.weapon.two_handed else 1.0), 0, -6.0 * r)
 	p[&"fore_l"] += d(24.0 * r)
@@ -149,7 +154,8 @@ func target_pose(dt: float, s: State) -> Dictionary:
 	p[&"hips"] += d(0, -sn * 7.0 * r)
 	p[&"body"] += d(-9.0 * r, 0, -rad_to_deg(_lean) * r)
 	p[&"head"] += d(5.0 * r)
-	p[&"body_pos"] += Vector3(0, (0.045 * (1.0 - absf(sn)) - 0.03) * r, 0)
+	if not gait:
+		p[&"body_pos"] += Vector3(0, (0.045 * (1.0 - absf(sn)) - 0.03) * r, 0)
 
 	# Aria: gambe raccolte in salita, distese e braccia aperte in caduta.
 	var a := _w_air

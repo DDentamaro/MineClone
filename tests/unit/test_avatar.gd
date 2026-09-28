@@ -1,23 +1,44 @@
 extends TestCase
-## Eroe (M4): ricetta, scheletro con IK della mano sinistra, animazione.
+## Eroe (M4, D-028): ricetta CHARGEN, scheletro con IK della mano sinistra, animazione.
 
 
 func test_ricetta_andata_e_ritorno() -> void:
 	var r := AvatarRecipe.random(77)
 	var back := AvatarRecipe.from_dict(r.to_dict())
 	check_eq(back.to_dict(), r.to_dict(), "stessa ricetta")
-	var lab := r.cycle("build")
-	check(lab != "" and lab != "build", "etichetta dell'editor")
-	check_eq(AvatarRecipe.from_dict({"v": 99, "skin": 3}).skin, 0, "versione sconosciuta ignorata")
-	check_eq(AvatarRecipe.from_dict({"v": 1, "skin": 999}).skin, AvatarRecipe.SKINS.size() - 1, "valori limitati")
+	var lab := r.cycle("hat")
+	check(lab.begins_with("Cappello: "), "etichetta dell'editor (%s)" % lab)
+	check_eq(AvatarRecipe.from_dict({"v": 99, "hat": "elmo"}).dna["hat"], "none", "versione sconosciuta ignorata")
+	check_eq(AvatarRecipe.from_dict({"v": 2, "hat": "razzo"}).dna["hat"], "none", "scelta non valida ignorata")
+	check_eq(AvatarRecipe.from_dict({"v": 2, "skin": "blu"}).dna["skin"], HeroChargen.BASE["skin"], "colore non valido ignorato")
+	check_eq(AvatarRecipe.from_dict({"v": 1, "skin": 3}).to_dict(), AvatarRecipe.new().to_dict(), "ricetta della v1 -> Eroe 1")
+
+
+func test_generatore_del_prototipo() -> void:
+	# Stesso seme -> stesso eroe (Mulberry32 come il prototipo).
+	check_eq(HeroChargen.random_dna(5), HeroChargen.random_dna(5), "deterministico")
+	check(HeroChargen.random_dna(5) != HeroChargen.random_dna(6), "semi diversi")
+	var parts := HeroChargen.build(HeroChargen.preset(0), HeroChargen.hair_lib())
+	var bones := {}
+	for p: Dictionary in parts:
+		bones[p["bone"]] = true
+	check_eq(bones.size(), 10, "testa, busto e otto mezzi arti")
+	check(not HeroChargen.hair_lib().is_empty(), "capelli originali caricati")
+	# Ogni scelta dell'editor costruisce senza errori.
+	for k: String in HeroChargen.OPTIONS:
+		for o: Array in HeroChargen.OPTIONS[k]:
+			var d := HeroChargen.preset(0)
+			d[k] = o[0]
+			check(HeroChargen.build(d, HeroChargen.hair_lib()).size() >= 10, "%s = %s" % [k, o[0]])
 
 
 func test_scheletro_e_altezza() -> void:
 	var rig := AvatarRig.new()
+	rig.sync_ao = true
 	rig.build(AvatarRecipe.new())
 	check_eq(rig.bones.size(), AvatarRig.BONES.size(), "ossa")
 	rig.set_weapon(WeaponLibrary.by_id(&"sword"))
-	check(rig.instance_count() >= AvatarRig.BONES.size() - 1, "mesh create")
+	check(rig.instance_count() >= 11, "mesh create: testa, busto, otto mezzi arti, arma")
 	var aabb := AABB()
 	var first := true
 	for gi: GeometryInstance3D in rig._instances:
@@ -27,8 +48,10 @@ func test_scheletro_e_altezza() -> void:
 		var b := rig.rig_xf(mi) * mi.mesh.get_aabb()
 		aabb = b if first else aabb.merge(b)
 		first = false
-	check(absf(aabb.position.y) < 0.02, "piedi a terra (%f)" % aabb.position.y)
-	check(absf(aabb.end.y - AvatarRig.HEIGHT) < 0.06, "altezza %f" % aabb.end.y)
+	check(absf(aabb.position.y) < 0.03, "piedi a terra (%f)" % aabb.position.y)
+	check(aabb.end.y > AvatarRig.HEIGHT - 0.02 and aabb.end.y < 1.56, "altezza col ciuffo %f" % aabb.end.y)
+	# Testa grande come nel prototipo: dal collo in su ~40% dell'altezza.
+	check(absf(rig.rig_xf(rig.bones[&"head"]).origin.y - 0.80) < 0.01, "collo a .80")
 	rig.free()
 
 

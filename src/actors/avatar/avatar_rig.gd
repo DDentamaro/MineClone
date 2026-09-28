@@ -1,8 +1,10 @@
 class_name AvatarRig
 extends Node3D
-## Scheletro a pezzi rigidi dell'eroe (M4, disegno nuovo). Ogni osso e' un
-## Node3D con la sua mesh a scatole smussate; l'animazione imposta solo le
-## rotazioni (e lo spostamento di `body`).
+## Scheletro a pezzi rigidi dell'eroe. Ogni osso e' un Node3D; l'animazione
+## imposta solo le rotazioni (e lo spostamento di `body`). Da D-028 le misure e
+## le mesh sono quelle dell'eroe del prototipo (CHARGEN, `HeroChargen`): anca
+## .32, collo .80, omero .21, avambraccio+mano .28, coscia .15, stinco+piede
+## .185, testa grande. Le gambe le muove `GaitLegs` (piedi piantati, IK).
 ##
 ## Assi (il personaggio guarda -Z, la sua destra e' +X):
 ## - braccia e gambe pendono lungo -Y; X positivo le porta in avanti/in alto;
@@ -18,10 +20,19 @@ const BONES: Array[StringName] = [&"body", &"hips", &"spine", &"chest", &"head",
 const PARENT := {&"hips": &"body", &"spine": &"hips", &"chest": &"spine", &"head": &"chest",
 	&"arm_l": &"chest", &"fore_l": &"arm_l", &"hand_l": &"fore_l", &"arm_r": &"chest", &"fore_r": &"arm_r",
 	&"hand_r": &"fore_r", &"leg_l": &"hips", &"shin_l": &"leg_l", &"leg_r": &"hips", &"shin_r": &"leg_r"}
-const UPPER_ARM := 0.24
-const FOREARM := 0.215
-const HAND := 0.05
-const HEIGHT := 1.46
+const HIP_Y := 0.32
+const HIP_W := 0.10
+const THIGH := 0.15
+const SHIN := 0.15
+const UPPER_ARM := 0.21
+const FOREARM := 0.19
+const HAND := 0.04
+const SHOULDER := Vector3(0.40, 0.19, 0.0)
+## Altezza della testa senza capelli (collo .80 + testa .58).
+const HEIGHT := 1.38
+## Le armi di M4 sono lunghe per un eroe di 1,46 m con arti lunghi: nella mano
+## dell'eroe del prototipo stanno a questa scala (spada ~0,7 come nel prototipo).
+const WEAPON_SCALE := 0.72
 
 var recipe := AvatarRecipe.new()
 var bones := {}
@@ -33,11 +44,79 @@ var ik_enabled := true
 var _material: ShaderMaterial
 var _instances: Array[GeometryInstance3D] = []
 var _weapon_nodes: Array[MeshInstance3D] = []
+## Mesh dell'eroe gia' costruite per ricetta (l'occlusione cotta costa).
+static var _mesh_cache := {}
 
 
 func _init() -> void:
 	_material = ShaderMaterial.new()
 	_material.shader = preload("res://src/presentation/shaders/actor.gdshader")
+
+
+static func chest_offset() -> Vector3:
+	return Vector3(0, -(0.06 + 0.16), 0)
+
+
+## Mesh per osso della ricetta con occlusione cotta (dalla cache), o null se
+## non e' ancora pronta.
+static func cached_meshes(r: AvatarRecipe) -> Variant:
+	return _mesh_cache.get(r.to_json())
+
+
+## Mesh con occlusione cotta, calcolate subito (test, strumenti).
+static func hero_meshes(r: AvatarRecipe) -> Dictionary:
+	var key := r.to_json()
+	if not _mesh_cache.has(key):
+		var parts := HeroChargen.build(r.dna, HeroChargen.hair_lib())
+		HeroChargen.bake_ao(parts)
+		_store(key, HeroChargen.to_rig(parts, {&"chest": chest_offset()}))
+	return _mesh_cache[key]
+
+
+static func _store(key: String, m: Dictionary) -> void:
+	if _mesh_cache.size() > 8:
+		_mesh_cache.clear()
+	_mesh_cache[key] = m
+
+
+## Occlusione in corso su un thread: ricetta e pezzi.
+var _ao_task := -1
+var _ao_key := ""
+var _ao_parts: Array = []
+## Vero per costruire sempre con l'occlusione subito (niente thread).
+var sync_ao := false
+
+
+func _process(_dt: float) -> void:
+	if _ao_task < 0 or not WorkerThreadPool.is_task_completed(_ao_task):
+		return
+	WorkerThreadPool.wait_for_task_completion(_ao_task)
+	_ao_task = -1
+	_store(_ao_key, HeroChargen.to_rig(_ao_parts, {&"chest": chest_offset()}))
+	_ao_parts = []
+	# Pronta questa ricetta, o ne serve un'altra (cambiata nel frattempo).
+	build(recipe)
+
+
+func _exit_tree() -> void:
+	if _ao_task >= 0:
+		WorkerThreadPool.wait_for_task_completion(_ao_task)
+		_ao_task = -1
+
+
+## Mesh da mostrare ora: con occlusione se pronte, altrimenti senza (e parte
+## il calcolo dell'occlusione su un thread).
+func _meshes_now(r: AvatarRecipe) -> Dictionary:
+	var key := r.to_json()
+	if _mesh_cache.has(key) or sync_ao or not is_inside_tree():
+		return hero_meshes(r)
+	var parts := HeroChargen.build(r.dna, HeroChargen.hair_lib())
+	if _ao_task < 0:
+		_ao_key = key
+		var ao_parts := HeroChargen.build(r.dna, HeroChargen.hair_lib())
+		_ao_parts = ao_parts
+		_ao_task = WorkerThreadPool.add_task(func() -> void: HeroChargen.bake_ao(ao_parts), false, "occlusione eroe")
+	return HeroChargen.to_rig(parts, {&"chest": chest_offset()})
 
 
 func build(r: AvatarRecipe) -> void:
@@ -49,16 +128,11 @@ func build(r: AvatarRecipe) -> void:
 	rest.clear()
 	_instances.clear()
 	_weapon_nodes.clear()
-	var w := r.width()
-	var skin := r.skin_color()
-	var shirt := r.shirt_color()
-	var pants := r.pants_color()
-	var leather := Color(0.33, 0.21, 0.13)
-	var pos := {&"body": Vector3.ZERO, &"hips": Vector3(0, 0.62, 0), &"spine": Vector3(0, 0.06, 0), &"chest": Vector3(0, 0.16, 0),
-		&"head": Vector3(0, 0.27, 0), &"arm_r": Vector3(0.235 * w, 0.215, 0), &"arm_l": Vector3(-0.235 * w, 0.215, 0),
+	var pos := {&"body": Vector3.ZERO, &"hips": Vector3(0, HIP_Y, 0), &"spine": Vector3(0, 0.06, 0), &"chest": Vector3(0, 0.16, 0),
+		&"head": Vector3(0, 0.26, 0), &"arm_r": SHOULDER, &"arm_l": SHOULDER * Vector3(-1, 1, 1),
 		&"fore_r": Vector3(0, -UPPER_ARM, 0), &"fore_l": Vector3(0, -UPPER_ARM, 0), &"hand_r": Vector3(0, -FOREARM, 0),
-		&"hand_l": Vector3(0, -FOREARM, 0), &"leg_r": Vector3(0.095 * w, -0.04, 0), &"leg_l": Vector3(-0.095 * w, -0.04, 0),
-		&"shin_r": Vector3(0, -0.28, 0), &"shin_l": Vector3(0, -0.28, 0)}
+		&"hand_l": Vector3(0, -FOREARM, 0), &"leg_r": Vector3(HIP_W, 0, 0), &"leg_l": Vector3(-HIP_W, 0, 0),
+		&"shin_r": Vector3(0, -THIGH, 0), &"shin_l": Vector3(0, -THIGH, 0)}
 	for b in BONES:
 		var n := Node3D.new()
 		n.name = String(b)
@@ -67,50 +141,15 @@ func build(r: AvatarRecipe) -> void:
 		bones[b] = n
 		var parent: Node3D = self if b == &"body" else bones[PARENT[b]]
 		parent.add_child(n)
-	var k: MeshKit
-	# Bacino e cintura.
-	k = MeshKit.new()
-	k.box(Vector3(0, -0.02, 0), Vector3(0.32 * w, 0.16, 0.2), pants, 0.03)
-	k.box(Vector3(0, 0.05, 0), Vector3(0.335 * w, 0.05, 0.212), leather, 0.012)
-	k.box(Vector3(0, 0.05, -0.108), Vector3(0.06, 0.045, 0.01), Color(0.78, 0.62, 0.3), 0.004)
-	_mesh(&"hips", k)
-	k = MeshKit.new()
-	k.box(Vector3(0, 0.08, 0), Vector3(0.3 * w, 0.18, 0.19), shirt.darkened(0.06), 0.03)
-	_mesh(&"spine", k)
-	k = MeshKit.new()
-	k.box(Vector3(0, 0.13, 0), Vector3(0.41 * w, 0.27, 0.24), shirt, 0.045, 0.84)
-	k.box(Vector3(0, 0.255, 0), Vector3(0.2, 0.04, 0.16), shirt.darkened(0.15), 0.012)
-	# Tracolla in diagonale.
-	var strap := MeshKit.rot_about(Vector3(0, 0, 1), deg_to_rad(-38.0), Vector3(0, 0.13, 0))
-	k.box(Vector3(0, 0.13, 0), Vector3(0.06, 0.4, 0.252), leather, 0.01, 1.0, strap)
-	_mesh(&"chest", k)
-	_mesh(&"head", _head(r, skin))
-	for side in [&"r", &"l"]:
-		var sx := 1.0 if side == &"r" else -1.0
-		k = MeshKit.new()
-		k.box(Vector3(0, -0.11, 0), Vector3(0.125 * w, 0.25, 0.125 * w), shirt, 0.03)
-		k.box(Vector3(0.012 * sx, -0.005, 0), Vector3(0.15 * w, 0.08, 0.15 * w), shirt.darkened(0.12), 0.03)
-		_mesh(StringName("arm_" + side), k)
-		k = MeshKit.new()
-		k.box(Vector3(0, -0.1, 0), Vector3(0.105, 0.22, 0.105), skin, 0.028)
-		k.box(Vector3(0, -0.16, 0), Vector3(0.12, 0.085, 0.12), leather, 0.02)
-		_mesh(StringName("fore_" + side), k)
-		k = MeshKit.new()
-		k.box(Vector3(0, -HAND, 0), Vector3(0.11, 0.11, 0.12), skin, 0.03)
-		k.box(Vector3(-0.055 * sx, -0.035, -0.04), Vector3(0.04, 0.07, 0.045), skin.darkened(0.05), 0.012)
-		_mesh(StringName("hand_" + side), k)
-		k = MeshKit.new()
-		k.box(Vector3(0, -0.13, 0), Vector3(0.145 * w, 0.28, 0.155), pants, 0.03, 0.9)
-		_mesh(StringName("leg_" + side), k)
-		k = MeshKit.new()
-		k.box(Vector3(0, -0.11, 0), Vector3(0.125, 0.24, 0.14), pants.darkened(0.1), 0.028, 0.9)
-		k.box(Vector3(0, -0.255, -0.022), Vector3(0.14, 0.09, 0.215), leather, 0.025)
-		k.box(Vector3(0, -0.175, 0), Vector3(0.145, 0.06, 0.15), leather.lightened(0.1), 0.02)
-		_mesh(StringName("shin_" + side), k)
+	var meshes := _meshes_now(r)
+	for b: StringName in meshes:
+		for m: ArrayMesh in meshes[b]:
+			_mesh_node(b, m)
 	socket = Node3D.new()
 	socket.name = "Socket"
 	socket.position = Vector3(0, -HAND, 0)
 	socket.rotation = Vector3(deg_to_rad(-90.0), 0, 0)
+	socket.scale = Vector3.ONE * WEAPON_SCALE
 	(bones[&"hand_r"] as Node3D).add_child(socket)
 	if weapon != null:
 		var wd := weapon
@@ -123,50 +162,17 @@ func build(r: AvatarRecipe) -> void:
 		set_armor(slot_name, armor[slot_name])
 
 
-func _head(r: AvatarRecipe, skin: Color) -> MeshKit:
-	var k := MeshKit.new()
-	var hair := r.hair_color()
-	var dark := Color(0.1, 0.08, 0.08)
-	k.prism(Vector3.ZERO, -0.02, 0.05, 0.06, 0.055, 6, skin.darkened(0.08))
-	k.box(Vector3(0, 0.19, 0), Vector3(0.34, 0.33, 0.31), skin, 0.055)
-	# Occhi, sopracciglia, naso, bocca, orecchie.
-	for sx in [-1.0, 1.0]:
-		k.box(Vector3(0.075 * sx, 0.195, -0.152), Vector3(0.05, 0.07, 0.014), dark, 0.006)
-		k.box(Vector3(0.085 * sx, 0.212, -0.158), Vector3(0.018, 0.022, 0.006), Color(0.95, 0.95, 0.9), 0.0)
-		k.box(Vector3(0.08 * sx, 0.255, -0.153), Vector3(0.075, 0.022, 0.014), hair.darkened(0.2), 0.005)
-		k.box(Vector3(0.172 * sx, 0.18, 0.0), Vector3(0.03, 0.07, 0.06), skin.darkened(0.06), 0.01)
-	k.box(Vector3(0, 0.145, -0.16), Vector3(0.05, 0.06, 0.03), skin.darkened(0.1), 0.01)
-	k.box(Vector3(0, 0.085, -0.153), Vector3(0.08, 0.016, 0.012), Color(0.45, 0.2, 0.18), 0.0)
-	match r.hair_style:
-		0: # corti
-			k.box(Vector3(0, 0.325, 0.01), Vector3(0.365, 0.1, 0.335), hair, 0.035)
-			k.box(Vector3(0, 0.22, 0.145), Vector3(0.365, 0.22, 0.06), hair, 0.03)
-		1: # ciuffo
-			k.box(Vector3(0, 0.325, 0.01), Vector3(0.365, 0.1, 0.335), hair, 0.035)
-			k.box(Vector3(0, 0.22, 0.145), Vector3(0.365, 0.22, 0.06), hair, 0.03)
-			k.box(Vector3(0.05, 0.36, -0.13), Vector3(0.2, 0.1, 0.1), hair.lightened(0.08), 0.03, 1.0, MeshKit.rot_about(Vector3(0, 0, 1), 0.3, Vector3(0.05, 0.36, -0.13)))
-		2: # coda
-			k.box(Vector3(0, 0.325, 0.01), Vector3(0.365, 0.1, 0.335), hair, 0.035)
-			k.box(Vector3(0, 0.22, 0.145), Vector3(0.365, 0.22, 0.06), hair, 0.03)
-			k.box(Vector3(0, 0.16, 0.21), Vector3(0.09, 0.26, 0.09), hair, 0.03, 0.5)
-			k.box(Vector3(0, 0.3, 0.19), Vector3(0.1, 0.05, 0.06), Color(0.7, 0.2, 0.15), 0.01)
-		3: # rasati
-			k.box(Vector3(0, 0.345, 0.005), Vector3(0.35, 0.035, 0.32), hair.darkened(0.1), 0.012)
-		_: # lunghi
-			k.box(Vector3(0, 0.325, 0.01), Vector3(0.365, 0.1, 0.335), hair, 0.035)
-			k.box(Vector3(0, 0.13, 0.15), Vector3(0.37, 0.38, 0.07), hair, 0.03, 0.9)
-			for sx in [-1.0, 1.0]:
-				k.box(Vector3(0.178 * sx, 0.2, 0.03), Vector3(0.04, 0.24, 0.24), hair, 0.015)
-	return k
-
-
-func _mesh(bone: StringName, k: MeshKit) -> MeshInstance3D:
+func _mesh_node(bone: StringName, m: ArrayMesh) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
-	mi.mesh = k.commit()
+	mi.mesh = m
 	mi.material_override = _material
 	(bones[bone] as Node3D).add_child(mi)
 	_instances.append(mi)
 	return mi
+
+
+func _mesh(bone: StringName, k: MeshKit) -> MeshInstance3D:
+	return _mesh_node(bone, k.commit())
 
 
 ## `mesh` sostituisce la mesh dell'arma (materiale dell'oggetto, attrezzi).
@@ -300,59 +306,50 @@ func set_armor(slot: String, mat: Color) -> void:
 	_armor[slot] = []
 	if mat.a <= 0.0 or bones.is_empty():
 		return
-	var w := recipe.width()
+	# Pezzi a cubi smussati nelle unita' del modello CHARGEN, poi nelle ossa.
+	var W := HeroChargen.Builder.new()
 	var band := mat.darkened(0.3)
 	var hi := mat.lightened(0.18)
-	var parts := []
+	var T: Dictionary = HeroChargen.BODY["torso"]
+	var tmin: Vector3 = T["min"]
+	var tmax: Vector3 = T["max"]
+	var box := func(n: String, bone: String, mn: Vector3, mx: Vector3, r: float, col: Color) -> void:
+		W.add(n, bone, HeroChargen.rbox(mn, mx, r, col))
 	match slot:
 		"head":
-			var k_head := MeshKit.new()
-			k_head.box(Vector3(0, 0.27, 0.01), Vector3(0.38, 0.22, 0.35), mat, 0.05)
-			k_head.box(Vector3(0, 0.39, 0.01), Vector3(0.1, 0.05, 0.38), hi, 0.015)
-			for sx in [-1.0, 1.0]:
-				k_head.box(Vector3(0.185 * sx, 0.15, 0.03), Vector3(0.03, 0.16, 0.24), band, 0.01)
-			k_head.box(Vector3(0, 0.17, 0.17), Vector3(0.36, 0.2, 0.03), band, 0.01)
-			parts.append([&"head", k_head])
+			box.call("elmo", "head", Vector3(-.63, 2.18, -.64), Vector3(.63, 2.76, .63), .16, mat)
+			box.call("elmo", "head", Vector3(-.63, 1.76, -.64), Vector3(.63, 2.30, -.02), .08, mat)
+			box.call("elmo", "head", Vector3(-.65, 2.16, -.66), Vector3(.65, 2.30, .65), .04, band)
+			box.call("elmo", "head", Vector3(-.06, 1.80, .54), Vector3(.06, 2.30, .67), .03, band)
+			for s in [1, -1]:
+				box.call("elmo", "head", Vector3(.50 if s > 0 else -.65, 1.66, -.02), Vector3(.65 if s > 0 else -.50, 2.22, .30), .05, mat)
+			box.call("elmo", "head", Vector3(-.07, 2.74, -.07), Vector3(.07, 2.92, .07), .04, hi)
 		"chest":
-			var k_chest := MeshKit.new()
-			k_chest.box(Vector3(0, 0.12, 0), Vector3(0.44 * w, 0.26, 0.27), mat, 0.05, 0.86)
-			k_chest.box(Vector3(0, 0.2, -0.137), Vector3(0.3 * w, 0.05, 0.02), hi, 0.01)
-			k_chest.box(Vector3(0, 0.02, 0), Vector3(0.40 * w, 0.05, 0.28), band, 0.012)
-			parts.append([&"chest", k_chest])
-			var k_belly := MeshKit.new()
-			k_belly.box(Vector3(0, 0.08, 0), Vector3(0.34 * w, 0.19, 0.225), mat.darkened(0.1), 0.03)
-			k_belly.box(Vector3(0, 0.12, 0), Vector3(0.35 * w, 0.03, 0.23), band, 0.008)
-			parts.append([&"spine", k_belly])
-			for side in ["l", "r"]:
-				var sx := 1.0 if side == "r" else -1.0
-				var ks := MeshKit.new()
-				ks.box(Vector3(0.02 * sx, 0.0, 0), Vector3(0.17 * w, 0.1, 0.17 * w), mat, 0.04)
-				ks.box(Vector3(0.02 * sx, -0.06, 0), Vector3(0.16 * w, 0.03, 0.16 * w), band, 0.01)
-				parts.append([StringName("arm_" + side), ks])
+			box.call("corazza", "torso", Vector3(tmin.x - .05, .98, tmin.z - .05), Vector3(tmax.x + .05, 1.50, tmax.z + .07), .10, mat)
+			box.call("corazza", "torso", Vector3(-.30, 1.10, tmax.z + .03), Vector3(.30, 1.40, tmax.z + .10), .05, hi)
+			box.call("corazza", "torso", Vector3(tmin.x - .04, .95, tmin.z - .04), Vector3(tmax.x + .04, 1.03, tmax.z + .06), .03, band)
+			for s in [1, -1]:
+				var m := "L" if s > 0 else "R"
+				box.call("spallaccio", "arm" + m + "U", Vector3(.50 if s > 0 else -.84, 1.08, -.38), Vector3(.84 if s > 0 else -.50, 1.60, .26), .10, mat)
+				box.call("spallaccio", "arm" + m + "U", Vector3(.78 if s > 0 else -.86, 1.06, -.40), Vector3(.86 if s > 0 else -.78, 1.62, .28), .03, band)
 		"legs":
-			var kh := MeshKit.new()
-			kh.box(Vector3(0, -0.07, 0), Vector3(0.35 * w, 0.12, 0.22), band, 0.03)
-			kh.box(Vector3(0, -0.07, -0.112), Vector3(0.22, 0.1, 0.02), mat, 0.01)
-			parts.append([&"hips", kh])
-			for side in ["l", "r"]:
-				var kl := MeshKit.new()
-				kl.box(Vector3(0, -0.12, -0.01), Vector3(0.16 * w, 0.22, 0.17), mat, 0.035, 0.9)
-				kl.box(Vector3(0, -0.27, -0.06), Vector3(0.1, 0.07, 0.06), hi, 0.015)
-				parts.append([StringName("leg_" + side), kl])
+			box.call("fiancale", "torso", Vector3(tmin.x - .04, .72, tmin.z - .04), Vector3(tmax.x + .04, .95, tmax.z + .06), .05, band)
+			for s in [1, -1]:
+				var m := "L" if s > 0 else "R"
+				var lx := [-.02, .53] if s > 0 else [-.53, .02]
+				box.call("cosciale", "leg" + m + "U", Vector3(lx[0], .42, -.36), Vector3(lx[1], .78, .24), .10, mat)
+				box.call("ginocchiera", "leg" + m + "F", Vector3(lx[0] + .1, .30, .14), Vector3(lx[1] - .1, .46, .27), .05, hi)
 		"feet":
-			for side in ["l", "r"]:
-				var kf := MeshKit.new()
-				kf.box(Vector3(0, -0.2, -0.01), Vector3(0.15, 0.13, 0.16), mat, 0.03)
-				kf.box(Vector3(0, -0.258, -0.03), Vector3(0.155, 0.1, 0.23), band, 0.03)
-				parts.append([StringName("shin_" + side), kf])
+			for s in [1, -1]:
+				var m := "L" if s > 0 else "R"
+				var lx := [-.02, .53] if s > 0 else [-.53, .02]
+				box.call("stivale", "leg" + m + "F", Vector3(lx[0], -.01, -.36), Vector3(lx[1], .30, .30), .10, mat)
+				box.call("stivale", "leg" + m + "F", Vector3(lx[0] + .02, .26, -.37), Vector3(lx[1] - .02, .33, .26), .03, band)
+	var meshes := HeroChargen.to_rig(W.parts, {&"chest": chest_offset()})
 	var list: Array = []
-	for pr: Array in parts:
-		var mi := MeshInstance3D.new()
-		mi.mesh = (pr[1] as MeshKit).commit()
-		mi.material_override = _material
-		(bones[pr[0]] as Node3D).add_child(mi)
-		_instances.append(mi)
-		list.append(mi)
+	for b: StringName in meshes:
+		for m: ArrayMesh in meshes[b]:
+			list.append(_mesh_node(b, m))
 	_armor[slot] = list
 
 

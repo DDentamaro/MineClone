@@ -116,7 +116,7 @@ func _process(_dt: float) -> bool:
 				_ok = _ok and _shots.has("dodge")
 				_tap(&"hero")
 			if _frame == 70:
-				_tap(&"hero_hair_style")
+				_tap(&"hero_hairStyle")
 				_tap(&"hero_shirt")
 			if _frame == 110:
 				_shot("hero")
