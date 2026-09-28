@@ -757,12 +757,29 @@ func _unhandled_input(event: InputEvent) -> void:
 			_camera_rig.set_zoom(_camera_rig.get_zoom() / 1.1)
 
 
+## Opzioni che buttano via la partita in corso: serve un secondo tocco entro 3 s.
+var _confirm_id: StringName = &""
+var _confirm_until := 0
+
+
+func _confirm(id: StringName, text: String) -> bool:
+	var now := Time.get_ticks_msec()
+	if _confirm_id == id and now <= _confirm_until:
+		_confirm_id = &""
+		return true
+	_confirm_id = id
+	_confirm_until = now + 3000
+	_touch.show_toast(text, Color(1.0, 0.85, 0.5))
+	return false
+
+
 func _on_button(id: StringName) -> void:
 	match id:
 		&"dev_close":
 			_touch.dev_open = false
 		&"dev_seed":
-			regenerate(randi() % 1000000)
+			if _confirm(id, "Nuovo mondo: tocca di nuovo per confermare"):
+				regenerate(randi() % 1000000)
 		&"dev_lake":
 			go_to_lake()
 		&"dev_time":
@@ -789,7 +806,8 @@ func _on_button(id: StringName) -> void:
 		&"dev_save":
 			save_game()
 		&"dev_load":
-			load_game()
+			if _confirm(id, "Carica l'ultimo salvataggio: tocca di nuovo per confermare"):
+				load_game()
 		&"dev_home":
 			if checkpoint != Vector3.INF:
 				motor.place_at(checkpoint)

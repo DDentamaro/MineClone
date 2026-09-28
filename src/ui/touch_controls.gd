@@ -151,6 +151,9 @@ func add_button(id: StringName, label: String, hold: bool, group: StringName = &
 func _visible(b: VButton) -> bool:
 	if hidden_ids.get(b.id, false):
 		return false
+	# Opzioni aperte: pannello modale, restano solo i suoi pulsanti e "Chiudi".
+	if dev_open and b.group != &"dev" and b.id != &"dev":
+		return false
 	match b.group:
 		&"hotbar", &"spellbar":
 			return not hero_open
@@ -227,6 +230,7 @@ func _layout() -> void:
 	var hot_w := HOTBAR * hs + (HOTBAR - 1) * dp(4.0)
 	var hx0 := clampf(s.x * 0.5 - hot_w * 0.5, m, hot_right - hot_w)
 	var spells := _spell_row(s, m, big, med, small)
+	_layout_dev_panel(s, m, small)
 	for b in _buttons:
 		var r := Rect2()
 		if b.group == &"hotbar":
@@ -238,6 +242,8 @@ func _layout() -> void:
 			if left_handed:
 				r.position.x = s.x - r.position.x - r.size.x
 			b.rect = r
+			continue
+		if b.group == &"dev":
 			continue
 		if b.group != &"main":
 			var c: Vector2 = cursor.get(b.group, Vector2(m, m + small + m + dh))
@@ -293,6 +299,43 @@ func _spell_row(s: Vector2, m: float, big: float, med: float, small: float) -> A
 	return out
 
 
+## Pannello delle Opzioni (modale): sotto la riga in alto, dentro lo schermo.
+var dev_panel := Rect2()
+const DEV_TITLE_DP := 30.0
+
+
+## Griglia delle opzioni che entra sempre nel pannello: colonne larghe almeno
+## 84 dp (fino a 118), righe alte fino a 48 dp (almeno 30). Su un telefono in
+## orizzontale il vecchio flusso di pulsanti da 118×48 dp usciva dal bordo in
+## basso e copriva stick e pulsanti: ogni tocco premeva un'opzione a caso.
+func _layout_dev_panel(s: Vector2, m: float, small: float) -> void:
+	var top := m + small + m * 0.5
+	dev_panel = Rect2(m * 0.5, top, s.x - m, s.y - top - m * 0.5)
+	var list: Array[VButton] = []
+	for b in _buttons:
+		if b.group == &"dev" and not hidden_ids.get(b.id, false):
+			list.append(b)
+	if list.is_empty():
+		return
+	var gap := dp(6.0)
+	var inner := dev_panel.grow(-dp(8.0))
+	inner.position.y += dp(DEV_TITLE_DP)
+	inner.size.y -= dp(DEV_TITLE_DP)
+	var cols := maxi(2, int((inner.size.x + gap) / (dp(DEV_BUTTON_W_DP) + gap)))
+	var rows := ceili(float(list.size()) / cols)
+	var bh := (inner.size.y - gap * (rows - 1)) / rows
+	while bh < dp(30.0) and (inner.size.x - gap * cols) / (cols + 1) >= dp(84.0):
+		cols += 1
+		rows = ceili(float(list.size()) / cols)
+		bh = (inner.size.y - gap * (rows - 1)) / rows
+	bh = minf(bh, dp(DEV_BUTTON_H_DP))
+	var bw := (inner.size.x - gap * (cols - 1)) / cols
+	for i in list.size():
+		var c := i % cols
+		var r := i / cols
+		list[i].rect = Rect2(inner.position.x + c * (bw + gap), inner.position.y + r * (bh + gap), bw, bh)
+
+
 func in_stick_zone(p: Vector2) -> bool:
 	var zone_x := p.x < size.x * 0.4 if not left_handed else p.x > size.x * 0.6
 	return zone_x and p.y > size.y * 0.35
@@ -326,6 +369,18 @@ func _touch_down(index: int, p: Vector2) -> bool:
 	f.start = p
 	f.last = p
 	f.t0 = Time.get_ticks_msec()
+	var on_button := false
+	for b in _buttons:
+		if _visible(b) and b.rect.has_point(p):
+			on_button = true
+			break
+	# Pannello modale: un tocco fra i suoi pulsanti non fa nulla; fuori dal
+	# pannello diventa un tocco sul mondo (che lo chiude), mai stick o camera.
+	if dev_open and not on_button:
+		f.role = Role.BUTTON
+		f.button = &"" if dev_panel.has_point(p) else &"__outside"
+		_fingers[index] = f
+		return true
 	for b in _buttons:
 		if _visible(b) and b.rect.has_point(p):
 			if b.id == &"dev":
@@ -433,6 +488,8 @@ func _touch_up(index: int, p: Vector2, canceled: bool) -> bool:
 				_pinch_used = false
 			_pinch_d0 = 0.0
 		Role.BUTTON:
+			if f.button == &"__outside" and not canceled:
+				world_tapped.emit(p)
 			for b in _buttons:
 				if b.id == f.button:
 					b.held = _button_still_held(b.id)
@@ -491,6 +548,16 @@ func _draw() -> void:
 	if _font == null:
 		return
 	var fs := int(dp(15.0))
+	if dev_open:
+		# Pannello modale: il gioco si vede sotto, velato; titolo e suggerimento.
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.35))
+		draw_rect(dev_panel, Color(0.05, 0.06, 0.07, 0.86))
+		draw_rect(dev_panel, Color(0.63, 0.89, 0.78, 0.7), false, dp(1.5))
+		_outlined(dev_panel.position + Vector2(dp(10.0), dp(21.0)), "Opzioni", 15.0, Color.WHITE, false)
+		var hint := "tocca fuori dal pannello per chiudere"
+		var hs := int(dp(11.0))
+		var tw := _font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, hs).x
+		_outlined(Vector2(dev_panel.end.x - dp(10.0) - tw, dev_panel.position.y + dp(20.0)), hint, 11.0, Color(0.8, 0.85, 0.82), false)
 	for b in _buttons:
 		if not _visible(b):
 			continue
@@ -601,7 +668,7 @@ func _draw_spell_slot(b: VButton) -> void:
 func _draw_spell_header() -> void:
 	var r0 := button_rect(&"sp0")
 	var r4 := button_rect(&"sp%d" % (SPELLBAR - 1))
-	if r0.size.x <= 0.0 or hero_open or magic_spell == null:
+	if r0.size.x <= 0.0 or hero_open or dev_open or magic_spell == null:
 		return
 	var left := minf(r0.position.x, r4.position.x)
 	var right := maxf(r0.end.x, r4.end.x)
@@ -647,7 +714,7 @@ func _draw_magic_button(b: VButton) -> void:
 ## Pressione del nucleo come arco attorno al pulsante Magia (rosso se saturo).
 func _draw_pressure() -> void:
 	var r := button_rect(&"magic")
-	if r.size.x <= 0.0 or hero_open:
+	if r.size.x <= 0.0 or hero_open or dev_open:
 		return
 	var c := r.get_center()
 	var rad := r.size.x * 0.5 + dp(5.0)
