@@ -5,8 +5,13 @@ extends RefCounted
 ## - Input bufferizzati 0,3 s: colpo, forte (tenuto = carica), schivata.
 ## - Catene per arma: ogni attacco indica il seguito leggero e quello forte;
 ##   il seguito parte nel rientro (dopo `chain_at`), senza aspettare la fine.
-## - Aggancio morbido: all'avvio del colpo il giocatore si gira verso il
-##   bersaglio migliore nel cono dello stick e l'affondo copre la distanza.
+## - Mira assistita leggera (D-033): all'avvio del colpo, se un bersaglio sta
+##   entro 35° dalla direzione voluta e a portata di affondo, l'eroe corregge la
+##   direzione di al massimo 20° e l'affondo lo porta alla distanza vera
+##   dell'arma (`strike_dist`), mai oltre l'affondo del colpo.
+## - Catene fluide: il colpo premuto durante un attacco resta in coda fino al
+##   punto di seguito (non scade), e i colpi di catena spingono poco il
+##   bersaglio perche' resti a portata; spinge forte solo il colpo finale.
 ## - Schivata a capriola con invulnerabilita' iniziale; annulla il rientro di
 ##   un colpo (e la prima meta' della carica); un colpo nell'ultima parte della
 ##   capriola diventa l'attacco in corsa dell'arma.
@@ -29,8 +34,10 @@ const DODGE_SPEED := 12.0
 const DODGE_IFRAMES := Vector2(0.02, 0.28)
 const DODGE_COOLDOWN := 0.12
 const DASH_WINDOW := 0.5
-const LOCK_EXTRA := 2.4
-const LOCK_CONE := 1.4
+## Aiuto alla mira: oltre portata + affondo quanto si guarda, cono e correzione massima.
+const LOCK_EXTRA := 0.6
+const LOCK_CONE := 0.61
+const AIM_ASSIST := 0.35
 const PLUNGE_FALL := 22.0
 
 var weapon: WeaponDefinition
@@ -178,7 +185,9 @@ func step(dt: float, motor: PlayerMotor, targets: Array, stick: Vector2) -> void
 		hitstop = maxf(0.0, hitstop - dt)
 		return
 	clock += dt
-	buffer_t -= dt
+	# In un attacco il colpo premuto aspetta il punto di seguito senza scadere.
+	if not (state == State.ATTACK and (buffer == &"light" or buffer == &"heavy")):
+		buffer_t -= dt
 	if buffer_t <= 0.0:
 		buffer = &""
 	cooldown = maxf(0.0, cooldown - dt)
@@ -237,15 +246,16 @@ func _start_attack(id: StringName, motor: PlayerMotor, targets: Array, stick: Ve
 	_hit_log.clear()
 	charging = a.charge_max > 0.0 and heavy_held
 	charge = 0.0
-	# Aggancio morbido: il bersaglio migliore nel cono della direzione voluta.
+	# Mira assistita leggera: la direzione voluta (stick o sguardo) si corregge
+	# di al massimo 20° verso un bersaglio vicino al suo asse.
 	var want := facing if stick.length() < 0.2 else heading(stick)
 	lock_target = _pick_target(motor.position, want, targets, a)
 	var dist_goal := a.lunge
 	if lock_target != null:
 		var v := Vector2(lock_target.position.x - motor.position.x, lock_target.position.z - motor.position.z)
-		want = heading(v)
-		var stop := a.radial_ahead if a.shape == AttackDefinition.Shape.RADIAL else a.reach * 0.5
-		dist_goal = clampf(v.length() - stop - lock_target.radius * 0.5, 0.0, maxf(a.lunge, 1.2) * 1.5)
+		want += clampf(wrapf(heading(v) - want, -PI, PI), -AIM_ASSIST, AIM_ASSIST)
+		var stop := a.radial_ahead if a.shape == AttackDefinition.Shape.RADIAL else (a.strike if a.strike > 0.0 else weapon.strike_dist)
+		dist_goal = clampf(v.length() - stop, 0.0, a.lunge * 1.25)
 	facing = want
 	_attack_facing = want
 	var lt := a.windup * 0.6 + a.active * 0.35
@@ -258,7 +268,7 @@ func _start_attack(id: StringName, motor: PlayerMotor, targets: Array, stick: Ve
 func _pick_target(from: Vector3, want: float, targets: Array, a: AttackDefinition) -> CombatTarget:
 	var best: CombatTarget = null
 	var best_score := INF
-	var max_range := (a.radial_ahead + a.radial if a.shape == AttackDefinition.Shape.RADIAL else a.reach) + LOCK_EXTRA + a.lunge * 0.5
+	var max_range := (a.radial_ahead + a.radial * 0.5 if a.shape == AttackDefinition.Shape.RADIAL else weapon.strike_dist) + LOCK_EXTRA + a.lunge * 1.25
 	for o in targets:
 		var tg := o as CombatTarget
 		if tg == null or not tg.alive:

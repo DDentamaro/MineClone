@@ -109,19 +109,43 @@ func test_portata_degli_affondi() -> void:
 	check_eq(d2.hits, 0, "il pugno no")
 
 
-func test_aggancio_gira_e_accorcia() -> void:
+func test_mira_assistita_leggera() -> void:
+	# D-033: bersaglio a 18° e 2,2 m: correzione piccola, lo scatto accorcia e colpisce.
 	var r := Rig.new(&"sword")
-	# Bersaglio a 3,5 unita' a 45° a sinistra: fuori portata senza scatto.
-	var rel := CombatController.forward(deg_to_rad(45.0)) * 3.5
-	var d := r.dummy(rel)
+	var d := r.dummy(CombatController.forward(deg_to_rad(18.0)) * 2.2)
 	var p0 := r.motor.position
 	r.combat.press_light()
 	r.step(2)
-	check(r.combat.lock_target == d, "bersaglio agganciato")
-	check(absf(wrapf(r.combat.facing - deg_to_rad(45.0), -PI, PI)) < 0.05, "girato verso il bersaglio (%f)" % r.combat.facing)
+	check(r.combat.lock_target == d, "bersaglio vicino all'asse agganciato")
+	check(absf(wrapf(r.combat.facing - deg_to_rad(18.0), -PI, PI)) < 0.05, "corretto di 18° (%f)" % rad_to_deg(r.combat.facing))
 	r.settle()
-	check(r.motor.position.distance_to(p0) > 0.8, "lo scatto accorcia la distanza")
+	check(r.motor.position.distance_to(p0) > 0.5, "lo scatto accorcia la distanza")
 	check_eq(d.hits, 1, "colpito")
+	# Bersaglio a 45° e 3 m: fuori dal cono, nessuna rotazione e nessuno scatto verso di lui.
+	var r2 := Rig.new(&"sword")
+	var d2 := r2.dummy(CombatController.forward(deg_to_rad(45.0)) * 3.0)
+	r2.combat.press_light()
+	r2.step(2)
+	check(r2.combat.lock_target == null, "a 45° niente aggancio")
+	check(absf(r2.combat.facing) < 0.01, "e niente rotazione (%f)" % rad_to_deg(r2.combat.facing))
+	r2.settle()
+	check_eq(d2.hits, 0, "mancato: la mira la fa il giocatore")
+	# Con lo stick verso il bersaglio il colpo va dove si punta.
+	var r3 := Rig.new(&"sword")
+	var d3 := r3.dummy(CombatController.forward(deg_to_rad(45.0)) * 3.0)
+	r3.stick = CombatController.forward(deg_to_rad(45.0))
+	r3.combat.press_light()
+	r3.settle()
+	check_eq(d3.hits, 1, "puntato con lo stick: colpito")
+
+
+func test_correzione_massima_20_gradi() -> void:
+	# Bersaglio a 32° (dentro il cono di 35°): la correzione si ferma a 20°.
+	var r := Rig.new(&"sword")
+	r.dummy(CombatController.forward(deg_to_rad(32.0)) * 2.0)
+	r.combat.press_light()
+	r.step(2)
+	check(absf(rad_to_deg(r.combat.facing) - 20.0) < 0.5, "correzione limitata a 20° (%f)" % rad_to_deg(r.combat.facing))
 
 
 func test_schivata_e_annullamento() -> void:
@@ -258,3 +282,30 @@ func test_niente_colpi_attraverso_i_muri() -> void:
 		r.combat._start_attack(WeaponLibrary.by_id(id).heavy_start, r.motor, [], Vector2.ZERO)
 		r.settle()
 		check_eq(d.hits, 0, "%s: nessun colpo oltre il muro" % id)
+
+
+func test_colpo_premuto_presto_resta_in_coda() -> void:
+	# D-033: un tocco all'inizio del colpo lungo del martello (seguito a .45 s,
+	# oltre i .3 s del buffer) fa comunque partire il seguito.
+	var r := Rig.new(&"hammer")
+	r.combat.press_light()
+	r.step(2)
+	r.combat.press_light()
+	var seen := {}
+	for i in int(1.2 / DT):
+		r.step(1)
+		if r.combat.attack != null:
+			seen[r.combat.attack.id] = true
+	check(seen.has(&"upswing"), "il seguito parte (%s)" % [seen.keys()])
+
+
+func test_catena_leggera_resta_a_portata() -> void:
+	# I colpi di catena spingono poco: la catena di pugni prende il manichino
+	# a ogni colpo (prima il secondo pugno lo aveva gia' spinto via).
+	var r := Rig.new(&"fists")
+	var d := r.dummy(Vector2(0, -1.1))
+	for k in 4:
+		r.combat.press_light()
+		r.step(int(0.3 / DT))
+	r.settle(1.0)
+	check(d.hits >= 4, "jab, diretto, gancio e montante a segno (%d)" % d.hits)

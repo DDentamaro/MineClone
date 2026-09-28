@@ -26,6 +26,9 @@ enum Kind { FISTS, SWORD, SPEAR, HAMMER, GREATSWORD }
 @export var hit_from := -1.0
 @export var hit_to := -1.0
 @export var hit_r := 0.09
+## Distanza vera (m) dal centro dell'eroe al centro del bersaglio a cui l'arma
+## lo prende in pieno (D-033): l'affondo porta qui, non piu' oltre.
+@export var strike_dist := 1.1
 @export var guard := {}
 ## Posa rilassata (fuori combattimento dopo 2,5 s di calma).
 @export var relaxed := {}

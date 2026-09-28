@@ -37,6 +37,8 @@ enum Shape { ARC, THRUST, RADIAL }
 ## Scatto in avanti: distanza percorsa tra l'ultimo 30% della carica e la fine
 ## del colpo; con un bersaglio agganciato si adatta alla distanza.
 @export var lunge := 0.6
+## Distanza di contatto di questo colpo (m); < 0 = quella dell'arma (D-033).
+@export var strike := -1.0
 @export var move_scale := 0.12
 @export var next_light: StringName = &""
 @export var next_heavy: StringName = &""
