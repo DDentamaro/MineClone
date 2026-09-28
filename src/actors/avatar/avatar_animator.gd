@@ -35,6 +35,14 @@ class State:
 	var release := -1.0
 	## Magia pesante (Output >= 120): raccolta e spinta a due mani.
 	var two_hands := false
+	## Braccio teso della magia (RMNDWN karmaPose): peso 0..1, impegno 0..1,
+	## postura (inclinazione, apertura, allargamento), convergenza delle mani
+	## e rinculo in corso {upper, lower, spine_y, spine_x, head_y}.
+	var cast_w := 0.0
+	var cast_c := 0.0
+	var stance := Vector3.ZERO
+	var converge := 0.0
+	var recoil := {}
 	## 0 in guardia, 1 rilassato (fuori combattimento).
 	var relax := 0.0
 	## Cambio d'arma: la destra va dietro la spalla (0..1..0).
@@ -227,7 +235,7 @@ func target_pose(dt: float, s: State) -> Dictionary:
 
 	# Magia con la mano sinistra: il palmo si carica davanti al viso, poi
 	# spinge in avanti a braccio teso; l'arma resta nella destra.
-	if s.gather >= 0.0 or s.release >= 0.0:
+	if s.cast_w > 0.0:
 		_apply_cast(p, s)
 
 	# Capriola: giro completo in avanti attorno al centro del corpo, raccolto.
@@ -304,55 +312,45 @@ func _apply_attack(p: Dictionary, s: State) -> void:
 		p[&"body"] += Vector3(0, deg_to_rad(at.spin) * _smooth(u), 0)
 
 
+## Posa di lancio di RMNDWN (karmaPose L32165, D-031) specchiata sulla
+## sinistra perche' la destra tiene l'arma (D-024): braccio del tutto teso in
+## avanti, poco verso l'esterno, all'altezza della spalla, il glifo davanti al
+## palmo. Bersagli (non somme) sul braccio che lancia, somme su busto e testa
+## (la corsa continua a muovere il torso). Una spinta di 5 cm della spalla
+## nell'ultimo 22% della raccolta, poi il rinculo quando la magia colpisce.
+## Mano libera raccolta sotto; a due mani le braccia convergono.
+const CAST_ARM := Vector3(90.0, 0.0, 0.0)
+## Verso l'esterno (atan .24) e in su (atan .06) rispetto al dritto avanti.
+const CAST_OUT := 13.5
+const CAST_UP := 3.4
+
+
 func _apply_cast(p: Dictionary, s: State) -> void:
-	var gather := {&"chest": d(0, -28), &"spine": d(0, -8), &"head": d(-4, 22), &"arm_l": d(62, -12, -22),
-		&"fore_l": d(98), &"hand_l": d(-30), &"body_pos": Vector3(0, -0.05, 0)}
-	var thrust := {&"chest": d(-8, 24), &"spine": d(0, 8), &"head": d(0, -16), &"arm_l": d(88, -4, 0),
-		&"fore_l": d(0), &"hand_l": d(-80), &"body_pos": Vector3(0, -0.02, 0)}
+	var w := s.cast_w
+	var c := s.cast_c
+	var r := s.recoil
+	var lean := rad_to_deg(s.stance.x)
+	var open := rad_to_deg(s.stance.y)
+	var up_rec := rad_to_deg(float(r.get("upper", 0.0)))
+	var fl_rec := rad_to_deg(float(r.get("lower", 0.0)))
+	# Braccio sinistro: dritto in avanti, fuori di 13,5°, su di 3,4°.
+	var conv := rad_to_deg(s.converge) if s.two_hands else 0.0
+	var arm := d(CAST_ARM.x + CAST_UP + lean - 2.9 * c + up_rec, CAST_OUT + open - conv, 0.0)
+	p[&"arm_l"] = (p[&"arm_l"] as Vector3).lerp(arm, w)
+	p[&"fore_l"] = (p[&"fore_l"] as Vector3).lerp(d(fl_rec), w)
+	p[&"hand_l"] = (p[&"hand_l"] as Vector3).lerp(d(-8.0), w)
 	if s.two_hands:
-		# Due mani (RMNDWN K56): petto di fronte, la destra speculare alla sinistra.
-		gather[&"chest"] = d(0, -6)
-		gather[&"arm_r"] = d(62, 12, 22)
-		gather[&"fore_r"] = d(98)
-		gather[&"hand_r"] = d(-30)
-		gather[&"body_pos"] = Vector3(0, -0.09, 0)
-		thrust[&"chest"] = d(-10, 4)
-		thrust[&"arm_r"] = d(88, 4, 0)
-		thrust[&"fore_r"] = d(0)
-		thrust[&"hand_r"] = d(-80)
-	var from := {}
-	var to := {}
-	var k := 0.0
-	if s.gather >= 0.0:
-		to = gather
-		k = _smooth(minf(1.0, s.gather * 2.5))
+		var arm_r := d(CAST_ARM.x + CAST_UP + lean - 2.9 * c + up_rec, -(CAST_OUT + open - conv), 0.0)
+		p[&"arm_r"] = (p[&"arm_r"] as Vector3).lerp(arm_r, w)
+		p[&"fore_r"] = (p[&"fore_r"] as Vector3).lerp(d(fl_rec), w)
+		p[&"hand_r"] = (p[&"hand_r"] as Vector3).lerp(d(-8.0), w)
 	else:
-		var u := s.release
-		if u < 0.3:
-			from = gather
-			to = thrust
-			k = 1.0 - pow(1.0 - u / 0.3, 3.0)
-		else:
-			from = thrust
-			k = _smooth((u - 0.3) / 0.7)
-	for key: StringName in gather:
-		var base: Vector3 = p.get(key, Vector3.ZERO)
-		var a: Vector3 = from.get(key, base)
-		var b: Vector3 = to.get(key, base)
-		if key == &"body_pos" or key == &"chest" or key == &"spine" or key == &"head":
-			# Busto e testa si sommano alla posa di sotto (corsa, guardia).
-			var add_a: Vector3 = from.get(key, Vector3.ZERO)
-			var add_b: Vector3 = to.get(key, Vector3.ZERO)
-			p[key] = base + add_a.lerp(add_b, k)
-		else:
-			p[key] = a.lerp(b, k)
-	if s.gather >= 0.0:
-		# Tremito crescente mentre l'elemento si raduna.
-		var q := s.gather
-		p[&"fore_l"] += d(sin(time * 57.0) * 3.0 * q)
-		p[&"arm_l"] += d(0, sin(time * 43.0) * 2.0 * q)
-		if s.two_hands:
-			p[&"fore_r"] += d(sin(time * 53.0) * 3.0 * q)
+		# L'altra mano (con l'arma) resta raccolta: abd +.16 + wide, flex +.38.
+		p[&"arm_r"] += d(0, 0, rad_to_deg(0.16 + s.stance.z) * w)
+		p[&"fore_r"] += d(rad_to_deg(0.38) * w)
+	# Busto e testa: yaw +.13w (+.04c), pitch +.04w −.05c, testa −.05w; specchiati.
+	p[&"chest"] += Vector3(0.04 * w - 0.05 * c + float(r.get("spine_x", 0.0)), -(0.13 * w + 0.04 * c + float(r.get("spine_y", 0.0))), 0)
+	p[&"head"] += Vector3(0, 0.05 * w - float(r.get("head_y", 0.0)), 0)
 
 
 static func _smooth(x: float) -> float:

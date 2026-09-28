@@ -424,3 +424,81 @@ da prendere e impugnare; non era chiaro come equipaggiare armi, oggetti e armatu
 - **Scheda Equipaggiamento:** a sinistra Mano, Testa, Busto, Gambe, Piedi; toccando uno slot, al
   centro compaiono gli oggetti dello zaino che ci vanno col confronto e il pulsante per metterli,
   più "Togli" per il pezzo indossato; a destra le statistiche.
+
+## D-030 — Armatura che copre il corpo, inventario unico con la miniatura
+Richiesta del proprietario: quando si indossa l'armatura le facce del corpo coperte non devono
+sovrapporsi (capelli/elmo, busto/pettorale...); equipaggiamento e inventario uniti con una
+miniatura del personaggio come in Minecraft.
+- **Occlusione:** `HeroChargen.cull_inside` toglie dalla mesh dell'eroe i triangoli che stanno
+  per intero (tutti e tre i vertici) dentro le scatole dei pezzi indossati, allargate di 2 cm.
+  Il primo tentativo col baricentro lasciava un bordo seghettato. L'elmo mette "helm" nel DNA:
+  niente capelli sopra, niente cappello, niente orecchie. La cache dell'occlusione tiene conto
+  dei pezzi indossati.
+- **Inventario unico:** la scheda Equipaggiamento sparisce; nella scheda "Inventario" a sinistra
+  c'è la miniatura dell'eroe (SubViewport con un suo mondo e un suo AvatarRig, gira da sola e si
+  trascina), attorno i 4 slot dell'armatura e lo slot Mano, sotto le statistiche; a destra lo
+  zaino. Un tocco su uno slot dell'eroe mostra i pezzi dello zaino che ci vanno col confronto.
+  `open("equip")` apre l'inventario.
+
+## D-031 — Magie come RMNDWN (regole, posa, suono, aspetto)
+Richiesta del proprietario: rendere le magie identiche al prototipo RMNDWN. Fonte: analisi di
+`RMNDWN_k122.html` con i numeri di riga (specifica nella sessione). Cosa cambia:
+- **Karma:** ogni colpo è una testa che viaggia a `speed` per `speed × lifetime` (Zoltraak
+  64 m/s, Ago 110), si allarga perdendo coerenza (`r0·(1 + scatter·(1 − coh))`), si ferma sul
+  **primo** corpo (non trapassa più), danno e stagger × coerenza; a terra impatto e scoppio, a
+  fine portata svanisce **senza** impatto. Ago e Spina sono colpi singoli (la salva copiata era di
+  Prisma e Doppio); Dardo con i valori finali di K122 (r .085, fascio 2,40 m, decoerenza 5,2,
+  minimo .62). Dopo il contatto il raggio si spegne verso il punto d'arrivo in .30 s.
+- **Elementi:** un solo colpo all'istante di contatto della timeline v78 (colonne .57 s, punte
+  .30, geyser .27, diluvio .36, ciclone e vuoto .28, sisma .31, ascensione 2,3, frusta .44,
+  taglio .04, spinta .45, marea all'arrivo, masso 1,5 s dopo essersi composto davanti alla mano):
+  sfera `area` sul punto mirato con danno pieno a tutti, oppure la capsula mano → mira della
+  frusta (primo corpo). Palla e meteorite: danno pieno a tutti nell'area (non più colpo + scoppio
+  ridotto). Braci e Muraglia (ruolo "difesa") non feriscono mai. L'Ascensione non solleva (solo
+  stagger 24); Geyser e Punte non lanciano in aria. I proiettili elementali si fermano sulla mira.
+  La raffica di fuoco non si apre a ventaglio (il ventaglio vale solo per i raggi del Karma).
+- **Getti:** coni di SUSTAIN_TUNE (fuoco .16 → .70 fino a 6,5 m, idrante .10 → .40 fino a 7,
+  pressione .06 → .16 fino a 9), feriscono solo mentre emettono (1,6 / 2,0 / 1,1 s), stagger al
+  secondo, spinta come accelerazione (28 e 24 m/s², massimo 3,8 e 4,2 m/s), stati a ogni tick
+  (idrante bagna, rallenta e spinge; pressione bagna e spinge).
+- **Lancio:** una pressione avvia una raccolta che finisce da sola (niente carica tenuta, il
+  rilascio non annulla); la Pressione sale quando la raccolta **parte**; durante tutta la magia si
+  cammina al massimo a 1,75 m/s. I dardi del prototipo IsoTerra tengono le loro regole (tenere,
+  tocco breve, impegno al 35%).
+- **Stati:** acqua e aria con knockback ≥ .6 danno SPINTO; Conduzione (Karma sul bagnato)
+  moltiplica lo **stagger** ×1,8 e non consuma il bagnato; Shock termico toglie il fuoco con 4 ×
+  pile di danno silenzioso e moltiplicatore 1 (era 1,25); Ventaglio rispetta l'intervallo delle
+  pile (.9 s) e accende anche il giocatore entro 3,2 m; via "aria sul bagnato ×1,8" (non esiste).
+- **Stagger:** ogni magia ha il suo (tabella di RMNDWN); il manichino lo sente come oscillazione
+  (`CombatTarget.stagger`). Il knockback resta ×2,4 perché il manichino ha l'attrito del
+  prototipo, ed è orizzontale (via il sollevamento inventato).
+- **Hitstop e scossa:** `hitstop dell'attacco × famiglia (.30) × materiale × grammatica × (.35 +
+  .65 coerenza)`: 4 ms per un dardo di fuoco (era 17–48 ms). Refrattario di .16 s (sostenuti
+  .22 s) in cui un colpo non dà hitstop, scossa né suono. Scossa direzionale sull'orbita lungo
+  il colpo (la terra verso il basso) con frequenza per elemento e calcio del campo visivo in
+  gradi. Nessuna scossa all'avvio delle aree.
+- **Posa:** braccio del tutto teso in avanti (13,5° verso l'esterno, 3,4° in su), sale in .34
+  della raccolta, resta finché qualcosa del lancio vive e il glifo si sfalda, poi scende in
+  .34 s; spinta della spalla nell'ultimo 22% della raccolta; rinculo quando la magia colpisce,
+  con attacco/rilascio/posa per magia; l'altra mano raccolta; a due mani le braccia convergono.
+  **Differenza voluta:** RMNDWN lancia con la destra e l'arma nel fodero; qui la posa è
+  specchiata sulla **sinistra** perché la destra tiene l'arma (D-024).
+- **Suono:** solo l'impatto su un corpo, con le voci di RMNDWN (durate, colpo pesante più grave,
+  zap del Karma, rombo della terra, rumore a parte), altezza × `juice.sfx`, volume × famiglia ×
+  distanza. Via i suoni di raccolta e rilascio.
+- **Aspetto:** via il cerchio ai piedi, le luci puntiformi delle magie (restano quelle delle celle
+  in fiamme, che vengono dal prototipo IsoTerra) e i lampi di rilascio. Il glifo davanti al
+  palmo è il segno del lancio: figura per elemento (rosa a 5 lobi, anelli gemelli, 3 bracci a
+  spirale, esagono a segmenti; rosa a 3 petali per il Karma) con cerchio, tacche e poligono,
+  disegnata dal 6% al 72% della raccolta, carica a spirale e massa al centro dopo metà, poi si
+  sfalda. Karma: colore funzione della coerenza (tinta 284, nucleo quasi bianco), raggio acceso
+  dal glifo alla testa, fascio, sfera; bocca al rilascio; impatto con nucleo, anello, ejecta e
+  tagli. Fiamma col colore di corpo nero a isoterme. Firma d'impatto per elemento su ogni colpo
+  (braci che salgono, gocce, anello d'aria, zolle; Karma due anelli). Stati con la cadenza di
+  RMNDWN (fumo dalla testa, gocce e anello del bagnato, zolle e anello del lento).
+- **Non fatto (limiti dichiarati):** mescola MAX (Godot non l'ha negli shader spaziali: la fiamma
+  e l'aria restano additive), render target di 424 px con grani agganciati alla griglia, il
+  simulatore v78 completo (pennacchi di Heskestad, rottura di Plateau–Rayleigh, reticolo della
+  terra), i profili di forza dell'acqua e dell'aria, le magie che nel port non ci sono (guardie,
+  Prisma, Serpe, Doppio, Raffica, Sigilli, Corona...). I grani sono più grandi (2,2 cm) perché qui
+  la vista è più larga del render target di RMNDWN.

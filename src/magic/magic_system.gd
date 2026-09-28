@@ -279,6 +279,10 @@ func blocked_reason(s: SpellDefinition) -> String:
 
 func reset() -> void:
 	phase = Phase.NONE
+	arm_w = 0.0
+	glyph = 0.0
+	glyph_shed = 1.0
+	recoils.clear()
 	darts.clear()
 	statuses.clear()
 	fire.clear()
@@ -394,6 +398,7 @@ func step(dt: float, motor: PlayerMotor, targets: Array, facing: float, hand: Ve
 	runtime.step(dt, motor, targets, hand)
 	_step_fire(dt, motor, all)
 	_step_status(dt)
+	_step_pose(dt, s)
 
 
 func _pick_target(from: Vector3, facing: float, targets: Array) -> CombatTarget:
@@ -809,6 +814,8 @@ func spell_hit(tg: CombatTarget, S: SpellDefinition, base: float, dir: Vector2, 
 		hitstop = maxf(hitstop, S.hit_stop * float(F["stop"]) * float(FORCE_STOP.get(S.el, 1.0)) * float(g[1]) * (0.35 + 0.65 * k))
 	elif juice:
 		hitstop = maxf(hitstop, 0.03 * float(g[1]))
+	if base > 0.0 and not quiet and not S.is_legacy():
+		recoil(S)
 	events.append({"type": "hit", "el": S.el, "p": p, "target": tg, "damage": amount, "crit": crit, "quiet": quiet, "juice": juice,
 		"heavy": S.heavy, "dir": dir, "near": near, "sfx": S.sfx, "spell": S,
 		"shake": S.shake * float(F["shake"]) * near * float(g[0]) if juice else 0.0})
@@ -865,6 +872,8 @@ func _impact(P: Dart, p: Vector3, n: Vector3, info: Dictionary) -> void:
 ## tutti i corpi nella sfera `area` prendono il danno pieno (elementResolveHit).
 func _impact_new(P: Dart, p: Vector3, n: Vector3, info: Dictionary) -> void:
 	var S := P.spell
+	if S.el == "karma" and info.get("kind") != "target":
+		recoil(S)
 	if S.el == "karma" and S.burst_r > 0.0:
 		var k := coherence(S, P.t)
 		for o in _targets_cache:
@@ -890,6 +899,100 @@ func _impact_new(P: Dart, p: Vector3, n: Vector3, info: Dictionary) -> void:
 	if world == null or info.get("kind") == "tree":
 		return
 	runtime.world_touch(S, p, maxf(S.burst_r, S.area))
+
+
+# ---------------------------------------------------------------- posa e glifo
+
+## Braccio teso (KARMAP): sale in .34 della raccolta, resta finche' qualcosa del
+## lancio vive (raccolta, recupero, salva, colpi in volo, effetti sostenuti) e
+## il glifo si spegne (tiene .16 s, si sfalda in .28 s; Karma .46 s), poi scende
+## in .34 s. Il glifo si disegna dal 6% al 72% della raccolta.
+const ARM_UP := 0.34
+const ARM_LOWER := 0.34
+const GLYPH_KEEP := 0.16
+var arm_w := 0.0
+var cast_commit := 0.0
+var glyph := 0.0
+var glyph_shed := 1.0
+## Magia della posa (resta anche dopo il recupero finche' il braccio scende).
+var cast_spell: SpellDefinition
+var _idle_t := 99.0
+## Rinculi attivi: {t, n, atk, dec, pose}.
+var recoils: Array[Dictionary] = []
+
+
+static func smoother5(x: float) -> float:
+	x = clampf(x, 0.0, 1.0)
+	return x * x * x * (x * (x * 6.0 - 15.0) + 10.0)
+
+
+## Qualcosa del lancio e' ancora vivo (colpi del libro in volo, effetti prima
+## del contatto o mentre emettono).
+func _cast_alive() -> bool:
+	if phase != Phase.NONE or not _pending.is_empty():
+		return true
+	for d in darts:
+		if not d.spell.is_legacy() and d.fade <= 0.0:
+			return true
+	for e in runtime.effects:
+		if e.t < maxf(e.hit_at, e.spell.emit):
+			return true
+	return false
+
+
+func _step_pose(dt: float, s: SpellDefinition) -> void:
+	if phase == Phase.GATHER:
+		var dur := s.cast_dur * gather_mul()
+		cast_spell = s
+		arm_w = maxf(arm_w, smoother5(t / maxf(1e-3, dur * ARM_UP)))
+		glyph = clampf((t - 0.06 * dur) / (dur * 0.72 - 0.06 * dur), 0.0, 1.0)
+		cast_commit = smoother5((w - 0.78) / 0.22)
+		glyph_shed = 0.0
+	if _cast_alive():
+		_idle_t = 0.0
+		if phase != Phase.GATHER:
+			arm_w = 1.0
+			glyph = 1.0
+	else:
+		_idle_t += dt
+		var shed := 0.46 if cast_spell != null and cast_spell.el == "karma" else 0.28
+		glyph_shed = clampf((_idle_t - GLYPH_KEEP) / shed, 0.0, 1.0)
+		var down := clampf((_idle_t - GLYPH_KEEP - shed) / ARM_LOWER, 0.0, 1.0)
+		arm_w = minf(arm_w, 1.0 - down)
+		if arm_w <= 0.0:
+			cast_commit = 0.0
+			glyph = 0.0
+	var i := recoils.size() - 1
+	while i >= 0:
+		var r := recoils[i]
+		r["t"] = float(r["t"]) + dt
+		if float(r["t"]) >= float(r["atk"]) + float(r["dec"]):
+			recoils.remove_at(i)
+		i -= 1
+
+
+## Rinculo quando il colpo arriva (karmaRecoil L30948): i colpi entro l'attacco
+## si sommano fino a 3 (×(1 + .35(n − 1))).
+func recoil(S: SpellDefinition) -> void:
+	for r in recoils:
+		if float(r["t"]) < float(r["atk"]):
+			r["n"] = mini(3, int(r["n"]) + 1)
+			return
+	recoils.append({"t": 0.0, "n": 1, "atk": S.recoil_atk, "dec": S.recoil_dec, "pose": S.recoil_pose})
+
+
+## Somma dei rinculi in corso: {upper, lower, spine_y, spine_x, head_y}.
+func recoil_pose() -> Dictionary:
+	var out := {}
+	for r in recoils:
+		var t := float(r["t"])
+		var atk := float(r["atk"])
+		var env := smoother5(t / atk) if t < atk else 1.0 - smoother5((t - atk) / float(r["dec"]))
+		env *= 1.0 + 0.35 * (int(r["n"]) - 1)
+		var pose: Dictionary = r["pose"]
+		for k: String in pose:
+			out[k] = float(out.get(k, 0.0)) + float(pose[k]) * env
+	return out
 
 
 var _targets_cache: Array = []

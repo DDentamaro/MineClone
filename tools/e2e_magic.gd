@@ -8,9 +8,10 @@ extends SceneTree
 
 ## Magia e secondi dopo il lancio per lo screenshot.
 const PLAN := [
-	[&"giudizio", 0.04], [&"fire_jet", 0.5], [&"fire_columns", 0.45], [&"water_tide", 0.7], [&"earth_wall", 0.4],
-	[&"air_cyclone", 0.9], [&"fire_meteor", 0.55], [&"water_rain", 0.9], [&"earth_quake", 0.7], [&"orbe", 0.3],
-	[&"tridente", 0.08], [&"fire_volley", 0.45], [&"zoltraak", 0.04], [&"air_updraft", 1.1],
+	[&"giudizio", 0.05], [&"fire_jet", 0.5], [&"fire_columns", 0.6], [&"water_tide", 0.7], [&"earth_wall", 0.6],
+	[&"air_cyclone", 0.6], [&"fire_meteor", 0.55], [&"water_rain", 0.9], [&"earth_quake", 0.4], [&"orbe", 0.22],
+	[&"tridente", 0.12], [&"fire_volley", 0.3], [&"zoltraak", 0.06], [&"dardo", 0.1], [&"fire_bolt", 0.14],
+	[&"air_slash", 0.1], [&"water_hydrant", 0.6], [&"earth_rock", 0.5], [&"air_updraft", 1.1],
 ]
 
 var _game: GameRoot
@@ -156,7 +157,14 @@ func _cast_step(m: MagicSystem) -> void:
 		_touch(5, btn, false)
 	if _frame > 4 and _cast_t < 0.0 and m.phase == MagicSystem.Phase.RECOVER:
 		_cast_t = _clock
-	if m.phase == MagicSystem.Phase.GATHER and m.w > 0.6:
+	# Da vicino durante la raccolta: il glifo davanti al palmo e il braccio teso
+	# (lo zoom si imposta un fotogramma prima dello screenshot).
+	var close := m.phase == MagicSystem.Phase.GATHER
+	var z := 2.6 if close else 1.25
+	if absf(_game._camera_rig.zoom - z) > 0.01:
+		_game._camera_rig.set_zoom(z)
+		_game._camera_rig.zoom = z
+	elif close and m.w > 0.45:
 		_shot("gather_%s" % id)
 	if _cast_t > 0.0 and _clock >= _cast_t + wait and not _shots.has(String(id)):
 		_shot(String(id))
@@ -178,7 +186,7 @@ func _finish(m: MagicSystem) -> void:
 	_log.append("colpi sui manichini: %d" % h)
 	_log.append("eventi: %s" % [_seen])
 	_ok = _ok and h >= 12
-	for k in ["beam", "area", "wave", "struct", "burst_ring", "mark", "ring"]:
+	for k in ["area", "wave", "struct", "burst_ring", "mark", "contact", "impact", "hit", "rise"]:
 		if not _seen.has(k):
 			_log.append("manca l'evento %s" % k)
 			_ok = false

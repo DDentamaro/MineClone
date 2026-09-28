@@ -1,29 +1,30 @@
 class_name MagicAudio
 extends Node
-## Audio della magia sintetizzato (HTML 8304–8313, voci RMNDWN): nessun campione.
-## - impatto: onda triangolare in glissando f0 -> f1 + rumore passa-banda, decadimento
-##   esponenziale; la terra aggiunge un rombo sinusoidale 34 -> 22 Hz;
-## - rilascio: soffio di rumore passa-banda che scende (2600 -> 600, terra 300 -> 90);
-## - raccolta: rumore passa-banda che sale durante cast_dur, poi resta finche' si tiene.
+## Audio della magia sintetizzato, nessun campione. Magie del libro come RMNDWN
+## (playCombatHitSfx L18132–L18151, D-031): solo il suono dell'impatto su un
+## corpo, niente raccolta ne' rilascio. Voce per materiale (IMPACT_VOICE):
+## triangolo in glissando f0 -> f1 (colpo pesante piu' grave e lungo), rumore
+## bianco passa-banda a parte; il Karma aggiunge uno zap a dente di sega
+## 1400 -> 380 Hz, la terra un rombo sinusoidale 34 -> 22 Hz. L'altezza segue
+## `juice.sfx` della magia (pitch), il volume la famiglia e la distanza; il
+## refrattario dei colpi (.16 s, sostenuti .22 s) tace i colpi ravvicinati.
+## I dardi del prototipo IsoTerra suonano all'impatto come prima.
 ## I suoni si generano una volta, su un thread, come AudioStreamWAV.
 
 const RATE := 22050
+## [f0, f1, f0 pesante, f1 pesante, durata, durata pesante, banda, banda pesante, Q].
 const VOICE := {
-	"fire": {"f0": 140.0, "f1": 92.0, "band": 2400.0, "q": .45, "dur": .16},
-	"water": {"f0": 96.0, "f1": 52.0, "band": 900.0, "q": .5, "dur": .22},
-	"air": {"f0": 130.0, "f1": 110.0, "band": 3000.0, "q": .3, "dur": .12},
-	"earth": {"f0": 64.0, "f1": 38.0, "band": 420.0, "q": .9, "dur": .30, "rumble": true},
-	"karma": {"f0": 240.0, "f1": 170.0, "band": 3800.0, "q": .7, "dur": .13},
+	"karma": [150.0, 64.0, 120.0, 48.0, .09, .14, 1900.0, 1500.0, 1.1],
+	"fire": [140.0, 92.0, 110.0, 70.0, .08, .12, 2400.0, 1900.0, .45],
+	"water": [96.0, 52.0, 74.0, 40.0, .13, .20, 900.0, 700.0, .5],
+	"air": [130.0, 110.0, 110.0, 90.0, .08, .12, 3000.0, 2600.0, .3],
+	"earth": [64.0, 38.0, 52.0, 30.0, .18, .26, 420.0, 330.0, .9],
 }
-const GATHER := {"fire": [700.0, 2200.0, 1.2], "water": [500.0, 1400.0, 1.2], "air": [1800.0, 3600.0, 1.2], "earth": [120.0, 260.0, 2.0], "karma": [900.0, 2800.0, 1.6]}
 
+## el -> [leggeri(3), pesanti(3)]
 var _impacts := {}
-var _releases := {}
-var _gathers := {}
 var _task := -1
 var _players: Array[AudioStreamPlayer] = []
-var _gather_player: AudioStreamPlayer
-var _gather_fade := 0.0
 
 
 func _ready() -> void:
@@ -31,8 +32,6 @@ func _ready() -> void:
 		var p := AudioStreamPlayer.new()
 		add_child(p)
 		_players.append(p)
-	_gather_player = AudioStreamPlayer.new()
-	add_child(_gather_player)
 	_task = WorkerThreadPool.add_task(_build_all)
 
 
@@ -53,22 +52,14 @@ func _build_all() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 5
 	var imp := {}
-	var rel := {}
-	var gat := {}
 	for el: String in VOICE:
-		var list := []
+		var light := []
+		var heavy := []
 		for v in 3:
-			list.append(to_wav(impact_samples(el, rng.randf_range(0.9, 1.1), rng)))
-		imp[el] = list
-		rel[el] = to_wav(release_samples(el, rng))
-		var s: SpellDefinition = null
-		for sd in SpellDefinition.all():
-			if sd.el == el:
-				s = sd
-		gat[el] = to_wav(gather_samples(el, s.cast_dur, rng))
+			light.append(to_wav(impact_samples(el, rng.randf_range(0.9, 1.1), rng, false)))
+			heavy.append(to_wav(impact_samples(el, rng.randf_range(0.9, 1.1), rng, true)))
+		imp[el] = [light, heavy]
 	_impacts = imp
-	_releases = rel
-	_gathers = gat
 
 
 ## Filtro passa-banda (RBJ, guadagno di picco 0 dB) con frequenza variabile.
@@ -95,59 +86,55 @@ static func _exp_ramp(a: float, b: float, u: float) -> float:
 	return a * pow(b / a, clampf(u, 0.0, 1.0))
 
 
-static func impact_samples(el: String, pv: float, rng: RandomNumberGenerator) -> PackedFloat32Array:
-	var V: Dictionary = VOICE[el]
-	var dur: float = V["dur"]
-	var rumble := V.has("rumble")
-	var total := dur * (1.4 if rumble else 1.0)
+## Durata della voce (s).
+static func voice_dur(el: String, heavy: bool) -> float:
+	var V: Array = VOICE.get(el, VOICE["karma"])
+	return float(V[5] if heavy else V[4])
+
+
+## Colpo su un corpo: `pv` = variazione d'altezza (.9–1,1).
+static func impact_samples(el: String, pv: float, rng: RandomNumberGenerator, heavy: bool = false) -> PackedFloat32Array:
+	var V: Array = VOICE.get(el, VOICE["karma"])
+	var d := float(V[5] if heavy else V[4])
+	var f0 := float(V[2] if heavy else V[0]) * pv
+	var f1 := float(V[3] if heavy else V[1]) * pv
+	var band := float(V[7] if heavy else V[6]) * pv
+	var q := float(V[8])
+	var master := 0.18 if heavy else 0.12
+	var thud := 0.35 if el == "air" else 1.0
+	var nz_g := 0.10 if heavy else 0.075
+	var nz_d := 0.09 if heavy else 0.065
+	var total := maxf(d, 0.12)
+	if el == "earth":
+		total = d * 1.8
 	var n := int(total * RATE)
 	var out := PackedFloat32Array()
 	out.resize(n)
 	var bp := Bandpass.new()
 	var ph := 0.0
+	var zph := 0.0
 	var rph := 0.0
 	for i in n:
 		var t := float(i) / RATE
-		var u := t / dur
 		var s := 0.0
-		if u < 1.0:
-			var g := _exp_ramp(0.14, 0.001, u)
-			var f := _exp_ramp(float(V["f0"]) * pv, float(V["f1"]) * pv, u)
+		if t < d:
+			var g := _exp_ramp(master, 0.001, t / d)
+			var f := _exp_ramp(f0, f1, t / (0.9 * d))
 			ph = fmod(ph + f / RATE, 1.0)
-			var tri := 4.0 * absf(ph - 0.5) - 1.0
-			var nz := bp.process(rng.randf_range(-1.0, 1.0), float(V["band"]), float(V["q"]))
-			s += (tri + nz) * g
-		if rumble:
-			var ur := t / (dur * 1.4)
-			var fr := _exp_ramp(34.0, 22.0, ur)
+			s += (4.0 * absf(ph - 0.5) - 1.0) * g * thud
+		# Rumore bianco (.12 s con dissolvenza lineare) passa-banda, a parte.
+		if t < 0.12:
+			var white := rng.randf_range(-1.0, 1.0) * (1.0 - t / 0.12)
+			s += bp.process(white, band, q) * _exp_ramp(nz_g, 0.001, t / nz_d)
+		if el == "karma" and t < 0.07:
+			var fz := _exp_ramp(1400.0 * pv, 380.0 * pv, t / 0.06)
+			zph = fmod(zph + fz / RATE, 1.0)
+			s += (2.0 * zph - 1.0) * _exp_ramp(0.16, 0.001, t / 0.07) * master
+		if el == "earth":
+			var fr := _exp_ramp(34.0 * pv, 22.0 * pv, t / (1.6 * d))
 			rph = fmod(rph + fr / RATE, 1.0)
-			s += sin(rph * TAU) * _exp_ramp(0.18, 0.001, ur)
+			s += sin(rph * TAU) * _exp_ramp(0.55, 0.001, t / (1.8 * d)) * master
 		out[i] = s
-	return out
-
-
-static func release_samples(el: String, rng: RandomNumberGenerator) -> PackedFloat32Array:
-	var n := int(0.25 * RATE)
-	var out := PackedFloat32Array()
-	out.resize(n)
-	var bp := Bandpass.new()
-	var f0 := 300.0 if el == "earth" else 2600.0
-	var f1 := 90.0 if el == "earth" else 600.0
-	for i in n:
-		var u := float(i) / RATE / 0.22
-		out[i] = bp.process(rng.randf_range(-1.0, 1.0), _exp_ramp(f0, f1, u), 1.5) * _exp_ramp(0.09, 0.001, u)
-	return out
-
-
-static func gather_samples(el: String, cast_dur: float, rng: RandomNumberGenerator) -> PackedFloat32Array:
-	var g: Array = GATHER[el]
-	var n := int((cast_dur + 1.8) * RATE)
-	var out := PackedFloat32Array()
-	out.resize(n)
-	var bp := Bandpass.new()
-	for i in n:
-		var u := float(i) / RATE / cast_dur
-		out[i] = bp.process(rng.randf_range(-1.0, 1.0), _exp_ramp(float(g[0]), float(g[1]), u), float(g[2])) * _exp_ramp(0.001, 0.06, u)
 	return out
 
 
@@ -155,7 +142,7 @@ static func to_wav(samples: PackedFloat32Array) -> AudioStreamWAV:
 	var data := PackedByteArray()
 	data.resize(samples.size() * 2)
 	for i in samples.size():
-		data.encode_s16(i * 2, clampi(int(samples[i] * 32767.0 * 1.6), -32768, 32767))
+		data.encode_s16(i * 2, clampi(int(samples[i] * 32767.0 * 2.4), -32768, 32767))
 	var w := AudioStreamWAV.new()
 	w.format = AudioStreamWAV.FORMAT_16_BITS
 	w.mix_rate = RATE
@@ -164,11 +151,12 @@ static func to_wav(samples: PackedFloat32Array) -> AudioStreamWAV:
 	return w
 
 
-func _play(stream: AudioStreamWAV, gain_db: float = 0.0) -> void:
+func _play(stream: AudioStreamWAV, gain: float = 1.0, pitch: float = 1.0) -> void:
 	for p in _players:
 		if not p.playing:
 			p.stream = stream
-			p.volume_db = gain_db
+			p.volume_db = linear_to_db(maxf(gain, 0.001))
+			p.pitch_scale = pitch
 			p.play()
 			return
 
@@ -179,39 +167,16 @@ func handle(events: Array[Dictionary], rng_index: int) -> void:
 		return
 	for e in events:
 		match String(e["type"]):
+			"hit":
+				# Solo i colpi con la scossa (fuori dal refrattario) suonano.
+				var S: SpellDefinition = e["spell"]
+				if S.is_legacy() or not e.get("juice", false):
+					continue
+				var fam := 0.55 if e.get("quiet", false) else 0.85
+				var list: Array = _impacts[S.el][1 if S.heavy else 0]
+				_play(list[rng_index % list.size()], fam * float(e.get("near", 1.0)), S.sfx)
 			"impact":
-				var list: Array = _impacts[e["el"]]
-				_play(list[rng_index % list.size()])
-			"burst":
-				if e["el"] == "earth":
-					var list: Array = _impacts["earth"]
-					_play(list[rng_index % list.size()], -6.0)
-			"release", "beam", "close":
-				stop_gather()
-				_play(_releases[e["el"]], -3.0 if e["type"] == "close" else 0.0)
-			"area", "burst_ring":
-				var list: Array = _impacts[e["el"]]
-				_play(list[rng_index % list.size()], -2.0)
-			"struct", "crumble":
-				var list: Array = _impacts["earth"]
-				_play(list[rng_index % list.size()], -4.0)
-			"gather":
-				_gather_player.stream = _gathers[e["el"]]
-				_gather_player.volume_db = 0.0
-				_gather_fade = 0.0
-				_gather_player.play()
-			"cancel":
-				stop_gather()
-
-
-func stop_gather() -> void:
-	if _gather_player.playing:
-		_gather_fade = 0.08
-
-
-func _process(dt: float) -> void:
-	if _gather_fade > 0.0:
-		_gather_fade -= dt
-		_gather_player.volume_db = linear_to_db(maxf(0.001, _gather_fade / 0.08))
-		if _gather_fade <= 0.0:
-			_gather_player.stop()
+				var S2: SpellDefinition = e["spell"]
+				if S2.is_legacy():
+					var list: Array = _impacts[S2.el][0]
+					_play(list[rng_index % list.size()])

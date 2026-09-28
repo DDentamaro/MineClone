@@ -117,8 +117,64 @@ func step(dt: float) -> void:
 		i -= 1
 
 
-## elColor: temperatura 0..1 quantizzata a 24 livelli sulla palette dell'elemento.
+## Fiamma (v78, RMNDWN L22504): colore di corpo nero per temperatura, a
+## isoterme (6 passi) e luminosita' e = T^(lum·.55)·.55 + .45·T.
+const BLACKBODY := [[0.0, Color("#0c0b09")], [0.12, Color("#1e0c04")], [0.26, Color("#451003")], [0.42, Color("#6d1d05")],
+	[0.58, Color("#93300a")], [0.72, Color("#ad4a12")], [0.84, Color("#c06a1c")], [0.93, Color("#cf9038")], [1.0, Color("#dcb96e")]]
+const FLAME_STEPS := 6.0
+const FLAME_LUM := 5.5
+## Karma (RMNDWN karmaRamp L18922): tinta viola 284, colore funzione della coerenza.
+const KARMA_HUE := 284.0
+const KARMA_WHITE := 0.40
+
+
+static func blackbody(t: float) -> Vector3:
+	var tb := roundf(clampf(t, 0.0, 1.0) * FLAME_STEPS) / FLAME_STEPS
+	var c: Color = BLACKBODY[0][1]
+	for i in range(1, BLACKBODY.size()):
+		var a: Array = BLACKBODY[i - 1]
+		var b: Array = BLACKBODY[i]
+		if tb <= float(b[0]):
+			c = (a[1] as Color).lerp(b[1], (tb - float(a[0])) / (float(b[0]) - float(a[0])))
+			break
+	var e := pow(tb, FLAME_LUM * 0.55) * 0.55 + 0.45 * tb
+	# Il fattore 2,2 compensa la mescola MAX di RMNDWN, qui additiva e piu' rada.
+	return Vector3(c.r, c.g, c.b) * e * 2.2
+
+
+static func _hsl(h: float, s: float, l: float) -> Vector3:
+	h = fposmod(h, 360.0) / 360.0
+	var q := l * (1.0 + s) if l < 0.5 else l + s - l * s
+	var p := 2.0 * l - q
+	var f := func(t: float) -> float:
+		t = fposmod(t, 1.0)
+		if t < 1.0 / 6.0:
+			return p + (q - p) * 6.0 * t
+		if t < 0.5:
+			return q
+		if t < 2.0 / 3.0:
+			return p + (q - p) * (2.0 / 3.0 - t) * 6.0
+		return p
+	return Vector3(f.call(h + 1.0 / 3.0), f.call(h), f.call(h - 1.0 / 3.0))
+
+
+## Colore del Karma per coerenza C (24 bande): nucleo quasi bianco sopra .86.
+static func karma_color(c: float, hue_shift: float = 0.0) -> Vector3:
+	c = floorf(clampf(c, 0.0, 1.0) * 24.0) / 24.0
+	var w := (0.88 if c > 0.86 else 0.18) * KARMA_WHITE
+	var top := 0.56 + 0.44 * w
+	var l := 0.045 + top * pow(c, 1.18)
+	var sa := clampf(1.02 - w * 1.05 * pow(c, 3.0), 0.0, 1.0)
+	return _hsl(KARMA_HUE + hue_shift + (c - 0.55) * -26.0 * (0.35 + 0.65 * w), sa, l)
+
+
+## elColor: temperatura 0..1 quantizzata a 24 livelli sulla palette dell'elemento
+## ("flame" = corpo nero, "karma" = rampa della coerenza).
 static func el_color(el: String, u: float) -> Vector3:
+	if el == "flame":
+		return blackbody(u)
+	if el == "karma":
+		return karma_color(u)
 	var r: Array = EL_RGB.get(el, EL_RGB["fire"])
 	u = floorf(clampf(u, 0.0, 1.0) * 24.0) / 24.0
 	var a: Vector3

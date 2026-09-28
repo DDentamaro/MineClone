@@ -79,6 +79,23 @@ var poise := 0.0
 var body_len := 0.0
 ## Scoppio delle sfere: stagger.
 var burst_stag := 0.0
+## Postura del lancio (RMNDWN stance): inclinazione, apertura, allargamento,
+## due braccia e convergenza delle mani.
+var lean := 0.0
+var open := 0.0
+var widen := 0.0
+var both := false
+var converge := 0.0
+## Glifo del lancio davanti alla mano (RMNDWN elementGlyph / Karma glyph):
+## raggio, distanza dal palmo, lati del poligono inscritto e tacche radiali.
+var glyph_r := 0.26
+var glyph_off := 0.14
+var glyph_poly := 3
+var glyph_ticks := 8
+## Rinculo quando la magia colpisce (impactAtk, impactDec, impactPose).
+var recoil_atk := 0.035
+var recoil_dec := 0.24
+var recoil_pose := {"upper": -0.08, "lower": 0.10, "spine_y": 0.04}
 ## Descrizione breve per il libro.
 var note := ""
 
@@ -87,9 +104,14 @@ func is_legacy() -> bool:
 	return kind == "dart"
 
 
-## Le due mani servono dai 120 di Output (RMNDWN K56).
+## Due mani con la postura a braccia unite o dai 120 di Output (RMNDWN K56).
 func two_handed() -> bool:
-	return output >= 120.0
+	return both or output >= 120.0
+
+
+## Convergenza delle due mani (almeno .30 se le impone l'Output).
+func hands_converge() -> float:
+	return maxf(converge, 0.30) if output >= 120.0 and not both else converge
 
 
 func school_name() -> String:
@@ -208,7 +230,59 @@ static func _e(id: String, n: String, el: String, tier: int, kind: String, o: Di
 	s.burst_stag = o.get("burst_stag", 0.0)
 	s.status = o.get("status", {"fire": "burn", "water": "wet", "earth": "slow", "air": "", "karma": ""}[el])
 	s.note = o.get("note", "")
+	_stance(s)
 	_add(s)
+
+
+## Postura e rinculo del Karma (RMNDWN KARMA_SPELLS stance/impactPose, L32100–L32243):
+## [lean, open, wide, both, converge, atk, dec, posa del rinculo].
+const KARMA_POSE := {
+	"ago": [0.0, -0.02, 0.0, false, 0.0, 0.020, 0.16, {"lower": 0.10, "spine_y": 0.025}],
+	"zoltraak": [0.0, 0.0, 0.0, false, 0.0, 0.035, 0.26, {"upper": -0.12, "lower": 0.16, "spine_y": 0.07, "head_y": -0.06}],
+	"dardo": [-0.03, -0.04, 0.0, false, 0.0, 0.028, 0.20, {"lower": 0.20, "upper": -0.05, "head_y": -0.03}],
+	"tridente": [-0.01, 0.10, 0.06, false, 0.0, 0.026, 0.18, {"lower": 0.18, "upper": -0.07, "spine_y": 0.04}],
+	"spina": [0.05, -0.06, 0.0, false, 0.0, 0.038, 0.30, {"upper": -0.17, "lower": 0.21, "spine_y": 0.10, "head_y": -0.08}],
+	"orbe": [0.03, 0.10, 0.02, false, 0.0, 0.044, 0.36, {"upper": -0.18, "lower": 0.24, "spine_y": 0.10, "head_y": -0.09}],
+	"giudizio": [0.07, 0.18, 0.0, true, 0.36, 0.062, 0.58, {"upper": -0.30, "lower": 0.34, "spine_y": 0.18, "spine_x": -0.09, "head_y": -0.14}],
+	"nova": [0.06, 0.18, 0.0, true, 0.30, 0.058, 0.54, {"upper": -0.28, "lower": 0.32, "spine_y": 0.17, "spine_x": -0.08, "head_y": -0.13}],
+}
+
+
+## Glifi del roster (v78 glyph r/poly/ticks e Karma glyph r).
+const GLYPH := {"fire_bolt": [.207, 3, 8], "fire_volley": [.221, 3, 6], "fire_jet": [.235, 3, 10], "fire_embers": [.29, 3, 9],
+	"fire_ball": [.414, 4, 16], "fire_columns": [.42, 5, 14], "fire_meteor": [.552, 6, 24], "water_hydrant": [.345, 4, 5],
+	"water_bolt": [.248, 4, 5], "water_tide": [.442, 4, 8], "water_pressure": [.40, 4, 6], "water_ball": [.455, 4, 7],
+	"water_geyser": [.47, 4, 9], "water_rain": [.54, 4, 11], "air_lash": [.359, 3, 4], "air_push": [.40, 3, 5],
+	"air_slash": [.42, 3, 6], "air_vacuum": [.50, 3, 7], "air_updraft": [.55, 3, 8], "air_cyclone": [.59, 3, 9],
+	"earth_spikes": [.26, 6, 5], "earth_rock": [.28, 6, 5], "earth_wall": [.31, 6, 6], "earth_pillar": [.32, 6, 6],
+	"earth_quake": [.42, 6, 8], "ago": [.22, 6, 6], "zoltraak": [.30, 6, 6], "dardo": [.26, 6, 6], "flusso": [.24, 6, 6],
+	"tridente": [.28, 6, 6], "spina": [.30, 6, 6], "orbe": [.34, 6, 6], "giudizio": [.60, 6, 6], "nova": [.52, 6, 6]}
+
+
+static func _stance(s: SpellDefinition) -> void:
+	if GLYPH.has(String(s.id)):
+		var g: Array = GLYPH[String(s.id)]
+		s.glyph_r = g[0]
+		s.glyph_poly = g[1]
+		s.glyph_ticks = g[2]
+		s.glyph_off = 0.17 if s.el == "karma" else 0.12
+	if KARMA_POSE.has(String(s.id)):
+		var k: Array = KARMA_POSE[String(s.id)]
+		s.lean = k[0]
+		s.open = k[1]
+		s.widen = k[2]
+		s.both = k[3]
+		s.converge = k[4]
+		s.recoil_atk = k[5]
+		s.recoil_dec = k[6]
+		s.recoil_pose = k[7]
+	elif s.el != "karma":
+		# elementStance (RMNDWN L20158).
+		s.lean = 0.015 * s.tier
+		s.open = 0.025 * s.tier
+		s.widen = 0.06 if s.role == "area" else 0.0
+		s.both = s.tier >= 3
+		s.converge = 0.16 if s.tier >= 3 else 0.0
 
 
 static func _build() -> void:

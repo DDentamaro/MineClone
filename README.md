@@ -11,7 +11,9 @@ facoltativa), controlli touch, costruzione e scavo di debug, pannello sviluppato
 Eroe animato con editor, cinque armi con catene di colpi, carica, capriola e picchiata,
 manichini d'allenamento (animazioni e armi disegnate da zero, D-022); eroe del prototipo (CHARGEN) con passo procedurale e danno dal contatto della lama (D-028);
 magia dei quattro elementi con reazioni (D-024), ampliata a 38 magie in cinque scuole con Output,
-Pressione, libro, barra delle magie e pergamene (D-027, da RMNDWN K122).
+Pressione, libro, barra delle magie e pergamene (D-027, da RMNDWN K122), allineata alle regole, alla
+posa, al suono e all'aspetto di RMNDWN (D-031: raggi Karma che viaggiano, colpo al contatto, glifo al
+palmo); inventario unico con la miniatura dell'eroe e armatura che copre il corpo (D-030).
 
 Controlli desktop: WASD/frecce, Spazio salto, trascinamento del mouse per ruotare, rotella
 zoom, clic = tap (posa o colpo secondo l'oggetto in mano), clic tenuto = scava/abbatte, clic
@@ -21,7 +23,7 @@ Equipaggiare: nello zaino tocca un oggetto e usa "Impugna" (armi, attrezzi, bloc
 barra rapida e in mano) o "Indossa" (armature); la scheda Equipaggiamento mostra Mano e i quattro
 pezzi con i confronti. Un'armeria con tutte le armi è accanto al punto di partenza.
 Combattimento: J colpo (o clic sul mondo in esplorazione), K forte (tenuto = carica), L o Maiusc
-capriola, R cambia arma, H editor dell'eroe, M rimette i manichini davanti, U magia (tenuto), Y magia successiva della barra, P pausa; clic destro = azione
+capriola, R cambia arma, H editor dell'eroe, M rimette i manichini davanti, U magia (una pressione: la raccolta finisce da sola), Y magia successiva della barra, P pausa; clic destro = azione
 opposta in costruzione/scavo; J tenuto continua la catena.
 
 ## Struttura

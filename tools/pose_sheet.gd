@@ -9,6 +9,9 @@ var _moves := false
 var _iso := false
 var _frames := 0
 var _only := ""
+## --cast: solo le pose di lancio; --dir=x,y,z sceglie da dove guarda la camera.
+var _cast := false
+var _dir := Vector3.ZERO
 
 
 func _initialize() -> void:
@@ -25,6 +28,11 @@ func _setup() -> void:
 			_iso = true
 		elif a.begins_with("--weapon="):
 			_only = a.substr(9)
+		elif a == "--cast":
+			_cast = true
+		elif a.begins_with("--dir="):
+			var v := a.substr(6).split(",")
+			_dir = Vector3(float(v[0]), float(v[1]), float(v[2])).normalized()
 	root.size = Vector2i(1500, 2600) if _only != "" else Vector2i(1800, 1100)
 	var env := WorldEnvironment.new()
 	var e := Environment.new()
@@ -39,12 +47,17 @@ func _setup() -> void:
 	sun.shadow_enabled = true
 	root.add_child(sun)
 	var cells: Array = _move_cells() if _moves else _attack_cells()
+	if _cast:
+		cells = [_move_cells()[3]]
+		root.size = Vector2i(1500, 420)
 	var cols := 0
 	for row: Array in cells:
 		cols = maxi(cols, row.size())
 	var sx := 1.9
 	var sy := 2.2
 	var dir := Vector3(0.5, 0.6, 0.5).normalized() if _iso else Vector3(0.62, 0.32, -0.72).normalized()
+	if _dir != Vector3.ZERO:
+		dir = _dir
 	var right := Vector3(dir.z, 0, -dir.x).normalized()
 	for r in cells.size():
 		var row: Array = cells[r]
@@ -57,7 +70,7 @@ func _setup() -> void:
 			rig.set_weapon(cell.get("weapon"))
 			rig.position = right * c * sx - Vector3(0, r * sy, 0)
 			rig.rotation.y = float(cell.get("yaw", 0.0))
-			rig.ik_enabled = not (String(cell["label"]).begins_with("raccolta") or String(cell["label"]).begins_with("lancio"))
+			rig.ik_enabled = not (String(cell["label"]).begins_with("lancio"))
 			rig.apply_pose(cell["pose"])
 			var l := Label3D.new()
 			l.text = cell["label"]
@@ -168,18 +181,24 @@ func _move_cells() -> Array:
 		row.append({"weapon": w, "pose": _pose(s), "label": "capriola %.1f" % s.dodge, "yaw": -PI * 0.5})
 	rows.append(row)
 	row = []
-	for g in [0.3, 1.0]:
+	for g in [0.4, 1.0]:
 		var s := _state(w)
-		s.gather = g
-		row.append({"weapon": w, "pose": _pose(s), "label": "raccolta %.1f" % g})
-	for r in [0.2, 0.3, 0.7]:
-		var s := _state(w)
-		s.release = r
-		row.append({"weapon": w, "pose": _pose(s), "label": "lancio %.1f" % r})
-	var h := WeaponLibrary.by_id(&"hammer")
-	var sh := _state(h)
-	sh.gather = 1.0
-	row.append({"weapon": h, "pose": _pose(sh), "label": "raccolta (martello)"})
+		s.cast_w = g
+		row.append({"weapon": w, "pose": _pose(s), "label": "lancio braccio %.1f" % g})
+	var sc := _state(w)
+	sc.cast_w = 1.0
+	sc.cast_c = 1.0
+	row.append({"weapon": w, "pose": _pose(sc), "label": "lancio impegno"})
+	var sr := _state(w)
+	sr.cast_w = 1.0
+	sr.recoil = SpellDefinition.by_id(&"spina").recoil_pose
+	row.append({"weapon": w, "pose": _pose(sr), "label": "lancio rinculo"})
+	var s2 := _state(w)
+	s2.cast_w = 1.0
+	s2.two_hands = true
+	s2.converge = 0.30
+	s2.stance = Vector3(0.06, 0.18, 0.0)
+	row.append({"weapon": w, "pose": _pose(s2), "label": "lancio due mani"})
 	rows.append(row)
 	return rows
 
