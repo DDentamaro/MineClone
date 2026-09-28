@@ -54,6 +54,8 @@ var _hold_pos := Vector2.ZERO
 var _mine_cycle := -1.0
 var _stats := Equipment.Stats.new()
 var _bag: BagPanel
+## Oggetti gettati a terra (D-028).
+var ground := GroundItems.new()
 var last_edit := ""
 var combat: CombatController
 var magic := MagicSystem.new(1931)
@@ -154,6 +156,10 @@ func _ready() -> void:
 		_refresh_held()
 		_refresh_spellbar())
 	_bag.message.connect(func(t: String) -> void: last_edit = t)
+	_bag.dropped.connect(func(st: ItemStack) -> void:
+		ground.drop(st, motor.position, Vector3(-sin(_avatar.facing), 0, -cos(_avatar.facing))))
+	ground.name = "GroundItems"
+	_view.add_child(ground)
 	_audio = MagicAudio.new()
 	_audio.name = "MagicAudio"
 	add_child(_audio)
@@ -265,6 +271,8 @@ func _swap_world(w: WorldData) -> void:
 	_dummies.place_around(motor.position, _avatar.facing)
 	_objects.world = world
 	_objects.clear()
+	ground.world = world
+	ground.clear()
 	_objects.scatter_treasure(world.world_seed, world.spawn_point())
 	sandbox.setup(world, edits, catalog, motor, _objects, _vegetation)
 	if combat != null:
@@ -314,6 +322,9 @@ func _physics_process(dt: float) -> void:
 		_avatar.position = motor.position
 		_push_out_of_dummies()
 		motor.position = _objects.push_out(motor.position, PlayerMotor.RADIUS)
+		for got in ground.step(dt, motor.position, items.inv):
+			last_edit = "raccolto: %s%s" % [Loot.full_name(got), (" ×%d" % got.count) if got.count > 1 else ""]
+			items.held_changed.emit()
 		_avatar.position = motor.position
 		if combat.is_busy():
 			_avatar.turn_to(combat.facing, dt, PlayerAvatar.ATTACK_TURN)
@@ -896,7 +907,7 @@ func _world_from_save(st: Dictionary) -> WorldData:
 func make_save_state() -> Dictionary:
 	return {"v": 1, "world": SaveService.world_state(world, magic.runtime.struct_cells()),
 		"player": {"pos": motor.position, "facing": _avatar.facing}, "items": items.to_dict(),
-		"objects": _objects.to_array(), "dead_trees": _vegetation.dead_indices() if _pending_dead_trees.is_empty() else _pending_dead_trees,
+		"objects": _objects.to_array(), "ground": ground.to_array(), "dead_trees": _vegetation.dead_indices() if _pending_dead_trees.is_empty() else _pending_dead_trees,
 		"checkpoint": checkpoint, "time": _day.time, "magic": magic.to_dict()}
 
 
@@ -917,6 +928,7 @@ func _restore(st: Dictionary) -> void:
 	_avatar.rotation.y = _avatar.facing
 	items.load_dict(st.get("items", {}))
 	_objects.load_array(st.get("objects", []))
+	ground.load_array(st.get("ground", []))
 	checkpoint = st.get("checkpoint", Vector3.INF)
 	_day.time = float(st.get("time", _day.time))
 	magic.load_dict(st.get("magic", {}))

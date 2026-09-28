@@ -7,6 +7,8 @@ extends Control
 
 signal closed
 signal message(text: String)
+## Oggetto gettato dallo zaino: lo posa a terra il gioco (GroundItems).
+signal dropped(stack: ItemStack)
 
 const TABS := [["bag", "Zaino"], ["equip", "Equipaggiamento"], ["magic", "Magie"], ["craft", "Craft"], ["chest", "Forziere"]]
 const EQ_NAMES := {"head": "Testa", "chest": "Busto", "legs": "Gambe", "feet": "Piedi"}
@@ -37,6 +39,10 @@ var _font: Font
 var tab_rects := {}
 var craft_rects := {}
 var close_rect := Rect2()
+## Pulsanti dell'ultimo disegno per testo (e2e): "Getta", "Indossa", ...
+var button_rects := {}
+## Slot dello zaino del giocatore nell'ultimo disegno (indice -> Rect2).
+var slot_rects := {}
 
 
 func _ready() -> void:
@@ -135,6 +141,7 @@ func _button(r: Rect2, text: String, action: Callable, on: bool = true, accent: 
 	_text_center(r, text, 15, Color.WHITE if on else Color(0.6, 0.6, 0.6))
 	if on:
 		_hits.append([r, action])
+		button_rects[text] = r
 
 
 func _text_center(r: Rect2, text: String, size_dp: float, col: Color) -> void:
@@ -158,6 +165,8 @@ func _draw() -> void:
 	craft_rects.clear()
 	spell_rects.clear()
 	bar_rects.clear()
+	button_rects.clear()
+	slot_rects.clear()
 	if not visible or items == null:
 		return
 	var s := size
@@ -228,6 +237,8 @@ func _grid(inv: Inventory, origin: Vector2, cols: int, cell: float, on_tap: Call
 	for i in inv.size():
 		var r := Rect2(origin + Vector2((i % cols) * (cell + dp(6.0)), (i / cols) * (cell + dp(6.0))), Vector2(cell, cell))
 		var idx := i
+		if inv == items.inv:
+			slot_rects[i] = r
 		_slot(r, inv.get_slot(i), _sel_inv == inv and _sel_i == i, func() -> void: on_tap.call(inv, idx), i < hotbar_rows * cols)
 
 
@@ -310,9 +321,11 @@ func _draw_info(r: Rect2) -> void:
 				inv.set_slot(room, part)
 				items.held_changed.emit())
 	_button(Rect2(r.position.x + dp(20.0) + bw, by, bw, bh), "Getta", func() -> void:
-		inv.take(i)
+		var out := inv.take(i)
 		items.held_changed.emit()
-		message.emit("gettato: %s" % d.display_name)
+		if out != null:
+			dropped.emit(out)
+		message.emit("gettato a terra: %s (resta 5 minuti)" % d.display_name)
 		_sel_i = -1)
 
 
