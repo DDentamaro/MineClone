@@ -10,10 +10,10 @@ e acqua fusa come nella reference; nuoto e guado, schizzi; camera isometrica (te
 facoltativa), controlli touch, costruzione e scavo di debug, pannello sviluppatore (⚙).
 Eroe animato con editor, cinque armi con catene di colpi, carica, capriola e picchiata,
 manichini d'allenamento (animazioni e armi disegnate da zero, D-022); eroe del prototipo (CHARGEN) con passo procedurale e danno dal contatto della lama (D-028);
-magia dei quattro elementi con reazioni (D-024), ampliata a 38 magie in cinque scuole con Output,
+magia dei quattro elementi con reazioni (D-024), ampliata a 39 magie in cinque scuole con Output,
 Pressione, libro, barra delle magie e pergamene (D-027, da RMNDWN K122), allineata alle regole, alla
-posa, al suono e all'aspetto di RMNDWN (D-031: raggi Karma che viaggiano, colpo al contatto, glifo al
-palmo); inventario unico con la miniatura dell'eroe e armatura che copre il corpo (D-030).
+posa, al suono e all'aspetto di RMNDWN (D-031: raggi Karma che viaggiano, colpo al contatto), con la terra
+come il reticolo di granelli di RMNDWN, l'accumulo della sostanza nel palmo e i colpi continui di fuoco e acqua (D-032); inventario unico con la miniatura dell'eroe e armatura che copre il corpo (D-030).
 
 Controlli desktop: WASD/frecce, Spazio salto, trascinamento del mouse per ruotare, rotella
 zoom, clic = tap (posa o colpo secondo l'oggetto in mano), clic tenuto = scava/abbatte, clic

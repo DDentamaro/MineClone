@@ -502,3 +502,48 @@ Richiesta del proprietario: rendere le magie identiche al prototipo RMNDWN. Font
   terra), i profili di forza dell'acqua e dell'aria, le magie che nel port non ci sono (guardie,
   Prisma, Serpe, Doppio, Raffica, Sigilli, Corona...). I grani sono più grandi (2,2 cm) perché qui
   la vista è più larga del render target di RMNDWN.
+
+## D-032 — Terra di zolle vere, accumulo nel palmo, colpi continui, barra delle magie per il telefono
+Richiesta del proprietario dopo D-031: la terra deve sembrare fatta di costrutti, agglomerati di
+terra che si lanciano sul bersaglio; mancano i coni di terra di RMNDWN; colpi continui per acqua e
+fuoco; via il glifo, di nuovo l'accumulo della sostanza; un sistema di magia professionale; la barra
+delle magie sul telefono era tagliata e non tutti e 5 gli slot si potevano premere.
+- **Terra come il reticolo di RMNDWN** (`EarthFx`). Prima prova con cubetti solidi illuminati:
+  al proprietario non piaceva, preferisce l'aspetto di RMNDWN, quindi ora è quello (v78 L23058,
+  L26480–L26525, L27316–L27329): ogni forma è divisa in celle a passo fisso; i granelli partono dal
+  suolo come polvere chiara, volano verso la loro cella a `fly·(1 + .35·distanza)` m/s e si
+  bloccano entro `snap` (o tutti a `lockBy`), diventando terra compatta scura (T ≤ .14); il
+  costrutto bloccato segue la magia. Allo sgretolamento la cella lascia andare il mattone con
+  v = (±1,4, .6–2,0, ±1,4): gravità, attrito 2,4, rimbalzo .12, mucchio fermo e scuro che sparisce
+  dopo 4–6 s. Disegno: quad opachi agganciati alla griglia dei pixel e stirati nel moto
+  (stretch .14, massimo 3,5, thin .95), colore dalla rampa di sospensione RAMP_EARTH (col suo
+  "#95744" letto come rgb(149,116,4), per cui la polvere in volo è ocra).
+  - Masso: palla piena bitorzoluta R .28 a passo .062 (~380 granelli) che si compone davanti alla
+    mano in .75 s, cresce, gira, vola e si rompe sul bersaglio.
+  - **Coni gemelli** (nuova magia, RMNDWN earth_twins: T2, Output 65, R .30, lunghi 1,25, a ±1 m
+    ai lati, .85 avanti): due coni pieni a passo .07 che si compongono ai lati del caster in .45 s
+    puntando la mira, poi partono insieme a 14 m/s; area .55, 23 di danno ciascuno.
+  - Punte: sei coni pieni (R .26, 1,5 m, passo .10) che escono dal suolo in .4 s e a .81 s si
+    sgretolano.
+  - Sisma: anelli di lastre (passo .22 invece di .19, per il tetto di 3200 granelli) che si
+    compongono, si alzano e si inclinano al passaggio dell'onda, poi si sgretolano.
+  - Muraglia e colonna restano blocchi veri del mondo; salendo e crollando buttano sabbia.
+  - Impatti e firme della terra: sabbia del reticolo invece dei grani generici.
+- **Accumulo nel palmo** al posto del glifo: fuoco = fiamma che arriva a spirale e brucia nella
+  mano; acqua = gocce che arrivano e una sfera che gira e gocciola; aria = vortice che si stringe e
+  alza la polvere; terra = pietra di zolle salite dal suolo davanti ai piedi; Karma = frammenti
+  viola e nucleo chiaro. La massa cresce con la raccolta (dimensione dal livello della magia).
+- **Colpi continui (fuoco e acqua):** colonne di fuoco (1,9 s), geyser (1,4 s) e diluvio (3,2 s)
+  danno il 40% al contatto e poi colpiscono ogni .25 s chi resta nell'area (il 60% spalmato), con
+  poca spinta e famiglia "sostenuta" (niente hitstop); i getti colpivano già di continuo. Ogni
+  finestra di .22 s un colpo continuo mostra una firma piccola (braci, gocce). La bruciatura manda
+  anche lei i suoi colpi. **Differenza voluta da RMNDWN**, che colpisce una volta sola.
+- **Numeri del danno** delle magie, nel colore dell'elemento: i colpi pieni subito e grandi, i
+  critici dorati, i colpi continui sommati per bersaglio ogni .35 s.
+- **Barra delle magie:** non più una colonna sul bordo (su un telefono in orizzontale, ~390 dp di
+  altezza, usciva sopra lo schermo), ma una riga di 5 slot sopra i pulsanti d'azione, larga fino
+  a 56 dp e ridotta (non sotto 40 dp) finché entra fra lo stick e il bordo e fra la riga in alto e
+  i pulsanti. Slot scelto più grande e dorato, bordo nel colore dell'elemento, barra della raccolta
+  (azzurra) e del recupero (rossa), sopra la riga il nome con livello e Output (o il motivo del
+  blocco) e la barra della Pressione. La barra rapida in basso si restringe per non finire sotto
+  il pulsante Magia. Test con la scala dp di quattro schermi (fra cui 2400×1080 a 440 dpi).

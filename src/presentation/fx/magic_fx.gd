@@ -298,8 +298,8 @@ func _accumulate(dt: float, m: MagicSystem, s: SpellDefinition, hand: Vector3) -
 			if earth != null:
 				if not earth.has("palm"):
 					var feet := m.player.position + MagicSystem._fwd(m.face) * 0.5
-					earth.build("palm", EarthFx.ball_slots(0.13, 0.06), Transform3D(Basis.IDENTITY, hand), feet, 0.7,
-						s.cast_dur * m.gather_mul() * 0.8, 0.055)
+					earth.build("palm", EarthFx.ball_slots(0.12, 0.045), Transform3D(Basis.IDENTITY, hand), feet, 0.7,
+						s.cast_dur * m.gather_mul() * 0.8, 0.045, 7.0)
 				earth.set_xf("palm", Transform3D(Basis(Vector3.UP, _clock * 2.0), hand + Vector3(0, 0.06, 0)), 0.5 + 0.5 * w)
 			for i in _emit("acc_dust", 20.0, dt, 3):
 				var a := _rng.randf() * TAU
@@ -430,9 +430,9 @@ func _sync_earth(_dt: float, m: MagicSystem) -> void:
 		if not earth.has(key):
 			var from := m.player.position + MagicSystem._fwd(m.face) * 0.8
 			if S.kind == "twins":
-				earth.build(key, EarthFx.cone_slots(0.30, 1.25, 0.11), Transform3D(Basis.IDENTITY, d.p), d.p - Vector3(0, 1.0, 0), 0.7, maxf(0.2, S.hold * 0.9), 0.14)
+				earth.build(key, EarthFx.cone_slots(0.30, 1.25, 0.07), Transform3D(Basis.IDENTITY, d.p), d.p - Vector3(0, 1.0, 0), 0.7, maxf(0.2, S.hold * 0.9), 0.066, 14.0)
 			else:
-				earth.build(key, EarthFx.ball_slots(0.34, 0.09), Transform3D(Basis.IDENTITY, d.p), from, 1.3, maxf(0.2, S.hold * 0.8), 0.12)
+				earth.build(key, EarthFx.ball_slots(0.28, 0.062), Transform3D(Basis.IDENTITY, d.p), from, 1.3, maxf(0.2, S.hold * 0.8), 0.06, 7.0)
 		var dir := d.v.normalized() if d.v.length() > 0.1 else MagicSystem._fwd(m.face)
 		var basis: Basis
 		if S.kind == "twins":
@@ -457,7 +457,7 @@ func _earth_break(d: MagicSystem.Dart, p: Vector3, n: Vector3) -> void:
 	var key := "d%d" % d.get_instance_id()
 	var fwd := d.v.normalized() if d.v.length() > 0.1 else -n
 	earth.release(key, fwd * 2.5 + Vector3(0, 1.0, 0), 3.2)
-	earth.debris(p, n + Vector3(0, 0.5, 0), 10, 3.5, 0.08, 0.25)
+	earth.debris(p, n + Vector3(0, 0.5, 0), 18, 3.5, 0.06, 0.25)
 	for i in 10:
 		var sm := _g(p + _r3() * 0.35, Vector3(0, 0.6, 0) + _r3() * 0.6, "smoke", 1, _rng.randf_range(0.8, 1.5), 0.07, -0.2, 1.0, 0.75)
 		if sm != null:
@@ -487,7 +487,7 @@ func signature(el: String, p: Vector3, heavy: bool, axis: Vector3) -> void:
 				_puff(p, axis, 1.9, 0.0, "air", 0, 0.3, 0.0, 0.016)
 		"earth":
 			if earth != null:
-				earth.debris(p, axis * 0.4, 18 if heavy else 11, 2.6 * k, 0.06, 0.15)
+				earth.debris(p, axis * 0.4, 18 if heavy else 11, 2.6 * k, 0.05, 0.15)
 			for i in 6:
 				_puff(p, axis, 1.0, 1.0, "smoke", 1, 0.9, -0.3, 0.05)
 		_:
@@ -582,7 +582,7 @@ func element_impact(S: SpellDefinition, p: Vector3, n: Vector3) -> void:
 			_line_ring(p, 0.1, 0.7 * sqrt(big), 0.4, "water", true, 20, 0.8)
 		"earth":
 			if earth != null:
-				earth.debris(p, Vector3.UP, ejecta * 2, 3.5 * sqrt(big), 0.09, 0.3)
+				earth.debris(p, Vector3.UP, ejecta * 3, 3.5 * sqrt(big), 0.06, 0.3)
 			for i in 8:
 				_g(p + _r3() * 0.4, Vector3(0, 0.5, 0) + _r3() * 0.5, "smoke", 1, _rng.randf_range(0.8, 1.6), 0.07, -0.2, 1.0, 0.7)
 			_line_ring(p, 0.2, 1.2, 0.5, "earth", true, 22, 0.6)
@@ -677,7 +677,7 @@ func _event(e: Dictionary, hand: Vector3) -> void:
 			# Il blocco sale dal suolo: zolle che schizzano dalla base.
 			for c: Vector3i in e["cells"]:
 				if earth != null:
-					earth.debris(Vector3(c) + Vector3(0.5, 0.1, 0.5), Vector3.UP, 3, 2.5, 0.09, 0.4)
+					earth.debris(Vector3(c) + Vector3(0.5, 0.1, 0.5), Vector3.UP, 6, 2.5, 0.07, 0.4)
 				var sm := _g(Vector3(c) + Vector3(0.5, 0.2, 0.5) + _r3() * 0.4, Vector3(0, 0.5, 0) + _r3() * 0.4, "smoke", 1, 0.9, 0.08, -0.2, 1.0, 0.75)
 				if sm != null:
 					sm.al = 0.6
@@ -685,7 +685,7 @@ func _event(e: Dictionary, hand: Vector3) -> void:
 			# Il blocco si sbriciola in zolle vere che cadono e rotolano.
 			for c: Vector3i in e["cells"]:
 				if earth != null:
-					earth.debris(Vector3(c) + Vector3(0.5, 0.5, 0.5), Vector3(0, 0.2, 0), 6, 1.6, 0.2, 0.35)
+					earth.debris(Vector3(c) + Vector3(0.5, 0.5, 0.5), Vector3(0, 0.2, 0), 14, 1.6, 0.08, 0.4)
 		"mark":
 			_mark(String(e["kind"]), e["p"], float(e["r"]))
 		"buff":
@@ -1001,14 +1001,14 @@ func _spikes(e: SpellRuntime.Effect) -> void:
 			if world != null:
 				q.y = VoxelQuery.field_height(world, q.x, q.z, e.p.y + 1.0)
 			(_built[base] as Array).append(q)
-			earth.build(base + str(k), EarthFx.cone_slots(0.30, 1.5, 0.13), Transform3D(Basis.IDENTITY, q), q, 0.9, 0.3, 0.17, 0.35)
+			earth.build(base + str(k), EarthFx.cone_slots(0.26, 1.5, 0.10), Transform3D(Basis.IDENTITY, q), q, 0.9, 0.3, 0.09, 14.0)
 	var pts: Array = _built[base]
 	var up := Basis.looking_at(Vector3.UP, Vector3.FORWARD)
 	var rise := _sm5(e.t / 0.4)
 	for k in pts.size():
 		var key := base + str(k)
 		if e.t >= 0.81:
-			earth.release(key, Vector3.ZERO, 1.2)
+			earth.crumble(key)
 			continue
 		var q: Vector3 = pts[k]
 		var tilt := Basis(Vector3(sin(k * 1.7), 0, cos(k * 2.3)).normalized(), 0.18)
@@ -1017,45 +1017,44 @@ func _spikes(e: SpellRuntime.Effect) -> void:
 		_built.erase(base)
 
 
-## Sisma (RMNDWN struct fault): 4 anelli di lastre (raggi .95…3,8, larghe
-## 2πr/round(2πr/1,7)·.92, alte .62, spesse .68, anelli dispari sfalsati) che si
-## alzano al passaggio di un'onda a 5,5 m/s e si inclinano; poi ricadono e si rompono.
+## Sisma (RMNDWN struct fault, passo .19; qui .22 per il budget dei granelli): 4 anelli di lastre (raggi .95…3,8,
+## larghe 2πr/round(2πr/1,7)·.92, alte .62, spesse .68, anelli dispari sfalsati),
+## ognuna un reticolo di granelli che si compone dal suolo; l'onda a 5,5 m/s le
+## alza e le inclina; alla fine si sgretolano.
 func _quake(e: SpellRuntime.Effect) -> void:
 	if earth == null:
 		return
 	var key := "qk%d" % e.get_instance_id()
 	if not _built.has(key):
 		var slabs := []
-		var sizes: Array[Vector3] = []
 		for ring in 4:
 			var r := 0.95 * (ring + 1)
 			var n := maxi(3, int(round(TAU * r / 1.7)))
 			for i in n:
 				var a := TAU * (i + (0.5 if ring % 2 == 1 else 0.0)) / n
-				slabs.append([r, a])
-				sizes.append(Vector3(TAU * r / n * 0.92, 0.62, 0.68))
+				var p := e.p + Vector3(cos(a), 0, sin(a)) * r
+				if world != null:
+					p.y = VoxelQuery.field_height(world, p.x, p.z, e.p.y + 1.0)
+				slabs.append([r, a, p])
+				earth.build(key + "_%d" % (slabs.size() - 1), EarthFx.box_slots(Vector3(TAU * r / n * 0.92, 0.62, 0.68), 0.22),
+					Transform3D(Basis.IDENTITY, p + Vector3(0, -0.36, 0)), p, 0.6, 0.28 + r / 5.5, 0.15, 7.0)
 		_built[key] = slabs
-		earth.build_manual(key, sizes, 0.55)
+	var slabs2: Array = _built[key]
 	if e.t >= e.dur - 0.6:
-		if earth.has(key):
-			earth.crumble(key, 0.13)
+		for i in slabs2.size():
+			earth.crumble(key + "_%d" % i)
 		if e.t >= e.dur - 0.05:
 			_built.erase(key)
 		return
-	var slabs2: Array = _built[key]
 	for i in slabs2.size():
 		var r: float = slabs2[i][0]
 		var a: float = slabs2[i][1]
+		var p: Vector3 = slabs2[i][2]
 		var tau := e.t - r / 5.5
 		var lift := 0.0
 		if tau > 0.0:
 			var gx := (tau - 0.28) / 0.26
 			lift = 0.52 * maxf(exp(-gx * gx), 0.26 * minf(1.0, tau / 0.28))
-		var radial := Vector3(cos(a), 0, sin(a))
-		var p := e.p + radial * r
-		if world != null:
-			p.y = VoxelQuery.field_height(world, p.x, p.z, e.p.y + 1.0)
-		p.y += -0.36 + lift * 1.3
 		var yaw := Basis(Vector3.UP, -a + PI * 0.5)
 		var tilt := Basis(Vector3(-sin(a), 0, cos(a)), 0.6 * lift)
-		earth.set_chunk(key, i, p, Quaternion(tilt * yaw))
+		earth.set_xf(key + "_%d" % i, Transform3D(tilt * yaw, p + Vector3(0, -0.36 + lift * 1.3, 0)))
