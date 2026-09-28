@@ -7,6 +7,23 @@ si possano riprendere (5 minuti), selezione delle magie più chiara, hitbox/hurt
 armi e ai pugni, ritorno all'eroe del prototipo (più piccolo) con un passo migliore tenendo le
 animazioni di combattimento (D-028).
 
+Seguito del 28/09/2026 (D-032): terra come il reticolo di granelli di RMNDWN (dopo una prova con
+cubetti solidi che non è piaciuta) con i Coni gemelli, accumulo della sostanza nel palmo al posto
+del glifo, colpi continui di fuoco e acqua, numeri del danno, barra delle magie che entra nel
+telefono.
+
+### Test realmente eseguiti (D-032)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 208/208 PASS, log pulito (nuovi: barra delle magie e barra rapida dentro lo schermo e premibili su 4 schermi, fra cui 2400×1080 a 440 dpi; reticolo della terra: composizione, blocco scuro, rottura, mucchio, sgretolamento, rampa; coni gemelli; diluvio al contatto e poi continuo; aria a colpo singolo; bruciatura che manda colpi) |
+| `tools/e2e_magic.gd` completo | OK: 21 magie col pulsante, 73 colpi, nessun errore di script |
+| `tools/e2e_magic.gd --phone` (scala dp di un telefono) | OK: tutti e 5 gli slot premuti |
+| `tools/e2e_combat.gd`, `e2e_touch`, `e2e_sandbox`, `e2e_walk`, `e2e_drop`, `e2e_armory`, `e2e_swim` | OK, nessun errore di script (la prima corsa di `e2e_touch` è caduta perché partita a metà di una modifica; rifatta a codice finito: OK) |
+| Export Android debug 0.11.0-m5 (versionCode 13) + `apksigner verify` + `aapt2 dump badging` | OK; minSdk 24, targetSdk 36; mai installato su un telefono |
+
+Non verificato: FPS su telefono (il reticolo arriva a ~3200 granelli ricostruiti a ogni frame);
+schermo vero di un telefono (solo la scala dp simulata).
+
 Seguito del 28/09/2026: armatura che copre il corpo e inventario unico (D-030), magie allineate a
 RMNDWN nelle regole, nella posa, nel suono e nell'aspetto (D-031).
 
