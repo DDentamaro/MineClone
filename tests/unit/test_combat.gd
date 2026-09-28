@@ -211,7 +211,7 @@ func test_giro_colpisce_piu_volte_con_rehit() -> void:
 func test_manichino_si_rompe_e_ricompare() -> void:
 	var w := TestWorlds.flat(4)
 	var d := TrainingDummy.new(Vector3(10.5, 4, 10.5))
-	d.take_hit(Vector3(6, 0, 0), 100.0)
+	d.take_hit(Vector3(6, 0, 0), TrainingDummy.MAX_HP + 1.0)
 	check(not d.alive and d.broke, "rotto")
 	for i in int((TrainingDummy.RESPAWN + 0.1) / DT):
 		d.step(DT, w)

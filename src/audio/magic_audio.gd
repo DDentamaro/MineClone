@@ -13,8 +13,9 @@ const VOICE := {
 	"water": {"f0": 96.0, "f1": 52.0, "band": 900.0, "q": .5, "dur": .22},
 	"air": {"f0": 130.0, "f1": 110.0, "band": 3000.0, "q": .3, "dur": .12},
 	"earth": {"f0": 64.0, "f1": 38.0, "band": 420.0, "q": .9, "dur": .30, "rumble": true},
+	"karma": {"f0": 240.0, "f1": 170.0, "band": 3800.0, "q": .7, "dur": .13},
 }
-const GATHER := {"fire": [700.0, 2200.0, 1.2], "water": [500.0, 1400.0, 1.2], "air": [1800.0, 3600.0, 1.2], "earth": [120.0, 260.0, 2.0]}
+const GATHER := {"fire": [700.0, 2200.0, 1.2], "water": [500.0, 1400.0, 1.2], "air": [1800.0, 3600.0, 1.2], "earth": [120.0, 260.0, 2.0], "karma": [900.0, 2800.0, 1.6]}
 
 var _impacts := {}
 var _releases := {}
@@ -185,9 +186,15 @@ func handle(events: Array[Dictionary], rng_index: int) -> void:
 				if e["el"] == "earth":
 					var list: Array = _impacts["earth"]
 					_play(list[rng_index % list.size()], -6.0)
-			"release":
+			"release", "beam", "close":
 				stop_gather()
-				_play(_releases[e["el"]])
+				_play(_releases[e["el"]], -3.0 if e["type"] == "close" else 0.0)
+			"area", "burst_ring":
+				var list: Array = _impacts[e["el"]]
+				_play(list[rng_index % list.size()], -2.0)
+			"struct", "crumble":
+				var list: Array = _impacts["earth"]
+				_play(list[rng_index % list.size()], -4.0)
 			"gather":
 				_gather_player.stream = _gathers[e["el"]]
 				_gather_player.volume_db = 0.0

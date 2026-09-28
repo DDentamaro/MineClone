@@ -8,10 +8,16 @@ extends Control
 signal closed
 signal message(text: String)
 
-const TABS := [["bag", "Zaino"], ["equip", "Equipaggiamento"], ["craft", "Craft"], ["chest", "Forziere"]]
+const TABS := [["bag", "Zaino"], ["equip", "Equipaggiamento"], ["magic", "Magie"], ["craft", "Craft"], ["chest", "Forziere"]]
 const EQ_NAMES := {"head": "Testa", "chest": "Busto", "legs": "Gambe", "feet": "Piedi"}
 
 var items: PlayerItems
+## Libro e barra delle magie (scheda "Magie", pergamene).
+var magic: MagicSystem
+var _sel_spell: StringName = &""
+## Riquadri per le prove e2e: magia -> riga del libro, slot della barra.
+var spell_rects := {}
+var bar_rects: Array[Rect2] = []
 var chest: WorldObjects.Obj
 var stations: Array = []
 var tab := "bag"
@@ -150,6 +156,8 @@ func _draw() -> void:
 	_hits.clear()
 	tab_rects.clear()
 	craft_rects.clear()
+	spell_rects.clear()
+	bar_rects.clear()
 	if not visible or items == null:
 		return
 	var s := size
@@ -184,6 +192,8 @@ func _draw() -> void:
 			_draw_bag(body)
 		"equip":
 			_draw_equip(body)
+		"magic":
+			_draw_magic(body)
 		"craft":
 			_draw_craft(body)
 		"chest":
@@ -268,6 +278,11 @@ func _draw_info(r: Rect2) -> void:
 	var by := r.end.y - bh - dp(10.0)
 	var inv := _sel_inv
 	var i := _sel_i
+	if d.kind == ItemDefinition.Kind.SCROLL and magic != null:
+		var known := magic.known.has(d.spell)
+		_button(Rect2(r.position.x + dp(10.0), by - bh - dp(8.0), bw, bh), "Già nota" if known else "Impara", func() -> void:
+			if learn_scroll(inv, i):
+				_sel_i = -1, not known, true)
 	if d.kind == ItemDefinition.Kind.ARMOR and inv == items.inv:
 		_button(Rect2(r.position.x + dp(10.0), by - bh - dp(8.0), bw, bh), "Indossa", func() -> void:
 			items.equip_from(i)
@@ -324,8 +339,8 @@ func _draw_equip(body: Rect2) -> void:
 		"Difesa  %.1f" % st.defense,
 		"Danno corpo a corpo  ×%.2f" % st.melee,
 		"Critico  %d%%" % roundi(st.crit * 100.0),
-		"Mana massimo  +%d" % roundi(st.mana_max),
-		"Rigenerazione mana  +%.1f/s" % st.mana_regen,
+		"Output delle magie  +%d" % roundi(st.mana_max),
+		"Dissipazione della pressione  +%.1f" % st.mana_regen,
 		"Danno delle magie  ×%.2f" % st.arcane,
 		"Velocità di scavo  ×%.2f" % st.dig,
 		"Velocità di movimento  ×%.2f" % st.speed,
@@ -412,3 +427,125 @@ func _draw_chest(body: Rect2) -> void:
 	_button(all, "Prendi tutto", func() -> void:
 		for i in chest.inv.size():
 			transfer.call(chest.inv, i, items.inv), true, true)
+
+
+## Pergamena: impara la magia (consuma la pergamena) e la mette nel primo slot libero.
+func learn_scroll(inv: Inventory, i: int) -> bool:
+	var st := inv.get_slot(i)
+	if st == null or magic == null or st.def().kind != ItemDefinition.Kind.SCROLL:
+		return false
+	var id := st.def().spell
+	if not magic.learn(id):
+		return false
+	inv.take(i, 1)
+	var free := magic.bar.find(&"")
+	if free >= 0:
+		magic.equip(id, free)
+	items.held_changed.emit()
+	message.emit("imparata: %s (Output %d)" % [SpellDefinition.by_id(id).display_name, int(magic.output_cap())])
+	return true
+
+
+const SCHOOLS := ["fire", "water", "air", "earth", "karma"]
+
+
+func _draw_magic(body: Rect2) -> void:
+	if magic == null:
+		return
+	var cap := magic.output_cap()
+	_text(body.position + Vector2(0, dp(16.0)), "Output %d  ·  Pressione %d%%%s  ·  conosciute %d/%d  —  tocca una magia, poi uno slot della barra" % [
+		int(cap), int(magic.pressure * 100.0), " (satura)" if magic.saturated else "", magic.known.size(), SpellDefinition.all().size()], 13, Color(0.8, 0.85, 0.8))
+	# Barra: 5 slot.
+	var bh := dp(48.0)
+	var bw := minf(dp(150.0), (body.size.x * 0.66 - dp(6.0) * 4) / 5.0)
+	var by := body.position.y + dp(26.0)
+	for k in MagicSystem.BAR:
+		var r := Rect2(body.position.x + k * (bw + dp(6.0)), by, bw, bh)
+		bar_rects.append(r)
+		var sp := SpellDefinition.by_id(magic.bar[k]) if magic.bar[k] != &"" else null
+		draw_rect(r, Color(0.13, 0.16, 0.17, 0.95))
+		if sp != null:
+			draw_rect(Rect2(r.position + Vector2(dp(4.0), dp(4.0)), Vector2(dp(8.0), r.size.y - dp(8.0))), sp.color())
+			_text(r.position + Vector2(dp(16.0), dp(20.0)), sp.display_name, 13, Color.WHITE, r.size.x - dp(20.0))
+			_text(r.position + Vector2(dp(16.0), dp(38.0)), "Output %d" % int(sp.output), 11, Color(0.95, 0.5, 0.45) if sp.output > cap else Color(0.7, 0.8, 0.75))
+		else:
+			_text_center(r, "slot %d vuoto" % (k + 1), 12, Color(0.5, 0.55, 0.52))
+		draw_rect(r, Color(1, 0.9, 0.5) if k == magic.bar_index else Color(0.4, 0.5, 0.46, 0.8), false, dp(2.5 if k == magic.bar_index else 1.0))
+		var slot := k
+		_hits.append([r, func() -> void:
+			if _sel_spell != &"" and magic.known.has(_sel_spell):
+				magic.equip(_sel_spell, slot)
+				message.emit("barra %d: %s" % [slot + 1, SpellDefinition.by_id(_sel_spell).display_name])
+			elif magic.bar[slot] != &"":
+				_sel_spell = magic.bar[slot]])
+	# Libro: una colonna per scuola, righe per livello e Output.
+	var top := by + bh + dp(12.0)
+	var gw := body.size.x * 0.66
+	var cw := (gw - dp(6.0) * 4) / 5.0
+	var rows := 0
+	var cols := {}
+	for el: String in SCHOOLS:
+		var l: Array[SpellDefinition] = []
+		for sp in SpellDefinition.all():
+			if sp.el == el:
+				l.append(sp)
+		l.sort_custom(func(a: SpellDefinition, b: SpellDefinition) -> bool: return a.tier < b.tier or (a.tier == b.tier and a.output < b.output))
+		cols[el] = l
+		rows = maxi(rows, l.size())
+	var rh := minf(dp(40.0), (body.end.y - top - dp(22.0)) / rows - dp(3.0))
+	for c in SCHOOLS.size():
+		var el: String = SCHOOLS[c]
+		var x := body.position.x + c * (cw + dp(6.0))
+		_text(Vector2(x, top + dp(12.0)), {"fire": "Fuoco", "water": "Acqua", "air": "Aria", "earth": "Terra", "karma": "Karma"}[el], 13, SpellDefinition.EL_COLOR[el])
+		var y := top + dp(20.0)
+		for sp: SpellDefinition in cols[el]:
+			var r := Rect2(x, y, cw, rh)
+			spell_rects[sp.id] = r
+			var known := magic.known.has(sp.id)
+			draw_rect(r, Color(0.12, 0.15, 0.15, 0.95) if known else Color(0.08, 0.08, 0.09, 0.85))
+			draw_rect(Rect2(r.position, Vector2(dp(5.0), r.size.y)), sp.color() if known else sp.color().darkened(0.6))
+			var col := Color.WHITE if known and sp.output <= cap else (Color(0.95, 0.6, 0.5) if known else Color(0.5, 0.5, 0.5))
+			_text(r.position + Vector2(dp(9.0), rh * 0.5 + dp(5.0)), sp.display_name, 12, col, r.size.x - dp(40.0))
+			_text(r.position + Vector2(r.size.x - dp(30.0), rh * 0.5 + dp(5.0)), str(int(sp.output)), 11, col)
+			if sp.id == _sel_spell:
+				draw_rect(r, Color(1, 0.9, 0.5), false, dp(2.0))
+			elif magic.bar.has(sp.id):
+				draw_rect(r, Color(0.63, 0.89, 0.78, 0.8), false, dp(1.0))
+			var id := sp.id
+			_hits.append([r, func() -> void: _sel_spell = id])
+			y += rh + dp(3.0)
+	_draw_spell_info(Rect2(body.position.x + gw + dp(10.0), by, body.size.x - gw - dp(10.0), body.end.y - by))
+
+
+func _draw_spell_info(r: Rect2) -> void:
+	draw_rect(r, Color(0.1, 0.12, 0.13, 0.9))
+	var sp := SpellDefinition.by_id(_sel_spell) if _sel_spell != &"" else null
+	var x := r.position.x + dp(10.0)
+	var w := r.size.x - dp(20.0)
+	if sp == null:
+		_text(Vector2(x, r.position.y + dp(24.0)), "Nessuna magia selezionata", 15, Color(0.7, 0.7, 0.7))
+		_text(Vector2(x, r.position.y + dp(48.0)), "Le magie di livello 2+ si imparano dalle pergamene dei tesori.", 12, Color(0.65, 0.7, 0.68), w)
+		return
+	var cap := magic.output_cap()
+	var y := r.position.y + dp(26.0)
+	_text(Vector2(x, y), sp.display_name, 17, sp.color(), w)
+	y += dp(22.0)
+	var lines: Array[String] = ["%s · livello %d%s" % [sp.school_name(), sp.tier, " · due mani" if sp.two_handed() else ""],
+		"Output %d / %d" % [int(sp.output), int(cap)], "raccolta %.2f s · recupero %.2f s" % [sp.cast_dur, sp.recover]]
+	if sp.dmg > 0.0:
+		lines.append("danno %d%s" % [int(sp.dmg), (" ×%d" % sp.salvo_n) if sp.salvo_n > 1 else ""])
+	if sp.dps > 0.0:
+		lines.append("%d danni/s" % int(sp.dps))
+	if sp.burst_r > 0.0:
+		lines.append("scoppio %d (raggio %.1f)" % [int(sp.burst_dmg), sp.burst_r])
+	if sp.decoh > 0.0:
+		lines.append("coerenza: cala con la distanza (min %d%%)" % int(sp.coh_floor * 100.0))
+	if sp.note != "":
+		lines.append(sp.note)
+	if not magic.known.has(sp.id):
+		lines.append("Sconosciuta: serve la pergamena")
+	elif sp.output > cap:
+		lines.append("Output insufficiente: servono equipaggiamento (Mente, oro) o altre magie studiate")
+	for l in lines:
+		_text(Vector2(x, y), l, 13, Color(0.9, 0.92, 0.88), w)
+		y += dp(19.0)

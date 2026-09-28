@@ -13,3 +13,9 @@ var alive := true
 ## `impulse`: velocita' impressa (orizzontale + lancio verticale).
 func take_hit(_impulse: Vector3, _damage: float) -> void:
 	pass
+
+
+## Forza continua (getti, vuoto, ciclone, correnti): cambia la velocita' senza
+## contare come colpo. `max_speed` limita la velocita' orizzontale risultante.
+func push(_dv: Vector3, _max_speed: float = 6.0) -> void:
+	pass

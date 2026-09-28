@@ -5,13 +5,14 @@ extends Node3D
 ## gocce che spariscono entrando in acqua, temperatura che si raffredda con la
 ## vita. Due mesh ricostruite a ogni frame: additiva (mode 0) e opaca (mode 1).
 
-const CAP := 2600
+const CAP := 3600
 ## Palette per elemento: ombra, corpo, caldo, nucleo, picco (EL_RGB, HTML 7996).
 const EL_RGB := {
 	"fire": [Vector3(.08, .035, .018), Vector3(.42, .10, .025), Vector3(.86, .30, .04), Vector3(1.0, .72, .28), Vector3(1, .96, .78)],
 	"water": [Vector3(.025, .09, .14), Vector3(.05, .25, .38), Vector3(.12, .52, .68), Vector3(.55, .84, .90), Vector3(.94, .99, 1)],
 	"air": [Vector3(.28, .34, .35), Vector3(.52, .62, .64), Vector3(.72, .82, .83), Vector3(.88, .94, .95), Vector3(.98, 1, 1)],
 	"earth": [Vector3(.14, .09, .055), Vector3(.30, .22, .13), Vector3(.48, .36, .21), Vector3(.66, .52, .34), Vector3(.84, .74, .58)],
+	"karma": [Vector3(.08, .04, .12), Vector3(.30, .14, .50), Vector3(.60, .38, .92), Vector3(.86, .74, 1.0), Vector3(1, .97, 1)],
 	"smoke": [Vector3(.06, .06, .06), Vector3(.16, .15, .14), Vector3(.30, .29, .27), Vector3(.45, .44, .42), Vector3(.6, .6, .6)],
 	"steam": [Vector3(.5, .55, .6), Vector3(.66, .72, .76), Vector3(.8, .85, .88), Vector3(.9, .93, .95), Vector3(1, 1, 1)],
 }

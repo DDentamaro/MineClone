@@ -96,7 +96,9 @@ func animate(dt: float, motor: PlayerMotor, combat: CombatController, magic: Mag
 	s.dodge = combat.dodge_u()
 	s.gather = -1.0
 	s.release = -1.0
+	s.two_hands = false
 	if magic != null:
+		s.two_hands = magic.spell().two_handed()
 		if magic.phase == MagicSystem.Phase.GATHER:
 			s.gather = magic.w
 		elif magic.phase == MagicSystem.Phase.RECOVER:

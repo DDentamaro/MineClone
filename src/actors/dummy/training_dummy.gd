@@ -4,7 +4,7 @@ extends CombatTarget
 ## nemici sono rinviati (D-009). Scivola e vola quando colpito, oscilla su una
 ## molla, si rompe a 0 PV e ricompare nel suo posto; poi torna a casa da solo.
 
-const MAX_HP := 60.0
+const MAX_HP := 120.0
 const GRAVITY := 28.0
 const RESPAWN := 2.5
 const REGEN_AFTER := 3.0
@@ -124,3 +124,18 @@ func ground(world: WorldData, x: float, z: float) -> float:
 	if world == null:
 		return home.y
 	return VoxelQuery.field_height(world, x, z, position.y + 0.5)
+
+
+func push(dv: Vector3, max_speed: float = 6.0) -> void:
+	if not alive:
+		return
+	velocity += dv
+	var h := Vector2(velocity.x, velocity.z)
+	if h.length() > max_speed:
+		h = h.normalized() * max_speed
+		velocity.x = h.x
+		velocity.z = h.y
+	if dv.y > 0.0:
+		on_ground = false
+	_quiet = 0.0
+	tilt_v += Vector2(-dv.z, dv.x) * 0.3

@@ -14,8 +14,12 @@ var _acc := {}
 ## Lampi di rilascio e d'impatto per le luci puntiformi: {p, col, r, t, life}.
 var _flashes: Array[Dictionary] = []
 var _clock := 0.0
-const LIGHT := {"fire": Color(1.0, .55, .20, 3.4), "water": Color(.30, .55, .85, 1.5)}
-const FLASH := {"fire": Vector3(1, .6, .25), "water": Vector3(.35, .6, .95), "air": Vector3(.8, .9, 1), "earth": Vector3(.7, .55, .35)}
+const LIGHT := {"fire": Color(1.0, .55, .20, 3.4), "water": Color(.30, .55, .85, 1.5), "karma": Color(.70, .50, 1.0, 2.2)}
+const FLASH := {"fire": Vector3(1, .6, .25), "water": Vector3(.35, .6, .95), "air": Vector3(.8, .9, 1), "earth": Vector3(.7, .55, .35), "karma": Vector3(.75, .55, 1)}
+## Segni di materia (K122): al massimo 16, fusi se vicini; vita per tipo.
+const MARK_MAX := 16
+const MARK_LIFE := {"scorch": 12.0, "puddle": 7.5, "crater": 10.0}
+var _marks: Array[Dictionary] = []
 
 
 func _g(p: Vector3, v: Vector3, el: String, mode: int, life: float, size: float, grav: float = 0.0, drag: float = 0.0, t0: float = 1.0) -> Grains.Grain:
@@ -70,7 +74,9 @@ func update(dt: float, m: MagicSystem, hand: Vector3, player: Vector3) -> void:
 			var g := _g(p, to / life + tang, s.el, 1 if s.el == "earth" else 0, life, 0.035 if s.el != "air" else 0.022, 0.0, 0.0, 0.8)
 			if g != null and s.el == "air":
 				g.length = 0.1
-		# Massa nel palmo.
+		# Cerchio magico ai piedi per le magie del libro, piu' largo con l'Output.
+		if not s.is_legacy():
+			_circle(dt, s, player, m.w)
 		# Massa nel palmo: tre strati che si sommano (nucleo chiaro al centro).
 		for i in 3:
 			_g(hand + _r3() * 0.05 * (0.5 + m.w), Vector3.ZERO, s.el, 1 if s.el == "earth" else 0, 0.05,
@@ -113,6 +119,12 @@ func update(dt: float, m: MagicSystem, hand: Vector3, player: Vector3) -> void:
 				if g != null:
 					g.ground = true
 					g.stick = true
+	for e in m.runtime.effects:
+		_effect(dt, e, hand)
+	for i in range(_marks.size() - 1, -1, -1):
+		_marks[i]["t"] = float(_marks[i]["t"]) + dt
+		if float(_marks[i]["t"]) >= float(MARK_LIFE[_marks[i]["kind"]]):
+			_marks.remove_at(i)
 	for e in m.events:
 		_event(e)
 
@@ -206,6 +218,42 @@ func lights(m: MagicSystem, hand: Vector3, player: Vector3) -> Array:
 
 func _event(e: Dictionary) -> void:
 	match String(e["type"]):
+		"beam":
+			_beam(e)
+		"area":
+			_area_start(e)
+		"close":
+			_close(e)
+		"wave":
+			_wave(e)
+		"burst_ring", "ring":
+			_ring(e["el"], e["p"], float(e["r"]))
+		"arc":
+			_arc(e["from"], e["to"])
+		"struct":
+			for c: Vector3i in e["cells"]:
+				for i in 3:
+					var g := _g(Vector3(c) + Vector3(_rng.randf(), _rng.randf(), _rng.randf()), _r3() * 1.2 + Vector3(0, 1.0, 0), "earth", 1,
+						_rng.randf_range(0.4, 0.9), _rng.randf_range(0.03, 0.06), MagicSystem.MG * 0.5, 0.5, 0.5)
+					if g != null:
+						g.ground = true
+		"crumble":
+			for c: Vector3i in e["cells"]:
+				for i in 4:
+					var g := _g(Vector3(c) + Vector3(_rng.randf(), _rng.randf(), _rng.randf()), _r3() * 1.6, "earth", 1,
+						_rng.randf_range(0.6, 1.4), _rng.randf_range(0.04, 0.08), MagicSystem.MG, 0.3, _rng.randf_range(0.3, 0.6))
+					if g != null:
+						g.ground = true
+						g.stick = true
+		"mark":
+			_mark(String(e["kind"]), e["p"], float(e["r"]))
+		"buff":
+			for i in 40:
+				var a := _rng.randf() * TAU
+				var p: Vector3 = e["p"] + Vector3(cos(a) * 0.6, _rng.randf_range(0.1, 1.7), sin(a) * 0.6)
+				var g := _g(p, Vector3(-sin(a), 0.4, cos(a)) * 2.0, "karma", 0, _rng.randf_range(0.3, 0.6), 0.02, 0.0, 1.0, 0.9)
+				if g != null:
+					g.length = 0.12
 		"impact":
 			burst(e["el"], e["p"], e["n"], 1.0)
 			_flashes.append({"p": e["p"], "col": FLASH[e["el"]], "r": 2.2 if e["el"] == "earth" else 3.2, "t": 0.0, "life": 0.35 if e["el"] == "fire" else 0.22})
@@ -246,3 +294,191 @@ func _event(e: Dictionary) -> void:
 		"ash":
 			for i in 5:
 				_g(e["p"] + Vector3(_rng.randf_range(-.4, .4), 0, _rng.randf_range(-.4, .4)), Vector3(0, 0.1, 0), "fire", 0, _rng.randf_range(1.0, 2.5), 0.02, 0.0, 0.0, 0.55)
+
+
+# ---------------------------------------------------------------- magie del libro (D-027)
+
+## Cerchio ai piedi durante la raccolta: raggio con l'Output, grani che girano.
+func _circle(dt: float, s: SpellDefinition, player: Vector3, w: float) -> void:
+	var r := 0.55 + 0.9 * clampf(s.output / 250.0, 0.0, 1.0)
+	var y := player.y + 0.04
+	if world != null:
+		y = VoxelQuery.field_height(world, player.x, player.z, player.y + 0.5) + 0.04
+	for i in _emit("circle", 160.0 + 160.0 * w, dt, 16):
+		var a := _rng.randf() * TAU
+		var rr := r * (1.0 if _rng.randf() < 0.7 else 0.62)
+		var g := _g(Vector3(player.x + cos(a) * rr, y, player.z + sin(a) * rr), Vector3(-sin(a), 0, cos(a)) * (0.8 + w),
+			s.el, 0, _rng.randf_range(0.25, 0.45), 0.04 + 0.02 * w, 0.0, 0.0, 0.85 + 0.15 * w)
+		if g != null:
+			g.length = 0.14
+
+
+func _beam(e: Dictionary) -> void:
+	var a: Vector3 = e["from"]
+	var b: Vector3 = e["to"]
+	var el: String = e["el"]
+	var d := b - a
+	var l := d.length()
+	if l < 0.05:
+		return
+	var dir := d / l
+	var r := maxf(0.03, float(e["r"]))
+	var n := mini(120, int(l * 7.0))
+	for i in n:
+		var u := float(i) / n
+		var g := _g(a + d * u + _r3() * r * 0.6, dir * 2.0 + _r3() * 0.4, el, 0, _rng.randf_range(0.12, 0.26), r * 0.9 + 0.012, 0.0, 2.0, 1.0)
+		if g != null:
+			g.length = 0.22
+	burst(el, b, -dir, 0.5)
+	_flashes.append({"p": a + dir * 0.4, "col": FLASH.get(el, Vector3.ONE), "r": 2.0, "t": 0.0, "life": 0.12})
+	_flashes.append({"p": b, "col": FLASH.get(el, Vector3.ONE), "r": 1.6, "t": 0.0, "life": 0.18})
+
+
+func _area_start(e: Dictionary) -> void:
+	var p: Vector3 = e["p"]
+	var r := float(e["r"])
+	var el: String = e["el"]
+	_ring(el, p, maxf(0.6, r))
+	if e["kind"] == "spikes":
+		for i in 10:
+			var a := _rng.randf() * TAU
+			var q := p + Vector3(cos(a), 0, sin(a)) * _rng.randf() * r
+			for k in 5:
+				var g := _g(q + Vector3(0, k * 0.18, 0), Vector3(0, 2.5, 0), "earth", 1, 0.5, 0.07 - k * 0.01, 0.0, 4.0, 0.4)
+				if g != null:
+					g.ground = true
+
+
+## Anello di grani che si allarga a terra (scoppi, faglie del sisma).
+func _ring(el: String, p: Vector3, r: float) -> void:
+	var n := int(clampf(r * 22.0, 12.0, 70.0))
+	for i in n:
+		var a := TAU * i / n
+		var dir := Vector3(cos(a), 0, sin(a))
+		var g := _g(p + dir * r * 0.3 + Vector3(0, 0.08, 0), dir * r * 2.4 + Vector3(0, _rng.randf_range(0.3, 1.2), 0), el,
+			1 if el == "earth" or el == "water" else 0, _rng.randf_range(0.3, 0.5), 0.04, MagicSystem.MG * 0.3, 3.0, 0.9)
+		if g != null and el == "air":
+			g.length = 0.15
+
+
+func _close(e: Dictionary) -> void:
+	var p: Vector3 = e["p"]
+	var f: Vector3 = e["dir"]
+	var r := float(e["r"])
+	var half := 0.14 if e["kind"] == "lash" else (0.95 if e["kind"] == "slash" else 0.66)
+	for i in 50:
+		var a := _rng.randf_range(-half, half)
+		var d := f.rotated(Vector3.UP, a)
+		var g := _g(p + d * _rng.randf_range(0.3, 1.0), d * r * _rng.randf_range(2.0, 3.2), "air", 0, _rng.randf_range(0.15, 0.3), 0.016, 0.0, 3.0, 0.9)
+		if g != null:
+			g.length = 0.3
+
+
+func _wave(e: Dictionary) -> void:
+	var p: Vector3 = e["p"]
+	var f: Vector3 = e["dir"]
+	var side := Vector3(-f.z, 0, f.x)
+	var w := float(e["w"])
+	for i in 26:
+		var q := p + side * _rng.randf_range(-0.5, 0.5) * w
+		if world != null:
+			q.y = VoxelQuery.field_height(world, q.x, q.z, q.y + 1.0)
+		var g := _g(q + Vector3(0, _rng.randf_range(0.0, float(e["h"])), 0), f * 3.0 + Vector3(0, _rng.randf_range(0.5, 2.0), 0), "water", 1,
+			_rng.randf_range(0.3, 0.6), _rng.randf_range(0.03, 0.06), MagicSystem.MG, 0.5, 0.8)
+		if g != null:
+			g.ground = true
+
+
+## Arco della conduzione: zig-zag di grani viola.
+func _arc(a: Vector3, b: Vector3) -> void:
+	var prev := a
+	for k in range(1, 9):
+		var q := a.lerp(b, k / 8.0) + (_r3() * 0.25 if k < 8 else Vector3.ZERO)
+		for i in 5:
+			var g := _g(prev.lerp(q, i / 5.0), Vector3.ZERO, "karma", 0, 0.14, 0.03, 0.0, 0.0, 1.0)
+			if g != null:
+				g.length = 0.08
+		prev = q
+
+
+## Segno di materia (K122): bruciatura, pozza, cratere. Fuso con uno vicino.
+func _mark(kind: String, p: Vector3, r: float) -> void:
+	for mk in _marks:
+		if mk["kind"] == kind and (mk["p"] as Vector3).distance_to(p) < float(mk["r"]) * 0.5:
+			mk["t"] = 0.0
+			return
+	if _marks.size() >= MARK_MAX:
+		_marks.pop_front()
+	_marks.append({"kind": kind, "p": p, "r": r, "t": 0.0})
+	var life: float = MARK_LIFE[kind]
+	var n := int(clampf(r * r * 10.0, 10.0, 60.0))
+	for i in n:
+		var a := _rng.randf() * TAU
+		var dd := sqrt(_rng.randf()) * r
+		var q := p + Vector3(cos(a) * dd, 0, sin(a) * dd)
+		if world != null:
+			q.y = VoxelQuery.field_height(world, q.x, q.z, p.y + 1.0)
+		q.y += 0.02
+		match kind:
+			"scorch":
+				_g(q, Vector3.ZERO, "smoke", 1, _rng.randf_range(life * 0.6, life), _rng.randf_range(0.06, 0.12), 0.0, 0.0, 0.05)
+				if _rng.randf() < 0.2:
+					_g(q, Vector3.ZERO, "fire", 0, _rng.randf_range(0.8, 2.5), 0.02, 0.0, 0.0, 0.6)
+			"puddle":
+				_g(q, Vector3.ZERO, "water", 1, _rng.randf_range(life * 0.6, life), _rng.randf_range(0.06, 0.12), 0.0, 0.0, 0.3)
+			_:
+				_g(q, Vector3.ZERO, "earth", 1, _rng.randf_range(life * 0.6, life), _rng.randf_range(0.05, 0.1), 0.0, 0.0, 0.08)
+
+
+## Effetti che durano (getti, colonne, pioggia, cicloni...): grani a ogni frame.
+func _effect(dt: float, e: SpellRuntime.Effect, hand: Vector3) -> void:
+	var s := e.spell
+	var key := "fx%d" % e.get_instance_id()
+	var fade := 1.0 - clampf(e.t / maxf(e.dur, 0.01), 0.0, 1.0)
+	match s.kind:
+		"jet":
+			for i in _emit(key, 320.0, dt, 26):
+				var d := (e.dir + _r3() * (0.03 + s.width * 0.08)).normalized()
+				var g := _g(hand + d * 0.1, d * (s.reach / 0.32) * _rng.randf_range(0.85, 1.05), s.el, 0 if s.el == "fire" else 1,
+					_rng.randf_range(0.26, 0.34), 0.04 + s.area * 0.07, MagicSystem.MG * (0.0 if s.el == "fire" else 0.25), 0.0, 1.0)
+				if g != null:
+					g.length = 0.15
+					g.ground = s.el == "water"
+		"column":
+			for i in _emit(key, 160.0 * fade + 20.0, dt, 16):
+				var a := _rng.randf() * TAU
+				var q := e.p + Vector3(cos(a), 0, sin(a)) * sqrt(_rng.randf()) * s.area * 0.7
+				var g := _g(q, Vector3(0, s.height * _rng.randf_range(1.8, 2.8), 0) + _r3() * 0.4, s.el, 0 if s.el == "fire" else 1,
+					_rng.randf_range(0.3, 0.6), _rng.randf_range(0.04, 0.08), MagicSystem.MG * (0.0 if s.el == "fire" else 0.6), 0.6, 1.0)
+				if g != null:
+					g.length = 0.2
+					g.ground = s.el == "water"
+		"rain":
+			for i in _emit(key, 180.0, dt, 18):
+				var a := _rng.randf() * TAU
+				var q := e.p + Vector3(cos(a), 0, sin(a)) * sqrt(_rng.randf()) * s.area + Vector3(0, s.height, 0)
+				var g := _g(q, Vector3(0, -9.0, 0), "water", 1, 0.8, 0.025, MagicSystem.MG, 0.0, 0.85)
+				if g != null:
+					g.length = 0.25
+					g.ground = true
+		"cyclone", "updraft", "vacuum":
+			for i in _emit(key, 150.0, dt, 16):
+				var a := _rng.randf() * TAU
+				var rr := s.area * (1.6 if s.kind == "vacuum" else _rng.randf_range(0.3, 1.0))
+				var q := e.p + Vector3(cos(a) * rr, _rng.randf_range(0.0, maxf(0.6, s.height * 0.8 if s.kind != "vacuum" else 0.6)), sin(a) * rr)
+				var tan := Vector3(-sin(a), 0, cos(a))
+				var v := tan * 5.0 + Vector3(0, 2.5, 0)
+				if s.kind == "vacuum":
+					v = (e.p - q) * 2.2
+				elif s.kind == "updraft":
+					v = Vector3(0, 6.0, 0) + tan * 1.2
+				var g := _g(q, v, "air", 0, _rng.randf_range(0.25, 0.45), 0.028, 0.0, 0.5, 1.0)
+				if g != null:
+					g.length = 0.4
+		"spray":
+			for i in _emit(key, 100.0 * fade, dt, 10):
+				var a := _rng.randf() * TAU
+				var d := Vector3(cos(a), 0, sin(a))
+				var g := _g(hand + d * 0.3, d * s.area * 2.5 + Vector3(0, 0.6, 0), "fire", 0, _rng.randf_range(0.3, 0.55), 0.03, -0.3, 1.0, 1.0)
+				if g != null:
+					g.ground = true

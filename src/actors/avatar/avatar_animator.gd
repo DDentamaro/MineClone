@@ -33,6 +33,8 @@ class State:
 	## Magia (mano sinistra): raccolta 0..1 e rilascio 0..1, -1 se assenti.
 	var gather := -1.0
 	var release := -1.0
+	## Magia pesante (Output >= 120): raccolta e spinta a due mani.
+	var two_hands := false
 	## 0 in guardia, 1 rilassato (fuori combattimento).
 	var relax := 0.0
 	## Cambio d'arma: la destra va dietro la spalla (0..1..0).
@@ -301,6 +303,17 @@ func _apply_cast(p: Dictionary, s: State) -> void:
 		&"fore_l": d(98), &"hand_l": d(-30), &"body_pos": Vector3(0, -0.05, 0)}
 	var thrust := {&"chest": d(-8, 24), &"spine": d(0, 8), &"head": d(0, -16), &"arm_l": d(88, -4, 0),
 		&"fore_l": d(0), &"hand_l": d(-80), &"body_pos": Vector3(0, -0.02, 0)}
+	if s.two_hands:
+		# Due mani (RMNDWN K56): petto di fronte, la destra speculare alla sinistra.
+		gather[&"chest"] = d(0, -6)
+		gather[&"arm_r"] = d(62, 12, 22)
+		gather[&"fore_r"] = d(98)
+		gather[&"hand_r"] = d(-30)
+		gather[&"body_pos"] = Vector3(0, -0.09, 0)
+		thrust[&"chest"] = d(-10, 4)
+		thrust[&"arm_r"] = d(88, 4, 0)
+		thrust[&"fore_r"] = d(0)
+		thrust[&"hand_r"] = d(-80)
 	var from := {}
 	var to := {}
 	var k := 0.0
@@ -332,6 +345,8 @@ func _apply_cast(p: Dictionary, s: State) -> void:
 		var q := s.gather
 		p[&"fore_l"] += d(sin(time * 57.0) * 3.0 * q)
 		p[&"arm_l"] += d(0, sin(time * 43.0) * 2.0 * q)
+		if s.two_hands:
+			p[&"fore_r"] += d(sin(time * 53.0) * 3.0 * q)
 
 
 static func _smooth(x: float) -> float:

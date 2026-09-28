@@ -3,10 +3,11 @@ extends RefCounted
 ## Magia del giocatore (M4): regole del prototipo (HTML 7977–8322, inventario §8)
 ## senza nodi, deterministica con il suo generatore.
 ##
-## - Lancio: nessuna → raccolta → recupero. Costo pagato all'inizio della
-##   raccolta (a terra); impegno al 35% di `cast_dur`; rilascio prima
-##   dell'impegno dopo 0,2 s = annullato con il 60% del mana; tocco breve =
-##   lancio automatico; il dardo parte al 100% (al rilascio o dopo cast_dur + 1,6 s).
+## - Lancio: nessuna → raccolta → recupero. Niente mana (D-027, RMNDWN): ogni
+##   magia ha un Output che non puo' superare il tetto del caster, e ogni lancio
+##   alza la Pressione del nucleo (satura a 1, riparte sotto .85). Impegno al 35%
+##   (dardi del prototipo) o al 78% (RMNDWN); rilascio prima dell'impegno dopo
+##   0,2 s = annullato; tocco breve = lancio automatico; coda dal 55%.
 ## - Mira: bersaglio agganciato al 55% dell'altezza, altrimenti 7 unita' avanti.
 ## - Dardi balistici (gravita' 18 × grav, attrito), compensazione balistica,
 ##   collisione con bersagli (4 campioni), voxel (DDA), tronchi. L'aria trapassa.
@@ -19,8 +20,6 @@ extends RefCounted
 ## Differenza voluta (D-024): si lancia con la mano sinistra, l'arma resta in pugno.
 
 const MG := 18.0
-const MANA_MAX := 100.0
-const REGEN := 9.0
 const COMMIT := 0.35
 const TAP := 0.2
 const HOLD_EXTRA := 1.6
@@ -36,8 +35,10 @@ const FIRE_MAX := 110
 const STDEF := {
 	"burn": {"dur": 4.0, "tick": .45, "dps": 3.5, "max": 3, "gap": .9, "tag": "BRUCIA"},
 	"wet": {"dur": 6.0, "tag": "BAGNATO"},
-	"slow": {"dur": 2.5, "tag": "LENTO"},
-	"pushed": {"dur": .85, "tag": "SPINTO"},
+	"slow": {"dur": 2.5, "mag": .45, "tag": "LENTO"},
+	"pushed": {"dur": .85, "mag": .70, "tag": "SPINTO"},
+	"flow": {"dur": 4.5, "mag": 1.55, "tag": "FLUSSO"},
+	"mud": {"dur": .35, "mag": .70, "tag": "FANGO"},
 }
 
 enum Phase { NONE, GATHER, RECOVER }
@@ -70,8 +71,6 @@ var world: WorldData
 var edits: WorldEditService
 var catalog: BlockCatalog
 var tree_grid := {}
-var spell_index := 0
-var mana := MANA_MAX
 var phase: Phase = Phase.NONE
 var t := 0.0
 ## Avanzamento della raccolta 0..1.
@@ -89,48 +88,152 @@ var statuses := {}
 var fire := {}
 ## Vector3i -> secondi rimasti
 var wet := {}
-## Vento dell'ultima spina d'aria: {x, z, dx, dz, t}.
+## Vento dell'ultima spina d'aria: {x, z, dx, dz, t, pow, r}.
 var wind := {}
-## Blocchi presi dai crateri (l'inventario arriva in M5).
+## Blocchi presi dai crateri (li mette nello zaino il gioco).
 var crater_items := 0
 ## Eventi per gli effetti: {type, ...}.
 var events: Array[Dictionary] = []
-## Hitstop chiesto dai colpi dei dardi (lo consuma il GameRoot).
+## Hitstop chiesto dai colpi (lo consuma il GameRoot).
 var hitstop := 0.0
 var daylight := 1.0
-## Bonus dell'equipaggiamento (M5): mana massimo, rigenerazione, danno delle magie.
-var mana_bonus := 0.0
-var regen_bonus := 0.0
-var power := 1.0
 var rng := RandomNumberGenerator.new()
+
+# --- Libro e barra (RMNDWN: 5 magie equipaggiate) --------------------------
+const BAR := 5
+## Magie conosciute (id -> true): il livello 1 da subito, il resto dalle pergamene.
+var known := {}
+## Barra delle magie: 5 id (o &"").
+var bar: Array[StringName] = [&"fire", &"water", &"earth", &"air", &""]
+var bar_index := 0
+
+# --- Nucleo (RMNDWN K33 + K116): Output massimo per lancio e Pressione -------
+## Output del caster senza equipaggiamento; l'equipaggiamento lo alza (Mente, oro).
+const OUTPUT_BASE := 60.0
+## Output guadagnato per ogni magia di livello 2+ imparata (aggiunta RPG, D-027).
+const STUDY := 5.0
+const PRESS_DECAY := 0.24
+const PRESS_GAIN := 0.85
+const ALT_BONUS := 0.55
+const COMMIT_NEW := 0.78
+const QUEUE_FROM := 0.55
+var output_bonus := 0.0
+## Rigenerazione dell'equipaggiamento: accelera il calo della pressione.
+var decay_bonus := 0.0
+var power := 1.0
+var pressure := 0.0
+var saturated := false
+var last_el := ""
+var queued := false
+## Il giocatore come bersaglio degli stati (fango, flusso, bagnato).
+var player := CombatTarget.new()
+## Forme, strutture e zone (SpellRuntime).
+var runtime := SpellRuntime.new(self)
 
 var _tap := false
 var _fire_tick := 0.0
 var _fire_edits: Array[WorldEditService.Edit] = []
 var _flush_t := 0.0
+## Colpi della salva ancora da partire: {t, spell, i}.
+var _pending: Array[Dictionary] = []
 
 
 func _init(seed_value: int = 1) -> void:
 	rng.seed = seed_value
+	player.radius = PlayerMotor.RADIUS
+	player.height = PlayerMotor.HEIGHT
+	for s in SpellDefinition.all():
+		if s.tier == 1:
+			known[s.id] = true
 
 
-func mana_max() -> float:
-	return MANA_MAX + mana_bonus
+## Output: base + equipaggiamento + studio (ogni magia imparata da pergamena).
+func output_cap() -> float:
+	return OUTPUT_BASE + output_bonus + STUDY * learned_count()
+
+
+func learned_count() -> int:
+	var n := 0
+	for id: StringName in known:
+		var s := SpellDefinition.by_id(id)
+		if s != null and s.tier > 1:
+			n += 1
+	return n
+
+
+func to_dict() -> Dictionary:
+	var k: Array[String] = []
+	for id: StringName in known:
+		k.append(String(id))
+	var b: Array[String] = []
+	for id in bar:
+		b.append(String(id))
+	return {"known": k, "bar": b, "sel": bar_index}
+
+
+func load_dict(d: Dictionary) -> void:
+	for id in d.get("known", []):
+		if SpellDefinition.by_id(StringName(id)) != null:
+			known[StringName(id)] = true
+	var b: Array = d.get("bar", [])
+	for i in mini(BAR, b.size()):
+		var id := StringName(b[i])
+		bar[i] = id if known.has(id) else &""
+	bar_index = clampi(int(d.get("sel", 0)), 0, BAR - 1)
+	if bar[bar_index] == &"":
+		select_next()
 
 
 func spell() -> SpellDefinition:
-	return SpellDefinition.all()[spell_index]
+	var s := SpellDefinition.by_id(bar[bar_index]) if bar[bar_index] != &"" else null
+	return s if s != null else SpellDefinition.by_id(&"fire")
 
 
 func select(i: int) -> void:
-	spell_index = posmod(i, SpellDefinition.all().size())
-	if phase == Phase.GATHER:
+	var k := posmod(i, BAR)
+	if bar[k] == &"":
+		return
+	bar_index = k
+	if phase == Phase.GATHER and not committed:
 		phase = Phase.NONE
+		events.append({"type": "cancel"})
+
+
+## Prossimo slot pieno della barra.
+func select_next() -> void:
+	for k in range(1, BAR + 1):
+		var j := (bar_index + k) % BAR
+		if bar[j] != &"":
+			select(j)
+			return
+
+
+func learn(id: StringName) -> bool:
+	if SpellDefinition.by_id(id) == null or known.has(id):
+		return false
+	known[id] = true
+	return true
+
+
+## Mette la magia nello slot (spostandola se era in un altro); solo magie conosciute.
+func equip(id: StringName, slot: int) -> bool:
+	if not known.has(id):
+		return false
+	var at := bar.find(id)
+	if at >= 0 and at != slot:
+		bar[at] = &""
+	bar[slot] = id
+	if bar[bar_index] == &"":
+		bar_index = slot
+	return true
 
 
 func press() -> void:
 	_tap = true
 	held = true
+	# Coda (RMNDWN): una pressione durante il recupero o dopo il 55% della raccolta.
+	if phase == Phase.RECOVER or (phase == Phase.GATHER and w >= QUEUE_FROM):
+		queued = true
 
 
 func release() -> void:
@@ -138,7 +241,20 @@ func release() -> void:
 
 
 func is_casting() -> bool:
-	return phase != Phase.NONE
+	return phase != Phase.NONE or not _pending.is_empty()
+
+
+## Motivo per cui la magia scelta non parte ("" = puo' partire).
+func blocked_reason(s: SpellDefinition) -> String:
+	if not known.has(s.id):
+		return "NON CONOSCIUTA"
+	if s.output > output_cap() + 1e-4:
+		return "OUTPUT %d/%d" % [int(s.output), int(output_cap())]
+	if saturated:
+		return "NUCLEO SATURO"
+	if has_status(player, "pushed"):
+		return "SPINTO"
+	return ""
 
 
 func reset() -> void:
@@ -149,65 +265,109 @@ func reset() -> void:
 	wet.clear()
 	wind = {}
 	_fire_edits.clear()
-	mana = mana_max()
+	_pending.clear()
+	runtime.clear()
+	pressure = 0.0
+	saturated = false
+	queued = false
 
 
 static func _fwd(f: float) -> Vector3:
 	return Vector3(-sin(f), 0, -cos(f))
 
 
+## La raccolta si allunga con la pressione: sopra .75 fino a +60% (K116).
+func gather_mul() -> float:
+	return 1.0 + 0.6 * minf(1.0, (pressure - 0.75) / 0.25) if pressure > 0.75 else 1.0
+
+
+func _press_add(s: SpellDefinition) -> void:
+	var g := maxf(0.12, s.output / maxf(1.0, output_cap()) * PRESS_GAIN)
+	if last_el != "" and last_el != s.el:
+		g *= ALT_BONUS
+	last_el = s.el
+	pressure = minf(1.25, pressure + g)
+	if pressure >= 1.0 and not saturated:
+		saturated = true
+		events.append({"type": "text", "p": player.position + Vector3(0, 1.8, 0), "text": "NUCLEO SATURO"})
+
+
+func _press_step(dt: float) -> void:
+	var d := PRESS_DECAY * (1.0 + 0.12 * decay_bonus) * (0.45 if phase != Phase.NONE else 1.0) * (1.0 + 0.6 * maxf(0.0, pressure - 0.75))
+	pressure = maxf(0.0, pressure - d * dt)
+	if saturated and pressure < 0.85:
+		saturated = false
+
+
 ## Un passo. `facing` e' la direzione del giocatore; `hand` il punto di lancio;
 ## `can_start` falso se il corpo a corpo e' occupato.
 func step(dt: float, motor: PlayerMotor, targets: Array, facing: float, hand: Vector3, can_start: bool = true) -> void:
 	var s := spell()
+	player.position = motor.position
+	var all: Array = []
+	all.append_array(targets)
+	all.append(player)
 	_targets_cache = targets
 	_player_pos = motor.position
-	mana = minf(mana_max(), mana + (REGEN + regen_bonus) * dt * (1.0 if phase == Phase.NONE else 0.3))
+	_press_step(dt)
 	var tap := _tap
 	_tap = false
 	match phase:
 		Phase.NONE:
 			face = facing
-			if (held or tap) and motor.on_ground and can_start and not motor.swimming:
-				if mana < s.cost:
+			var want := held or tap or queued
+			if want and motor.on_ground and can_start and not motor.swimming:
+				queued = false
+				var why := blocked_reason(s)
+				if why != "":
 					if tap:
-						events.append({"type": "text", "p": motor.position + Vector3(0, 1.6, 0), "text": "MANA"})
+						events.append({"type": "text", "p": motor.position + Vector3(0, 1.6, 0), "text": why})
 				else:
 					phase = Phase.GATHER
 					t = 0.0
 					w = 0.0
 					committed = false
-					auto_fire = tap and not held
-					mana -= s.cost
-					lock_target = _pick_target(motor.position, facing, targets)
-					aim = _resolve_aim(motor, facing)
-					events.append({"type": "gather", "el": s.el})
+					auto_fire = (tap or queued) and not held
+					if not s.at_self:
+						lock_target = _pick_target(motor.position, facing, targets)
+					else:
+						lock_target = null
+					aim = _resolve_aim(motor, facing, s)
+					events.append({"type": "gather", "el": s.el, "spell": s})
 		Phase.GATHER:
+			var dur := s.cast_dur * gather_mul()
 			t += dt
-			w = minf(1.0, t / s.cast_dur)
+			w = minf(1.0, t / dur)
 			if lock_target != null and not lock_target.alive:
 				lock_target = null
-			aim = _resolve_aim(motor, facing)
-			if w >= COMMIT:
+			aim = _resolve_aim(motor, facing, s)
+			if w >= (COMMIT if s.is_legacy() else COMMIT_NEW):
+				if not committed:
+					events.append({"type": "commit", "el": s.el})
 				committed = true
-			if not held and not auto_fire and not committed:
+			if has_status(player, "pushed") and not committed:
+				# Spinto: la raccolta non impegnata si perde (K116/RMNDWN 21648).
+				phase = Phase.NONE
+				events.append({"type": "cancel"})
+			elif not held and not auto_fire and not committed:
 				if t < TAP:
 					auto_fire = true
 				else:
 					phase = Phase.NONE
-					mana = minf(mana_max(), mana + s.cost * 0.6)
 					events.append({"type": "cancel"})
-			elif w >= 1.0 and (not held or auto_fire or t > s.cast_dur + HOLD_EXTRA):
-				_release(s, hand, motor)
+			elif w >= 1.0 and (not held or auto_fire or t > dur + HOLD_EXTRA):
+				_cast(s, hand, motor)
 			var d := aim - motor.position
-			if Vector2(d.x, d.z).length() > 0.05:
+			if Vector2(d.x, d.z).length() > 0.05 and not s.at_self:
 				face = atan2(-d.x, -d.z)
 		Phase.RECOVER:
 			t += dt
-			if t >= s.recover:
+			if t >= s.recover and _pending.is_empty():
 				phase = Phase.NONE
+	_step_pending(dt, hand, motor)
 	_step_darts(dt, motor, targets)
-	_step_fire(dt, motor, targets)
+	runtime.step(dt, motor, targets, hand)
+	_step_fire(dt, motor, all)
 	_step_status(dt)
 
 
@@ -216,7 +376,7 @@ func _pick_target(from: Vector3, facing: float, targets: Array) -> CombatTarget:
 	var score := INF
 	for o in targets:
 		var tg := o as CombatTarget
-		if tg == null or not tg.alive:
+		if tg == null or not tg.alive or tg == player:
 			continue
 		var v := Vector2(tg.position.x - from.x, tg.position.z - from.z)
 		var d := v.length()
@@ -232,10 +392,77 @@ func _pick_target(from: Vector3, facing: float, targets: Array) -> CombatTarget:
 	return best
 
 
-func _resolve_aim(motor: PlayerMotor, facing: float) -> Vector3:
+## Mira: bersaglio al 55% dell'altezza; senza bersaglio 7 unita' avanti (dardi
+## del prototipo) o 10 (RMNDWN), all'altezza della mano.
+func _resolve_aim(motor: PlayerMotor, facing: float, s: SpellDefinition = null) -> Vector3:
 	if lock_target != null and lock_target.alive:
 		return lock_target.position + Vector3(0, lock_target.height * 0.55, 0)
-	return motor.position + _fwd(facing) * AIM_DIST + Vector3(0, 0.55, 0)
+	var dist := AIM_DIST if s == null or s.is_legacy() else 10.0
+	return motor.position + _fwd(facing) * dist + Vector3(0, 0.55, 0)
+
+
+## Fine della raccolta: pressione, poi la forma della magia (salve comprese).
+func _cast(s: SpellDefinition, hand: Vector3, motor: PlayerMotor) -> void:
+	_press_add(s)
+	phase = Phase.RECOVER
+	t = 0.0
+	if s.is_legacy():
+		_release(s, hand, motor)
+		return
+	for i in s.salvo_n:
+		if i == 0:
+			_shot(s, i, hand, motor)
+		else:
+			_pending.append({"t": s.salvo_gap * i, "spell": s, "i": i})
+
+
+func _step_pending(dt: float, hand: Vector3, motor: PlayerMotor) -> void:
+	var k := _pending.size() - 1
+	while k >= 0:
+		_pending[k]["t"] = float(_pending[k]["t"]) - dt
+		if float(_pending[k]["t"]) <= 0.0:
+			var e: Dictionary = _pending[k]
+			_pending.remove_at(k)
+			_shot(e["spell"], int(e["i"]), hand, motor)
+		k -= 1
+
+
+## Direzione del colpo `i` di una salva a ventaglio.
+func shot_dir(s: SpellDefinition, i: int, hand: Vector3) -> Vector3:
+	var d := aim - hand
+	var l := d.length()
+	d = d / l if l > 1e-4 else _fwd(face)
+	if s.fan_deg > 0.0 and s.salvo_n > 1:
+		var off := (float(i) - (s.salvo_n - 1) * 0.5) / maxf(1.0, (s.salvo_n - 1) * 0.5)
+		d = d.rotated(Vector3.UP, deg_to_rad(s.fan_deg) * off)
+	return d
+
+
+func _shot(s: SpellDefinition, i: int, hand: Vector3, motor: PlayerMotor) -> void:
+	var d := shot_dir(s, i, hand)
+	events.append({"type": "release", "el": s.el, "p": hand + d * 0.12, "dir": d, "spell": s})
+	match s.kind:
+		"bolt", "volley", "ball", "shaft", "orb", "throw":
+			_spawn_dart(s, hand + d * 0.12, d)
+		"meteor":
+			var from := aim + Vector3(-1.2, 7.5, 1.0)
+			var dm := (aim - from).normalized()
+			_spawn_dart(s, from, dm)
+		_:
+			runtime.cast(s, i, hand, d, motor)
+
+
+func _spawn_dart(s: SpellDefinition, o: Vector3, d: Vector3) -> Dart:
+	var dart := Dart.new()
+	dart.spell = s
+	dart.p = o
+	dart.prev = o
+	dart.v = d * s.speed
+	if s.grav > 0.0:
+		var dist := Vector2(aim.x - o.x, aim.z - o.z).length()
+		dart.v.y += 0.5 * MG * s.grav * dist / s.speed
+	darts.append(dart)
+	return dart
 
 
 func _release(s: SpellDefinition, hand: Vector3, motor: PlayerMotor) -> void:
@@ -256,9 +483,14 @@ func _release(s: SpellDefinition, hand: Vector3, motor: PlayerMotor) -> void:
 		var tt := dist / s.speed
 		dart.v.y += 0.5 * MG * s.grav * tt
 	darts.append(dart)
-	phase = Phase.RECOVER
-	t = 0.0
-	events.append({"type": "release", "el": s.el, "p": o, "dir": d})
+	events.append({"type": "release", "el": s.el, "p": o, "dir": d, "spell": s})
+
+
+## Coerenza del Karma a un tempo di volo (K8): exp(-decoh·t).
+static func coherence(s: SpellDefinition, t_fly: float) -> float:
+	if s.decoh <= 0.0:
+		return 1.0
+	return maxf(s.coh_floor, exp(-s.decoh * t_fly))
 
 
 func _step_darts(dt: float, motor: PlayerMotor, targets: Array) -> void:
@@ -294,7 +526,7 @@ func _step_darts(dt: float, motor: PlayerMotor, targets: Array) -> void:
 				continue
 			P.hits[tg] = true
 			_hit_target(P, tg)
-			if S.el != "air":
+			if not (S.el == "air" and S.is_legacy()):
 				_impact(P, P.p, -dir, {"kind": "target"})
 				done = true
 				break
@@ -308,7 +540,7 @@ func _step_darts(dt: float, motor: PlayerMotor, targets: Array) -> void:
 			if h != null:
 				var q := P.prev + dir * maxf(0.0, h.distance - S.r * 0.5)
 				var n := Vector3(h.normal)
-				if S.el == "earth" and P.bounces < 1 and not SOFT.has(h.id) and P.v.length() > 5.0:
+				if S.is_legacy() and S.el == "earth" and P.bounces < 1 and not SOFT.has(h.id) and P.v.length() > 5.0:
 					P.bounces += 1
 					var vn := P.v.dot(n)
 					P.v = (P.v - 2.0 * vn * n) * 0.45
@@ -331,7 +563,7 @@ func _step_darts(dt: float, motor: PlayerMotor, targets: Array) -> void:
 			i -= 1
 			continue
 		# 4) aria: vento lungo il passaggio, braci soffiate.
-		if S.el == "air":
+		if S.el == "air" and S.is_legacy():
 			wind = {"x": P.p.x, "z": P.p.z, "dx": dir.x, "dz": dir.z, "t": 0.7, "pow": 0.30, "r": 1.7}
 			if P.acc > 0:
 				P.acc -= 1
@@ -341,7 +573,9 @@ func _step_darts(dt: float, motor: PlayerMotor, targets: Array) -> void:
 				_shake_near(P.p, Vector2(dir.x, dir.z))
 		var outside := world != null and not world.inside(floori(P.p.x), floori(P.p.y), floori(P.p.z)) and P.p.y >= 0.0
 		if P.t >= S.life or outside or (world != null and P.p.y < 0.0):
-			if S.el == "fire" or S.el == "air":
+			if S.burst_r > 0.0 or S.kind == "meteor":
+				_impact(P, P.p, Vector3.UP, {"kind": "air"})
+			elif S.el == "fire" or S.el == "air" or S.el == "karma":
 				events.append({"type": "burst", "el": S.el, "p": P.p, "n": dir, "k": 0.45})
 			else:
 				_impact(P, P.p, Vector3.UP, {"kind": "air"})
@@ -378,25 +612,77 @@ func _tree_at(p: Vector3, r: float) -> Vegetation.TreeSpot:
 
 func _hit_target(P: Dart, tg: CombatTarget) -> void:
 	var S := P.spell
-	var mul := status_react(tg, S.el)
-	var crit := rng.randf() < 0.10
-	var amount := S.dmg * rng.randf_range(0.9, 1.1) * (1.5 if crit else 1.0) * mul * power
 	var hv := Vector2(P.v.x, P.v.z)
 	var d := hv.normalized() if hv.length() > 1e-4 else Vector2(0, -1)
-	var knock := S.knock * (1.8 if S.el == "air" and has_status(tg, "wet") else 1.0)
-	tg.take_hit(Vector3(d.x * knock, 1.2, d.y * knock), maxf(amount, 1.0 if mul > 0.0 else 0.0))
-	hitstop = maxf(hitstop, 0.03)
-	events.append({"type": "hit", "el": S.el, "p": P.p, "target": tg, "damage": amount, "crit": crit})
+	spell_hit(tg, S, S.dmg * coherence(S, P.t), d, P.p)
+
+
+## Spinta dei nuovi incantesimi: il knockback di RMNDWN in m/s (×2,4).
+const KNOCK_SCALE := 2.4
+## Grammatica d'impatto per elemento (IMPACT_GRAMMAR di RMNDWN): scossa e hitstop.
+const GRAMMAR := {"fire": [0.78, 0.55], "water": [1.05, 1.0], "air": [0.55, 0.45], "earth": [1.4, 1.35], "karma": [1.0, 1.0]}
+
+
+## Colpo di una magia su un bersaglio: reazioni, critico, danno, spinta, stati.
+## Vale per dardi, raggi, getti, aree. `base` e' il danno prima dei moltiplicatori.
+func spell_hit(tg: CombatTarget, S: SpellDefinition, base: float, dir: Vector2, p: Vector3, knock_mul: float = 1.0, lift: float = -1.0, quiet: bool = false) -> void:
+	if tg == player:
+		return
+	var mul := status_react(tg, S.el)
+	var crit := rng.randf() < 0.10 and base > 0.0
+	var amount := base * rng.randf_range(0.9, 1.1) * (1.5 if crit else 1.0) * mul * power
+	var knock := S.knock * (1.0 if S.is_legacy() else KNOCK_SCALE) * knock_mul
+	if S.el == "air" and has_status(tg, "wet"):
+		knock *= 1.8
+	# Conduzione (RMNDWN statusConduct): il Karma sul bagnato spinge di piu' e
+	# meta' del danno salta sugli altri corpi bagnati entro 3 unita'.
+	if S.el == "karma" and has_status(tg, "wet"):
+		knock *= 1.8
+		var arcs := 0
+		for o in _targets_cache:
+			var other := o as CombatTarget
+			if other == null or other == tg or not other.alive or not has_status(other, "wet"):
+				continue
+			if other.position.distance_to(tg.position) <= 3.0 and amount > 0.0:
+				other.take_hit(Vector3.ZERO, amount * 0.5)
+				arcs += 1
+				events.append({"type": "arc", "from": tg.position + Vector3(0, tg.height * 0.6, 0), "to": other.position + Vector3(0, other.height * 0.6, 0)})
+		if arcs > 0:
+			events.append({"type": "text", "p": tg.position + Vector3(0, tg.height + 0.5, 0), "text": "CONDUZIONE"})
+	var up := lift if lift >= 0.0 else (1.2 if S.is_legacy() else 0.4 + 0.25 * absf(knock))
+	if base > 0.0 or knock != 0.0:
+		tg.take_hit(Vector3(dir.x * knock, up, dir.y * knock), maxf(amount, 1.0 if mul > 0.0 and base > 0.0 else 0.0))
+	var g: Array = GRAMMAR.get(S.el, [1.0, 1.0])
+	if base <= 0.0 and knock == 0.0:
+		if mul > 0.0 and S.status != "":
+			apply_status(tg, S.status)
+		return
+	if not quiet:
+		# Colpi sostenuti e a ticchettio: niente hitstop (HITFAM "sustain").
+		hitstop = maxf(hitstop, 0.03 * float(g[1]) * (1.0 if base < 60.0 else 1.6))
+	events.append({"type": "hit", "el": S.el, "p": p, "target": tg, "damage": amount, "crit": crit, "shake": float(g[0]) * (0.4 if quiet else 1.0), "quiet": quiet})
+	# Ventaglio (RMNDWN statusReact): l'aria su chi brucia aggiunge una pila e
+	# sparge la fiamma sui corpi entro 3,2 unita'.
+	if S.el == "air" and has_status(tg, "burn"):
+		apply_status(tg, "burn", true)
+		for o in _targets_cache:
+			var other := o as CombatTarget
+			if other != null and other != tg and other.alive and other.position.distance_to(tg.position) <= 3.2:
+				apply_status(other, "burn")
+		events.append({"type": "text", "p": tg.position + Vector3(0, tg.height + 0.5, 0), "text": "VENTAGLIO"})
 	if mul > 0.0 and S.status != "":
 		apply_status(tg, S.status)
 	if S.el == "air":
-		wind = {"x": tg.position.x, "z": tg.position.z, "dx": d.x, "dz": d.y, "t": 0.6, "pow": 0.35, "r": 1.8}
+		wind = {"x": tg.position.x, "z": tg.position.z, "dx": dir.x, "dz": dir.y, "t": 0.6, "pow": 0.35, "r": 1.8}
 
 
 func _impact(P: Dart, p: Vector3, n: Vector3, info: Dictionary) -> void:
 	var S := P.spell
 	var el := S.el
-	events.append({"type": "impact", "el": el, "p": p, "n": n})
+	events.append({"type": "impact", "el": el, "p": p, "n": n, "spell": S})
+	if not S.is_legacy():
+		_impact_new(P, p, n, info)
+		return
 	# Area: stato e danno ridotto sugli altri bersagli vicini.
 	for o in _targets_cache:
 		var tg := o as CombatTarget
@@ -434,6 +720,26 @@ func _impact(P: Dart, p: Vector3, n: Vector3, info: Dictionary) -> void:
 		_:
 			wind = {"x": p.x, "z": p.z, "dx": -n.x, "dz": -n.z, "t": 0.5, "pow": 0.4, "r": 2.0}
 			_blow_fire(p, 1.6, Vector2(P.v.x, P.v.z))
+
+
+## Impatto dei nuovi dardi: scoppio delle sfere, reazioni col mondo, segni a terra.
+func _impact_new(P: Dart, p: Vector3, n: Vector3, info: Dictionary) -> void:
+	var S := P.spell
+	if S.burst_r > 0.0:
+		for o in _targets_cache:
+			var tg := o as CombatTarget
+			if tg == null or not tg.alive or P.hits.has(tg):
+				continue
+			var dd := Vector2(tg.position.x - p.x, tg.position.z - p.z)
+			if dd.length() > S.burst_r + tg.radius or absf(tg.position.y - p.y) > 2.5:
+				continue
+			P.hits[tg] = true
+			spell_hit(tg, S, S.burst_dmg * coherence(S, P.t), dd.normalized() if dd.length() > 1e-3 else Vector2(0, -1), tg.position,
+				S.burst_knock / maxf(S.knock, 1e-3))
+		events.append({"type": "burst_ring", "el": S.el, "p": p, "r": S.burst_r})
+	if world == null or info.get("kind") == "tree":
+		return
+	runtime.world_touch(S, p, maxf(S.burst_r, S.area))
 
 
 var _targets_cache: Array = []
@@ -634,7 +940,7 @@ func has_status(tg: CombatTarget, n: String) -> bool:
 	return statuses.has(tg) and (statuses[tg] as Dictionary).has(n)
 
 
-func apply_status(tg: CombatTarget, n: String) -> void:
+func apply_status(tg: CombatTarget, n: String, force_stack: bool = false) -> void:
 	if not statuses.has(tg):
 		statuses[tg] = {}
 	var s: Dictionary = statuses[tg]
@@ -643,16 +949,27 @@ func apply_status(tg: CombatTarget, n: String) -> void:
 		if s.has("burn"):
 			var cur: Dictionary = s["burn"]
 			cur["t"] = D["dur"]
-			if float(cur["since"]) >= float(D["gap"]) and int(cur["st"]) < int(D["max"]):
+			if (force_stack or float(cur["since"]) >= float(D["gap"])) and int(cur["st"]) < int(D["max"]):
 				cur["st"] = int(cur["st"]) + 1
 				cur["since"] = 0.0
 		else:
 			s["burn"] = {"t": D["dur"], "st": 1, "tick": 0.0, "since": 0.0}
 			events.append({"type": "text", "p": tg.position + Vector3(0, tg.height + 0.3, 0), "text": D["tag"]})
 	else:
-		if not s.has(n):
+		if not s.has(n) and n != "mud":
 			events.append({"type": "text", "p": tg.position + Vector3(0, tg.height + 0.3, 0), "text": D["tag"]})
-		s[n] = {"t": D["dur"]}
+		var keep: float = float((s.get(n, {}) as Dictionary).get("t", 0.0))
+		s[n] = {"t": maxf(keep, float(D["dur"]))}
+
+
+## Moltiplicatore della camminata del giocatore dagli stati (lento × spinto ×
+## flusso × fango, RMNDWN 21652).
+func player_speed() -> float:
+	var k := 1.0
+	for n in ["slow", "pushed", "flow", "mud"]:
+		if has_status(player, n):
+			k *= float(STDEF[n]["mag"])
+	return k
 
 
 ## L'unico punto in cui un elemento sa dell'altro: moltiplicatore del danno.

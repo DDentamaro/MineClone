@@ -296,7 +296,7 @@ reversibile salvo dove indicato. Formato: contesto → decisione → conseguenze
 ## D-026 — M5: sandbox persistente senza grotte, con equipaggiamento RPG
 - **Richiesta del proprietario (28/09/2026):** niente grotte in M5; al loro posto aspetti da
   gioco di ruolo: equipaggiamento (scelto) e magia da ampliare partendo da un file che
-  manderà (D-027, in attesa). Le grotte restano dormienti come nel prototipo.
+  manderà (D-027, fatto). Le grotte restano dormienti come nel prototipo.
 - **Oggetto in mano:** la barra rapida (6 slot, i primi dello zaino da 30) decide tutto: un
   blocco o una stazione si posano con un tocco, un'arma o un attrezzo colpisce, tenere premuto
   scava o abbatte. Il pulsante "Modo" e il ciclo dei blocchi del prototipo non servono più; lo
@@ -305,7 +305,7 @@ reversibile salvo dove indicato. Formato: contesto → decisione → conseguenze
   `killTree`) rese attive, con due aggiunte: livelli dei minerali (rame da pietra, ferro da
   rame, oro da ferro) e raccolta a mani nude di terra, sabbia e legno (altrimenti non si
   potrebbe cominciare). Se il bottino non entra nello zaino il blocco non si rompe.
-- **Materiali:** legno < pietra < rame < ferro < oro; l'oro si consuma prima ma dà mana. Tutti
+- **Materiali:** legno < pietra < rame < ferro < oro; l'oro si consuma prima ma dà Output alla magia (D-027). Tutti
   gli attrezzi e le armi hanno usura; le armature (rame, ferro, oro) hanno difesa.
 - **Rarità e affissi:** Comune, Non comune, Raro, Epico con 0–3 affissi (forza, critico, mente,
   flusso, arcano, scavo, vento, tempra). Il craft dà per lo più oggetti comuni; i dieci forzieri
@@ -324,6 +324,38 @@ reversibile salvo dove indicato. Formato: contesto → decisione → conseguenze
   e gestito a mano come i controlli touch, perché i Control di Godot non ricevono i tocchi senza
   l'emulazione del mouse. Il mondo si ferma mentre è aperto.
 
-## D-027 — Magia da ampliare (in attesa)
-- Il proprietario manderà un file a cui ispirarsi. Fino ad allora la magia resta quella del
-  gate R (quattro dardi e reazioni, D-024), con i bonus dell'equipaggiamento.
+## D-027 — Magia ampliata da RMNDWN K122
+Fonte: il file del proprietario `RMNDWN_k122.html` (SpellForge v78, roster Karma K29/K33,
+nucleo K116, segni di materia K122). Presi regole e numeri, non il codice.
+- **Niente mana.** Ogni magia ha un *Output* richiesto; si lancia solo se non supera l'Output del
+  caster (base 60 + equipaggiamento + studio). Ogni lancio alza la *Pressione* del nucleo:
+  `max(.12, output/tetto·.85)`, ×.55 se l'elemento cambia rispetto al lancio prima; cala di
+  .24/s (×.45 mentre si lancia, più in fretta sopra .75); a 1 il nucleo è saturo e riparte sotto
+  .85; sopra .75 la raccolta si allunga fino a +60%. Arco attorno al pulsante Magia (rosso da saturo).
+- **Tempi RMNDWN:** impegno al 78% della raccolta, coda di un lancio dal 55% o durante il recupero;
+  chi è spinto perde la raccolta non impegnata. I quattro dardi del prototipo restano con le loro
+  regole (impegno al 35%, rimbalzo del masso, aria che trapassa) e Output = costo × 2.
+- **Libro:** 38 magie in cinque scuole (fuoco, acqua, aria, terra, Karma) e quattro livelli, con
+  i numeri del file: proiettili, raffiche a ventaglio, sfere che scoppiano, meteorite dal cielo,
+  raggi Karma istantanei con *coerenza* `max(minimo, e^(−decoerenza·t))` (forti da vicino),
+  getti sostenuti (danno integrato ogni 0,1 s, indipendente dal frame rate; spinta come forza),
+  colonne, punte, sisma a quattro anelli, pioggia, ciclone, vuoto che attira, ascensione, onda,
+  colpi d'aria ravvicinati, braci, flusso (velocità ×1,55), muro e colonna di terra.
+- **Muro e colonna sono voxel veri** (terra) che fermano corpi, dardi e raggi e crollano dopo
+  6–8 s; non si posano sopra corpi o giocatore e non finiscono nel salvataggio.
+- **Reazioni in più** (oltre a vapore, shock termico e spinta sul bagnato del gate R):
+  *Ventaglio* (aria su chi brucia: una pila in più e fiamma ai vicini entro 3,2),
+  *Conduzione* (Karma sul bagnato: spinta ×1,8 e metà del danno agli altri bagnati entro 3),
+  *fango* (le pozze bagnano e rallentano a ×0,70 chi ci sta dentro, giocatore compreso).
+- **Segni di materia** (K122): bruciature 12 s, pozze 7,5 s, crateri 10 s, al massimo 16, fusi
+  se vicini; fatti con i grani. **Grammatica d'impatto** per elemento: scossa e hitstop (terra la
+  più pesante, aria la più leggera); i colpi sostenuti non fermano il tempo.
+- **Due mani** dai 120 di Output: posa di raccolta e spinta con entrambe le braccia. Cerchio ai
+  piedi durante la raccolta, più largo con l'Output.
+- **Aggiunte RPG (non nel file, che non ha progressione):** all'inizio si conoscono le 16 magie di
+  livello 1; le altre si imparano dalle *Pergamene* (nei tesori, livelli alti lontano dallo
+  spawn) e ognuna alza l'Output di 5. Gli affissi "della Mente" e l'oro danno Output, quelli "del
+  Flusso" accelerano la dissipazione della Pressione.
+- **Interfaccia:** barra di 5 magie sul bordo destro (tocco = scelta, slot vuoto = apre il libro;
+  Y scorre), scheda "Magie" nello zaino (colonne per scuola, dettagli, bloccate e oltre
+  l'Output segnate, tocca una magia e poi uno slot). Libro e barra si salvano.

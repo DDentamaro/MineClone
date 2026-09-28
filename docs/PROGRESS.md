@@ -1,9 +1,22 @@
 # Avanzamento
 
-## Stato corrente: M5 — Sandbox persistente con equipaggiamento RPG · completata (senza prova su telefono)
+## Stato corrente: M5 — Sandbox persistente con equipaggiamento RPG e magia ampliata · completata (senza prova su telefono)
 
 Sessione del 28/09/2026. Richiesta del proprietario: M5 senza grotte, con aspetti da gioco di
-ruolo: equipaggiamento (fatto) e magia ampliata da un file che manderà (D-027, in attesa).
+ruolo: equipaggiamento e magia ampliata dal file del proprietario (`RMNDWN_k122.html`, D-027).
+
+### Magia ampliata (D-027)
+- **Output e Pressione** al posto del mana (`MagicSystem`): tetto per lancio, pressione che
+  satura, bonus d'alternanza, impegno al 78% e coda; arco della Pressione sul pulsante Magia.
+- **Libro di 38 magie** (`SpellDefinition`, numeri di RMNDWN) e **forme** (`SpellRuntime`):
+  raggi con coerenza, getti sostenuti, aree, onda, colpi d'aria ravvicinati, muro e colonna
+  di terra fatti di voxel che crollano, salve, sfere che scoppiano, meteorite.
+- **Reazioni:** Ventaglio, Conduzione, fango (più quelle del gate R).
+- **Effetti** (`MagicFx`): cerchio ai piedi, raggi, getti, colonne, pioggia, ciclone, vuoto,
+  anelli, archi, segni di materia (bruciature, pozze, crateri); palette Karma; voce Karma
+  nell'audio; scossa per elemento; posa a due mani dai 120 di Output.
+- **RPG:** pergamene nei tesori, Output che cresce con lo studio e con l'equipaggiamento;
+  scheda "Magie" nello zaino; barra di 5 magie; libro e barra nel salvataggio.
 
 ### Fatto
 - **Oggetti e zaino** (`ItemLibrary`, `ItemStack`, `Inventory`, `PlayerItems`): blocchi,
@@ -32,14 +45,20 @@ ruolo: equipaggiamento (fatto) e magia ampliata da un file che manderà (D-027, 
 | `tools/e2e_sandbox.gd` (tocchi reali) | OK: 3 alberi abbattuti a mano (12 legno) → banco creato dal pannello → posato dalla barra → bastoni e piccone di legno al banco → scavo → salvataggio → scena chiusa e riaperta con banco, piccone e bottino |
 | `tools/e2e_combat.gd`, `tools/e2e_touch.gd`, `tools/e2e_swim.gd` | OK (aggiornati alla barra rapida: la pietra si sceglie col suo slot) |
 
+| `tools/run_tests.sh` (magia ampliata) | 174/174 PASS, log pulito (18 test nuovi: pressione, alternanza, Output, impegno e coda, coerenza, raffica, orbe, getto a 60 e 20 fps, vuoto, ascensione, muro, colonna, Ventaglio, Conduzione, fango/flusso, libro salvato, pergamena, strutture fuori dal salvataggio; tolto quello sul mana) |
+| `tools/e2e_magic.gd` (tocchi reali, xvfb, ~11 FPS in software) | OK: slot vuoto → libro; Giudizio scelto e messo nello slot 5 col tocco; 14 magie del libro lanciate col pulsante (raggio, getto, colonne, marea, muraglia, ciclone, meteorite, diluvio, sisma, orbe, tridente, raffica, zoltraak, ascensione); 58 colpi sui manichini nell'ultima esecuzione; la muraglia sorge davanti al giocatore, non sui manichini; eventi raggio/area/onda/struttura/anelli/segni presenti |
+| `tools/e2e_combat.gd`, `e2e_sandbox.gd`, `e2e_touch.gd`, `e2e_swim.gd` dopo la magia ampliata | OK (la prova del combattimento azzera la Pressione invece del mana) |
+| Export Android debug 0.7.0-m5 (versionCode 9) + `apksigner verify` + `aapt2 dump badging` | OK; minSdk 24, targetSdk 36; mai installato su un telefono |
+
 ### Limiti aperti dopo M5
 - Nessuna prova su telefono né misura di FPS.
 - La difesa dell'armatura non ha ancora effetto (nemici rinviati, D-009).
 - Un solo salvataggio; "Nuovo seme" sostituisce il mondo al salvataggio successivo.
-- La magia ampliata aspetta il file del proprietario (D-027).
+- Le magie non hanno ancora nemici veri su cui misurarsi (D-009): numeri di RMNDWN non ribilanciati.
+- Gli effetti della magia sono grani (niente mesh dedicate per onde, colonne, muri d'acqua).
 
 ### Punto di ripresa
-Magia ampliata dal file del proprietario, poi M6 (mobile action: stamina, HUD finale, comfort).
+M6 (mobile action: stamina, HUD finale, comfort).
 
 ## Gate R — parità · chiuso (senza prova su telefono)
 

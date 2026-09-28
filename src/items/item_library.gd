@@ -93,6 +93,14 @@ static func _build() -> void:
 		var d := _mk(st[0], st[1], ItemDefinition.Kind.STATION, st[3], st[4])
 		d.station = st[2]
 		d.max_stack = 8
+	# Pergamene: una per magia di livello 2+ (si imparano dallo zaino).
+	for sp in SpellDefinition.all():
+		if sp.tier > 1:
+			var d := _mk(StringName("scroll_" + String(sp.id)), "Pergamena: %s" % sp.display_name, ItemDefinition.Kind.SCROLL,
+				sp.color().lerp(Color(0.93, 0.87, 0.7), 0.45), "P%d" % sp.tier)
+			d.spell = sp.id
+			d.tier = sp.tier
+			d.max_stack = 8
 
 
 ## Oggetto raccolto rompendo un blocco (null = niente).

@@ -9,14 +9,15 @@ mesh, vegetazione e acqua identici al prototipo; resa dipinta con contorni, ciel
 e acqua fusa come nella reference; nuoto e guado, schizzi; camera isometrica (terza persona
 facoltativa), controlli touch, costruzione e scavo di debug, pannello sviluppatore (⚙).
 Eroe animato con editor, cinque armi con catene di colpi, carica, capriola e picchiata,
-manichini d'allenamento (animazioni e armi disegnate da zero, D-022); magia dei quattro elementi con reazioni (D-024).
+manichini d'allenamento (animazioni e armi disegnate da zero, D-022); magia dei quattro elementi con reazioni (D-024), ampliata a 38 magie in cinque scuole con Output,
+Pressione, libro, barra delle magie e pergamene (D-027, da RMNDWN K122).
 
 Controlli desktop: WASD/frecce, Spazio salto, trascinamento del mouse per ruotare, rotella
 zoom, clic = tap (posa o colpo secondo l'oggetto in mano), clic tenuto = scava/abbatte, clic
 destro = apri forziere/banco/falò, 1–6 barra rapida, I o Tab zaino, V camera, Q/E rotazione,
 Z/X zoom, N nuovo seme.
 Combattimento: J colpo (o clic sul mondo in esplorazione), K forte (tenuto = carica), L o Maiusc
-capriola, R cambia arma, H editor dell'eroe, M rimette i manichini davanti, U magia (tenuto), Y elemento, P pausa; clic destro = azione
+capriola, R cambia arma, H editor dell'eroe, M rimette i manichini davanti, U magia (tenuto), Y magia successiva della barra, P pausa; clic destro = azione
 opposta in costruzione/scavo; J tenuto continua la catena.
 
 ## Struttura
@@ -47,6 +48,7 @@ node tools/extract_render_fixture.mjs 1931  # riferimenti di resa dal prototipo
 xvfb-run -a godot --path . --script res://tools/e2e_touch.gd -- --out=/tmp/e2e.png
 xvfb-run -a godot --path . --script res://tools/e2e_swim.gd -- --out=/tmp/swim.png
 xvfb-run -a godot --path . --script res://tools/e2e_combat.gd -- --out=/tmp/combat.png
+xvfb-run -a godot --path . --script res://tools/e2e_magic.gd -- --out=/tmp/magic.png
 xvfb-run -a godot --path . --script res://tools/e2e_sandbox.gd -- --out=/tmp/sandbox.png
 godot --path . -- --screenshot=bag.png --kit --bag=craft --armor=iron --fresh   # pannelli e armature
 xvfb-run -a godot --path . --script res://tools/pose_sheet.gd -- --out=/tmp/pose.png --weapon=sword  # o --moves

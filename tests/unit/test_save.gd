@@ -73,3 +73,14 @@ func test_raccogli_costruisci_chiudi_riapri() -> void:
 	check_eq(g2._objects.list.filter(func(o: WorldObjects.Obj) -> bool: return o.type == "treasure").size(), 10, "tesori non duplicati")
 	g2.free()
 	SaveService.delete_all()
+
+
+func test_strutture_delle_magie_non_si_salvano() -> void:
+	var w := TestWorlds.flat(4)
+	var c := Vector3i(5, 4, 5)
+	TestWorlds.fill(w, c, c, BlockCatalog.DIRT)
+	var skip: Array[Vector3i] = [c]
+	var d := SaveService.world_state(w, skip)
+	var b: PackedByteArray = d["blocks"]
+	check_eq(int(b[w.index(c.x, c.y, c.z)]), BlockCatalog.AIR, "salvata come aria")
+	check_eq(w.get_block(c), BlockCatalog.DIRT, "il mondo in gioco non cambia")

@@ -28,6 +28,8 @@ const TAP_MAX_MS := 450
 const HOLD_MS := 180
 ## Slot della barra rapida (in basso al centro).
 const HOTBAR := 6
+## Barra delle magie (RMNDWN: 5 equipaggiate).
+const SPELLBAR := 5
 ## Raggio di escursione dello stick in dp (prototipo: 40 px).
 const STICK_RADIUS_DP := 44.0
 ## Lato minimo delle aree toccabili (piano §6: almeno 48 dp).
@@ -67,6 +69,11 @@ var labels := {}
 ## Icone della barra rapida: id -> {color, glyph, count, wear (0..1 o -1), rarity}.
 var icons := {}
 var hot_selected := 0
+## Barra delle magie: id -> {color, glyph, blocked}; la scelta e la Pressione (0..1,25).
+var spell_icons := {}
+var spell_selected := 0
+var pressure := 0.0
+var saturated := false
 ## Pulsanti nascosti in questo momento (es. "Auto" fuori dalla terza persona).
 var hidden_ids := {}
 ## Pannello sviluppatore (comandi tecnici del prototipo) aperto.
@@ -97,11 +104,12 @@ func _init() -> void:
 	add_button(&"magic", "Magia", true)
 	add_button(&"mode", "Modo", false)
 	add_button(&"weapon", "Arma", false)
-	add_button(&"spell", "Fuoco", false)
 	add_button(&"hero", "Eroe", false)
 	add_button(&"bag", "Zaino", false)
 	for i in HOTBAR:
 		add_button(StringName("hot%d" % i), "", false, &"hotbar")
+	for i in SPELLBAR:
+		add_button(StringName("sp%d" % i), "", false, &"spellbar")
 	add_button(&"block", "Blocco", false)
 	add_button(&"camera", "Camera", false)
 	add_button(&"dev", "⚙", false)
@@ -130,7 +138,7 @@ func _visible(b: VButton) -> bool:
 	if hidden_ids.get(b.id, false):
 		return false
 	match b.group:
-		&"hotbar":
+		&"hotbar", &"spellbar":
 			return not hero_open
 		&"dev":
 			return dev_open
@@ -187,7 +195,7 @@ func _layout() -> void:
 	var m := dp(20.0)
 	var med := big * 0.78
 	# Riga in alto dal bordo verso il centro: camera, blocco, modo, arma, eroe.
-	var row: Array[StringName] = [&"camera", &"tps_auto", &"bag", &"spell", &"hero"]
+	var row: Array[StringName] = [&"camera", &"tps_auto", &"bag", &"hero"]
 	var dw := dp(DEV_BUTTON_W_DP)
 	var dh := dp(DEV_BUTTON_H_DP)
 	var cursor := {}
@@ -198,6 +206,16 @@ func _layout() -> void:
 		if b.group == &"hotbar":
 			var i := int(String(b.id).substr(3))
 			b.rect = Rect2(hx0 + i * (hs + dp(4.0)), s.y - m * 0.6 - hs, hs, hs)
+			continue
+		if b.group == &"spellbar":
+			# Colonna sul bordo, sopra i pulsanti d'azione.
+			var i := int(String(b.id).substr(2))
+			var ss := dp(44.0)
+			var top := s.y - m - big - m * 0.4 - med - m * 0.6 - SPELLBAR * (ss + dp(4.0))
+			r = Rect2(s.x - m * 0.5 - ss, top + i * (ss + dp(4.0)), ss, ss)
+			if left_handed:
+				r.position.x = s.x - r.position.x - r.size.x
+			b.rect = r
 			continue
 		if b.group != &"main":
 			var c: Vector2 = cursor.get(b.group, Vector2(m, m + small + m + dh))
@@ -418,6 +436,9 @@ func _draw() -> void:
 		if b.group == &"hotbar":
 			_draw_hot_slot(b)
 			continue
+		if b.group == &"spellbar":
+			_draw_spell_slot(b)
+			continue
 		if b.group != &"main":
 			draw_rect(b.rect, Color(0.08, 0.1, 0.12, 0.72 if not b.held else 0.9))
 			draw_rect(b.rect, Color(0.63, 0.89, 0.78, 0.8), false, dp(1.5))
@@ -467,7 +488,42 @@ func _draw_hot_slot(b: VButton) -> void:
 		draw_rect(bar, Color(1.0 - wr, 0.3 + 0.6 * wr, 0.2))
 
 
+func _draw_spell_slot(b: VButton) -> void:
+	var i := int(String(b.id).substr(2))
+	var sel := i == spell_selected
+	var ic: Dictionary = spell_icons.get(b.id, {})
+	draw_rect(b.rect, Color(0.08, 0.1, 0.12, 0.8 if sel else 0.5))
+	if not ic.is_empty():
+		var inner := b.rect.grow(-b.rect.size.x * 0.16)
+		var col: Color = ic["color"]
+		if ic.get("blocked", false):
+			col = col.darkened(0.6)
+		draw_rect(inner, col)
+		var g: String = ic.get("glyph", "")
+		var fs := int(dp(12.0))
+		var ts := _font.get_string_size(g, HORIZONTAL_ALIGNMENT_CENTER, -1, fs)
+		var at := inner.get_center() + Vector2(-ts.x * 0.5, ts.y * 0.3)
+		draw_string_outline(_font, at, g, HORIZONTAL_ALIGNMENT_CENTER, -1, fs, int(dp(3.0)), Color(0, 0, 0, 0.8))
+		draw_string(_font, at, g, HORIZONTAL_ALIGNMENT_CENTER, -1, fs, Color.WHITE)
+	draw_rect(b.rect, Color(1, 0.9, 0.5, 1) if sel else Color(0.63, 0.89, 0.78, 0.5), false, dp(3.0 if sel else 1.5))
+
+
+## Pressione del nucleo come arco attorno al pulsante Magia (rosso se saturo).
+func _draw_pressure() -> void:
+	var r := button_rect(&"magic")
+	if r.size.x <= 0.0 or hero_open:
+		return
+	var c := r.get_center()
+	var rad := r.size.x * 0.5 + dp(5.0)
+	draw_arc(c, rad, -PI * 0.5, PI * 1.5, 40, Color(0, 0, 0, 0.35), dp(4.0), true)
+	var p := clampf(pressure, 0.0, 1.0)
+	if p > 0.005:
+		var col := Color(1.0, 0.25, 0.2) if saturated else Color(0.4 + 0.6 * p, 0.85 - 0.5 * p, 1.0 - 0.7 * p)
+		draw_arc(c, rad, -PI * 0.5, -PI * 0.5 + TAU * p, 40, col, dp(4.0), true)
+
+
 func _draw_after() -> void:
+	_draw_pressure()
 	if _has_role(Role.STICK):
 		var r := dp(STICK_RADIUS_DP)
 		draw_circle(stick_center, r * 1.25, Color(0, 0, 0, 0.25))

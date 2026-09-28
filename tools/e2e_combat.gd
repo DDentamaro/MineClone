@@ -125,7 +125,7 @@ func _process(_dt: float) -> bool:
 			if _frame == 130:
 				_phase = 4
 				_frame = 0
-				_game.magic.mana = MagicSystem.MANA_MAX
+				_game.magic.pressure = 0.0
 				_game._dummies.place_around(_game.motor.position, _game._avatar.facing, 3, 4.5)
 				_hits = _count_hits()
 		4:
@@ -134,7 +134,8 @@ func _process(_dt: float) -> bool:
 			var plan := {10: 1, 70: 0, 130: 2, 190: 3}
 			if plan.has(_frame):
 				m.select(plan[_frame])
-				m.mana = MagicSystem.MANA_MAX
+				m.pressure = 0.0
+				m.saturated = false
 				_touch(5, _button(&"magic"), true)
 			if _frame in [40, 100, 160, 215]:
 				_touch(5, _button(&"magic"), false)

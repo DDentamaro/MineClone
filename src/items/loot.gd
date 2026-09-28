@@ -9,8 +9,8 @@ const RARITY_COLORS := [Color(0.85, 0.85, 0.82), Color(0.45, 0.85, 0.45), Color(
 const AFFIXES := {
 	"strength": [0.08, 0.20, ["weapon", "armor"], "del Forte", "+%d%% danno corpo a corpo"],
 	"crit": [0.04, 0.10, ["weapon", "armor"], "della Precisione", "+%d%% critico"],
-	"mana_max": [10.0, 25.0, ["weapon", "armor"], "della Mente", "+%d mana"],
-	"mana_regen": [1.0, 3.0, ["weapon", "armor"], "del Flusso", "+%d mana/s"],
+	"mana_max": [10.0, 25.0, ["weapon", "armor"], "della Mente", "Output +%d"],
+	"mana_regen": [1.0, 3.0, ["weapon", "armor"], "del Flusso", "dissipazione +%d"],
 	"arcane": [0.08, 0.20, ["weapon", "armor"], "dell'Arcano", "+%d%% danno delle magie"],
 	"dig": [0.10, 0.30, ["tool", "armor"], "del Minatore", "+%d%% velocità di scavo"],
 	"speed": [0.04, 0.10, ["armor"], "del Vento", "+%d%% velocità"],
@@ -100,6 +100,12 @@ static func describe(s: ItemStack) -> Array[String]:
 		out.append("difesa %.1f" % d.defense)
 	elif d.kind == ItemDefinition.Kind.TOOL:
 		out.append("velocità %.1f · livello %d" % [d.speed, d.tier])
+	elif d.kind == ItemDefinition.Kind.SCROLL:
+		var sp := SpellDefinition.by_id(d.spell)
+		out.append("%s · livello %d · Output %d" % [sp.school_name(), sp.tier, int(sp.output)])
+		if sp.note != "":
+			out.append(sp.note)
+		out.append("imparare una magia alza l'Output di %d" % int(MagicSystem.STUDY))
 	var mods: Dictionary = {}
 	mods.merge(d.base_mods)
 	mods.merge(s.data.get("mods", {}), true)

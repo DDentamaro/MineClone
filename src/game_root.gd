@@ -151,13 +151,14 @@ func _ready() -> void:
 	_bag.closed.connect(func() -> void:
 		_touch.blocked = false
 		get_tree().paused = paused
-		_refresh_held())
+		_refresh_held()
+		_refresh_spellbar())
 	_bag.message.connect(func(t: String) -> void: last_edit = t)
 	_audio = MagicAudio.new()
 	_audio.name = "MagicAudio"
 	add_child(_audio)
 	magic.catalog = catalog
-	magic.spell_index = clampi(int(Settings.load_value("magic", "spell", 0)), 0, 3)
+	_bag.magic = magic
 	_swap_world(w)
 	_camera_rig.opaque = catalog.opaque_table()
 	for d: Array in DEV_BUTTONS:
@@ -216,6 +217,7 @@ func _ready() -> void:
 		_restore(saved)
 	_refresh_labels()
 	_refresh_held()
+	_refresh_spellbar()
 	_camera_rig.update_camera(1.0, motor.position)
 
 
@@ -307,6 +309,7 @@ func _physics_process(dt: float) -> void:
 		motor.move_scale *= _stats.speed
 		if magic.phase == MagicSystem.Phase.GATHER:
 			motor.move_scale *= 0.35
+		motor.move_scale *= magic.player_speed()
 		motor.step(dt, _move_world, (_jump_key or _touch.is_held(&"jump")) and not combat.is_busy())
 		_avatar.position = motor.position
 		_push_out_of_dummies()
@@ -506,6 +509,11 @@ func _process(dt: float) -> void:
 			RenderingServer.global_shader_parameter_set(&"tree_hit_dir", d)
 		elif e["type"] == "impact":
 			_camera_rig.shake(0.12 if e["el"] != "earth" else 0.25)
+		elif e["type"] == "hit" and not e.get("quiet", false):
+			# Grammatica d'impatto per elemento (RMNDWN IMPACT_GRAMMAR).
+			_camera_rig.shake(0.09 * float(e["shake"]))
+		elif e["type"] == "area" or e["type"] == "struct":
+			_camera_rig.shake(0.1 * float(MagicSystem.GRAMMAR.get(e.get("el", "earth"), [1.0])[0]))
 	magic.events.clear()
 	var lt := TrainingGround._light_at(world, p + Vector3(0, 1.1, 0))
 	_avatar.set_light(lt.x, lt.y)
@@ -530,6 +538,10 @@ func _process(dt: float) -> void:
 	if sandbox.message != "":
 		last_edit = sandbox.message
 		sandbox.message = ""
+	if absf(_touch.pressure - magic.pressure) > 0.004 or _touch.saturated != magic.saturated:
+		_touch.pressure = magic.pressure
+		_touch.saturated = magic.saturated
+		_touch.queue_redraw()
 	var h := items.held()
 	_status.text = "%d FPS · in mano: %s%s · chunk in coda %d%s\nposizione %.1f %.1f %.1f%s" % [
 		Engine.get_frames_per_second(), Loot.full_name(h) if h != null else "niente", " · SCAVO DEBUG" if dig_debug else "",
@@ -537,8 +549,8 @@ func _process(dt: float) -> void:
 		motor.position.x, motor.position.y, motor.position.z, ("\n" + last_edit) if last_edit != "" else ""]
 	if motor.water_state != "dry":
 		_status.text += " · acqua: %s" % motor.water_state
-	_status.text += "\n%s%s · mana %d/%d · %s%s%s" % [combat.weapon.display_name, (" · combo %d" % combat.combo) if combat.combo > 1 else "",
-		int(magic.mana), int(magic.mana_max()), magic.spell().display_name,
+	_status.text += "\n%s%s · pressione %d%%%s · Output %d · %s%s%s" % [combat.weapon.display_name, (" · combo %d" % combat.combo) if combat.combo > 1 else "",
+		int(magic.pressure * 100.0), " SATURO" if magic.saturated else "", int(magic.output_cap()), magic.spell().display_name,
 		(" · raduna %d%%%s" % [int(magic.w * 100.0), " ●" if magic.committed else ""]) if magic.phase == MagicSystem.Phase.GATHER else "",
 		(" · fuoco %d celle" % magic.fire.size()) if not magic.fire.is_empty() else ""]
 	if sandbox.harvester.target != null and sandbox.harvester.progress > 0.0:
@@ -712,9 +724,17 @@ func _on_button(id: StringName) -> void:
 		&"dodge":
 			combat.press_dodge()
 		&"spell":
-			magic.select(magic.spell_index + 1)
-			Settings.save_value("magic", "spell", magic.spell_index)
+			magic.select_next()
+			_refresh_spellbar()
 			last_edit = "magia: %s" % magic.spell().display_name
+		&"sp0", &"sp1", &"sp2", &"sp3", &"sp4":
+			var i := int(String(id).substr(2))
+			if magic.bar[i] == &"":
+				open_bag(null, "magic")
+			else:
+				magic.select(i)
+				_refresh_spellbar()
+				last_edit = "magia: %s" % magic.spell().display_name
 		&"dev_dummies":
 			_dummies.place_around(motor.position, _avatar.facing)
 			last_edit = "manichini davanti al giocatore"
@@ -802,13 +822,17 @@ func _refresh_hotbar() -> void:
 	_touch.queue_redraw()
 
 
+## Output aggiunto per le prove (e2e): tutte le magie del libro lanciabili.
+var dev_output := 0.0
+
+
 ## Statistiche dell'equipaggiamento applicate a colpi, magia e movimento.
 func _apply_stats() -> void:
 	_stats = items.stats()
 	combat.damage_mult = _stats.melee
 	combat.crit_chance = _stats.crit
-	magic.mana_bonus = _stats.mana_max
-	magic.regen_bonus = _stats.mana_regen
+	magic.output_bonus = _stats.mana_max + dev_output
+	magic.decay_bonus = _stats.mana_regen
 	magic.power = _stats.arcane
 
 
@@ -870,10 +894,10 @@ func _world_from_save(st: Dictionary) -> WorldData:
 
 
 func make_save_state() -> Dictionary:
-	return {"v": 1, "world": SaveService.world_state(world),
+	return {"v": 1, "world": SaveService.world_state(world, magic.runtime.struct_cells()),
 		"player": {"pos": motor.position, "facing": _avatar.facing}, "items": items.to_dict(),
 		"objects": _objects.to_array(), "dead_trees": _vegetation.dead_indices() if _pending_dead_trees.is_empty() else _pending_dead_trees,
-		"checkpoint": checkpoint, "time": _day.time, "mana": magic.mana}
+		"checkpoint": checkpoint, "time": _day.time, "magic": magic.to_dict()}
 
 
 func save_game() -> bool:
@@ -895,7 +919,8 @@ func _restore(st: Dictionary) -> void:
 	_objects.load_array(st.get("objects", []))
 	checkpoint = st.get("checkpoint", Vector3.INF)
 	_day.time = float(st.get("time", _day.time))
-	magic.mana = float(st.get("mana", magic.mana))
+	magic.load_dict(st.get("magic", {}))
+	_refresh_spellbar()
 	_dummies.place_around(motor.position, _avatar.facing)
 	# Gli alberi si costruiscono su un thread: si abbattono appena pronti.
 	_pending_dead_trees = st.get("dead_trees", [])
@@ -1089,6 +1114,19 @@ func _poll_generation() -> void:
 	_gen_result = null
 
 
+## Barra delle magie e Pressione sui TouchControls.
+func _refresh_spellbar() -> void:
+	for i in MagicSystem.BAR:
+		var sp := SpellDefinition.by_id(magic.bar[i]) if magic.bar[i] != &"" else null
+		var bid := StringName("sp%d" % i)
+		if sp == null:
+			_touch.spell_icons.erase(bid)
+		else:
+			_touch.spell_icons[bid] = {"color": sp.color(), "glyph": sp.glyph(), "blocked": sp.output > magic.output_cap()}
+	_touch.spell_selected = magic.bar_index
+	_touch.queue_redraw()
+
+
 func _refresh_labels() -> void:
 	_touch.labels[&"camera"] = "Iso" if _camera_rig.mode == CameraRig.Mode.ISO else "3ª p."
 	_touch.labels[&"dev_res"] = "Righe %d" % rt_height
@@ -1096,7 +1134,6 @@ func _refresh_labels() -> void:
 		_touch.labels[StringName("dev_" + key)] = "%s %s" % [_dev_label(key), "ON" if toggles[key] else "OFF"]
 	_touch.labels[&"tps_auto"] = "Auto ON" if _camera_rig.tps_auto else "Auto OFF"
 	_touch.labels[&"dev_digdebug"] = "Scava debug %s" % ("ON" if dig_debug else "OFF")
-	_touch.labels[&"spell"] = ["Fuoco", "Acqua", "Terra", "Aria"][magic.spell_index]
 	for d: Array in HERO_BUTTONS:
 		_touch.labels[d[0]] = recipe.label(d[1]) if d[1] != "" else HERO_LABELS[d[0]]
 	_touch.labels[&"dev_hitbox"] = "Hitbox %s" % ("ON" if show_hitboxes else "OFF")
