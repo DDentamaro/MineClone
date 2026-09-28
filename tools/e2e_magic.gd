@@ -27,6 +27,7 @@ var _clock := 0.0
 var _hits0 := 0
 var _seen := {}
 var _total := 0
+var _zoomed := false
 
 
 func _initialize() -> void:
@@ -161,11 +162,12 @@ func _cast_step(m: MagicSystem) -> void:
 	# (lo zoom si imposta un fotogramma prima dello screenshot).
 	var close := m.phase == MagicSystem.Phase.GATHER
 	var z := 2.6 if close else 1.25
-	if absf(_game._camera_rig.zoom - z) > 0.01:
-		_game._camera_rig.set_zoom(z)
-		_game._camera_rig.zoom = z
-	elif close and m.w > 0.45:
+	if close and _zoomed and m.w > 0.45:
 		_shot("gather_%s" % id)
+	if close != _zoomed:
+		_game._camera_rig.set_zoom(z)
+		_game._camera_rig.zoom = _game._camera_rig.zoom_target
+		_zoomed = close
 	if _cast_t > 0.0 and _clock >= _cast_t + wait and not _shots.has(String(id)):
 		_shot(String(id))
 		_log.append("%s: strutture %d, effetti %d" % [id, m.runtime.structs.size(), m.runtime.effects.size()])

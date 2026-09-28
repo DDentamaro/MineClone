@@ -1,11 +1,38 @@
 # Avanzamento
 
-## Stato corrente: M5 — Sandbox persistente, equipaggiamento RPG, magia ampliata, eroe del prototipo · completata (senza prova su telefono)
+## Stato corrente: M5 — Sandbox persistente, equipaggiamento RPG, magia ampliata (come RMNDWN), eroe del prototipo · completata (senza prova su telefono)
 
 Sessione del 28/09/2026 (seguito). Richieste del proprietario dopo la prova: oggetti gettati che
 si possano riprendere (5 minuti), selezione delle magie più chiara, hitbox/hurtbox legate alle
 armi e ai pugni, ritorno all'eroe del prototipo (più piccolo) con un passo migliore tenendo le
 animazioni di combattimento (D-028).
+
+Seguito del 28/09/2026: armatura che copre il corpo e inventario unico (D-030), magie allineate a
+RMNDWN nelle regole, nella posa, nel suono e nell'aspetto (D-031).
+
+### Fatto (D-030, D-031)
+- **Armatura:** le facce del corpo dentro i pezzi indossati spariscono; l'elmo nasconde capelli,
+  cappello e orecchie.
+- **Inventario unico** con la miniatura dell'eroe che gira, slot dell'armatura e della mano
+  attorno, statistiche sotto; niente più scheda Equipaggiamento.
+- **Magie come RMNDWN:** teste Karma che viaggiano e si fermano sul primo corpo, colpo unico
+  degli elementi al contatto, getti coi coni di RMNDWN, pressione a inizio raccolta, raccolta
+  che finisce da sola, hitstop di pochi ms con refrattario, scossa direzionale e calcio del FOV,
+  stati e stagger come RMNDWN, posa a braccio teso con rinculo (specchiata a sinistra), solo
+  suoni d'impatto, glifo al palmo, Karma col colore della coerenza, fiamma di corpo nero, firme
+  d'impatto. Limiti in D-031.
+
+### Test realmente eseguiti (D-030, D-031)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 200/200 PASS, log pulito (nuovi: teste Karma sul primo corpo, svanire a fine portata, roster Karma, colpo unico del diluvio, danno pieno della palla nell'area, braci senza danno, frusta alla mira, hitstop e refrattario, ascensione che non solleva, acqua/aria che spingono; aggiornati muraglia, colonna, conduzione, ventaglio, shock termico, voci) |
+| `tools/e2e_magic.gd` | OK: 19 magie lanciate col pulsante, 51 colpi, eventi di contatto/impatto/salita, nessun errore di script |
+| `tools/e2e_combat.gd`, `e2e_touch`, `e2e_sandbox`, `e2e_walk`, `e2e_drop`, `e2e_armory`, `e2e_swim` | OK, nessun errore di script (dardi del prototipo: 16 colpi) |
+| `tools/pose_sheet.gd --moves --cast` | Posa di lancio vista di lato e dall'alto: braccio sinistro teso in avanti, due mani, rinculo |
+| Export Android debug 0.10.0-m5 (versionCode 12) + `apksigner verify` + `aapt2 dump badging` | OK; minSdk 24, targetSdk 36; mai installato su un telefono |
+
+Non verificato: FPS su telefono; nella vista iso con l'eroe di spalle il glifo è coperto dal
+corpo (si vede nelle viste di lato); confronto affiancato con RMNDWN aperto nel browser non fatto.
 
 ### Fatto (D-029)
 - **Opzioni** con "Chiudi", chiusura toccando il mondo, tasto indietro/Esc; tocchi brevi nella
