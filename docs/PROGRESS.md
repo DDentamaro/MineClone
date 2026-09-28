@@ -7,6 +7,21 @@ si possano riprendere (5 minuti), selezione delle magie più chiara, hitbox/hurt
 armi e ai pugni, ritorno all'eroe del prototipo (più piccolo) con un passo migliore tenendo le
 animazioni di combattimento (D-028).
 
+### Fatto (D-029)
+- **Opzioni** con "Chiudi", chiusura toccando il mondo, tasto indietro/Esc; tocchi brevi nella
+  zona dello stick validi sul mondo.
+- **Armeria** vicino allo spawn con tutte le armi, gli attrezzi e un'armatura di ferro, esposti
+  sulla rastrelliera.
+- **Equipaggiare spiegato:** tocca e scegli (Impugna, Indossa, Prendi...), confronto delle
+  statistiche, suggerimento d'uso per tipo, scheda Equipaggiamento con Mano + 4 pezzi.
+
+### Test realmente eseguiti (D-029)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 191/191 PASS, log pulito (nuovi: impugna da forziere/indossa/scambio a barra piena, confronto delle statistiche; avvio: armeria piena vicino allo spawn con 7 oggetti esposti) |
+| `tools/e2e_armory.gd` (tocchi reali) | OK: opzioni chiuse con "Chiudi", col tocco sul mondo e col tasto indietro; rastrelliera toccata sullo schermo → Armeria; martello impugnato, busto indossato, stivali presi e indossati dalla scheda Equipaggiamento (l'eroe è spostato accanto alla rastrelliera, non camminando) |
+| Tutte le altre prove e2e | OK |
+
 ### Fatto (D-028)
 - **Oggetti a terra** (`GroundItems`): "Getta" posa l'oggetto, si riprende passandoci sopra,
   sparisce dopo 5 minuti, resta nel salvataggio.

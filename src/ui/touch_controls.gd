@@ -206,7 +206,7 @@ func _layout() -> void:
 	var m := dp(20.0)
 	var med := big * 0.78
 	# Riga in alto dal bordo verso il centro: camera, blocco, modo, arma, eroe.
-	var row: Array[StringName] = [&"camera", &"tps_auto", &"bag", &"hero"]
+	var row: Array[StringName] = [&"camera", &"tps_auto", &"bag", &"hero", &"dev"]
 	var dw := dp(DEV_BUTTON_W_DP)
 	var dh := dp(DEV_BUTTON_H_DP)
 	var cursor := {}
@@ -247,15 +247,13 @@ func _layout() -> void:
 			r = Rect2(s.x - m - big + (big - med) * 0.5, s.y - m - big - m * 0.4 - med, med, med)
 		elif b.id == &"magic":
 			r = Rect2(attack_x - m * 0.4 - med, s.y - m - med, med, med)
-		elif b.id == &"dev":
-			r = Rect2(m, m + small * 0.9, small * 0.8, small * 0.8)
 		else:
 			var i := row.find(b.id)
 			if i < 0:
 				b.rect = Rect2(-1000, -1000, 0, 0)
 				continue
 			r = Rect2(s.x - m - small - i * (small + m * 0.5), m, small, small)
-		if left_handed and b.id != &"dev":
+		if left_handed:
 			r.position.x = s.x - r.position.x - r.size.x
 		b.rect = r
 	queue_redraw()
@@ -387,6 +385,10 @@ func _touch_up(index: int, p: Vector2, canceled: bool) -> bool:
 	match f.role:
 		Role.STICK:
 			stick_vector = Vector2.ZERO
+			# Tocco breve e fermo nella zona dello stick: e' un tocco sul mondo
+			# (oggetti, forzieri, armeria in basso a sinistra dello schermo).
+			if not canceled and Time.get_ticks_msec() - f.t0 < TAP_MAX_MS and p.distance_to(f.start) <= TAP_MAX_MOVE:
+				world_tapped.emit(p)
 		Role.CAMERA:
 			var quick := Time.get_ticks_msec() - f.t0 < TAP_MAX_MS
 			if f.holding:

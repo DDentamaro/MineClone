@@ -23,7 +23,14 @@ func test_avvio_allo_spawn() -> void:
 	check(g.world != null, "mondo caricato")
 	check_eq(g.motor.position, Vector3(96.5, 28, 96.5), "giocatore allo spawn")
 	check_eq(g.items.inv.get_slot(0).id, &"sword_wood", "spada di legno iniziale")
-	check_eq(g._objects.list.size(), 10, "forzieri del tesoro nel mondo")
+	check_eq(g._objects.list.filter(func(o: WorldObjects.Obj) -> bool: return o.type == "treasure").size(), 10, "forzieri del tesoro nel mondo")
+	var arm := g._objects.list.filter(func(o: WorldObjects.Obj) -> bool: return o.type == "armory")
+	check_eq(arm.size(), 1, "armeria")
+	if arm.size() == 1:
+		var o: WorldObjects.Obj = arm[0]
+		check(Vector3(o.cell).distance_to(g.motor.position) < 8.0, "armeria vicino allo spawn")
+		check_eq(o.inv.total_items(), WorldObjects.ARMORY_ITEMS.size(), "armeria piena")
+		check_eq(o.shown.size(), 7, "armi e attrezzi esposti")
 	g.free()
 
 

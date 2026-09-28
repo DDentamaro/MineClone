@@ -399,3 +399,28 @@ legato alle armi e ai pugni per avere un tempo chiaro; oggetti gettati che si po
   sconosciute), pulsante Magia con icona e nome della magia scelta (o il motivo del blocco), numero
   dello slot sulla barra, nome al centro dello schermo al cambio, slot tenuto premuto = libro su
   quello slot, nel libro "Metti nello slot 1–5".
+
+## D-029 — Opzioni che si chiudono, armeria, equipaggiamento spiegato
+Richiesta del proprietario: le opzioni aperte "non se ne vanno più"; un tavolo con tutte le armi
+da prendere e impugnare; non era chiaro come equipaggiare armi, oggetti e armature.
+- **Opzioni:** il ⚙ piccolo in alto a sinistra (sotto le scritte di stato, facile da non
+  ritrovare) diventa il pulsante "Opzioni"/"Chiudi" nella riga in alto; nel pannello c'è
+  "Chiudi ✕"; un tocco sul mondo lo chiude; il tasto indietro di Android e Esc chiudono il
+  pannello aperto (zaino, opzioni, editor dell'eroe) invece di uscire dal gioco.
+- **Tocchi nella zona dello stick:** un tocco breve e fermo in basso a sinistra ora vale come
+  tocco sul mondo (prima diventava uno stick fermo: gli oggetti in quella parte dello schermo non
+  si potevano aprire).
+- **Armeria:** una rastrelliera vicino allo spawn (fra 3 e 6 blocchi, girata verso lo spawn) con
+  spada, lancia, martello, spadone, piccone, ascia, pala e un'armatura intera di ferro; armi e
+  attrezzi sono esposti sulla rastrelliera e spariscono quando li prendi. Toccandola si apre la
+  scheda "Armeria". Non si raccoglie come un forziere; nei salvataggi di prima viene aggiunta.
+- **Tocca, poi scegli:** in zaino, forziere e armeria un tocco seleziona l'oggetto e a destra
+  compaiono: come si usa quel tipo di oggetto, il confronto con l'equipaggiamento attuale (verde
+  meglio, rosso peggio) e i pulsanti "Impugna", "Indossa", "Prendi", "Metti qui", "In barra",
+  "Dividi", "Getta". Spostare fra slot dello zaino resta: tocco su un oggetto, poi su uno slot.
+- **Impugna:** l'oggetto va nella barra rapida (primo slot libero, o al posto di quello in mano,
+  che torna da dove veniva) e diventa quello in mano. Lo slot in mano è dorato con la scritta
+  "in mano" anche nello zaino.
+- **Scheda Equipaggiamento:** a sinistra Mano, Testa, Busto, Gambe, Piedi; toccando uno slot, al
+  centro compaiono gli oggetti dello zaino che ci vanno col confronto e il pulsante per metterli,
+  più "Togli" per il pezzo indossato; a destra le statistiche.

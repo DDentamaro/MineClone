@@ -57,9 +57,14 @@ func weapon_id() -> StringName:
 
 ## Moltiplicatore del danno dell'oggetto in mano (pugni 1; attrezzi 0,6).
 func stats() -> Equipment.Stats:
-	var st := equipment.stats(held())
-	var d := held_def()
-	if d != null and d.kind == ItemDefinition.Kind.TOOL:
+	return stats_for(equipment, held())
+
+
+## Statistiche con questa armatura e questo oggetto in mano (anche ipotetici:
+## il pannello le usa per il confronto prima di impugnare o indossare).
+static func stats_for(eq: Equipment, h: ItemStack) -> Equipment.Stats:
+	var st := eq.stats(h)
+	if h != null and h.def().kind == ItemDefinition.Kind.TOOL:
 		st.melee *= 0.6
 	return st
 
@@ -85,6 +90,50 @@ func equip_from(i: int) -> bool:
 		return false
 	var old := equipment.equip(s)
 	inv.set_slot(i, old)
+	held_changed.emit()
+	return true
+
+
+## Si impugna: armi, attrezzi, blocchi e stazioni (tutto cio' che va in mano).
+static func can_wield(s: ItemStack) -> bool:
+	return s != null and s.def().kind in [ItemDefinition.Kind.WEAPON, ItemDefinition.Kind.TOOL, ItemDefinition.Kind.BLOCK, ItemDefinition.Kind.STATION]
+
+
+## Mette in mano l'oggetto dello slot `i` di `from` (zaino, forziere, armeria):
+## va in uno slot libero della barra rapida e diventa quello scelto; se la
+## barra e' piena, scambia con l'oggetto in mano (che torna al suo posto).
+func wield_from(from: Inventory, i: int) -> bool:
+	var s := from.get_slot(i)
+	if not can_wield(s):
+		return false
+	if from == inv and i < HOTBAR:
+		select(i)
+		return true
+	var slot := -1
+	if inv.get_slot(selected) == null:
+		slot = selected
+	else:
+		for k in HOTBAR:
+			if inv.get_slot(k) == null:
+				slot = k
+				break
+	if slot < 0:
+		slot = selected
+	var old := inv.get_slot(slot)
+	inv.set_slot(slot, s)
+	from.set_slot(i, old)
+	selected = slot
+	held_changed.emit()
+	return true
+
+
+## Indossa l'armatura dello slot `i` di `from`; quella tolta torna al suo posto.
+func wear_from(from: Inventory, i: int) -> bool:
+	var s := from.get_slot(i)
+	if s == null or Equipment.slot_for(s) == "":
+		return false
+	var old := equipment.equip(s)
+	from.set_slot(i, old)
 	held_changed.emit()
 	return true
 

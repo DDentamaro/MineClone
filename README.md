@@ -16,7 +16,10 @@ Pressione, libro, barra delle magie e pergamene (D-027, da RMNDWN K122).
 Controlli desktop: WASD/frecce, Spazio salto, trascinamento del mouse per ruotare, rotella
 zoom, clic = tap (posa o colpo secondo l'oggetto in mano), clic tenuto = scava/abbatte, clic
 destro = apri forziere/banco/falò, 1–6 barra rapida, I o Tab zaino, V camera, Q/E rotazione,
-Z/X zoom, N nuovo seme.
+Z/X zoom, N nuovo seme, Esc (o indietro su Android) chiude il pannello aperto.
+Equipaggiare: nello zaino tocca un oggetto e usa "Impugna" (armi, attrezzi, blocchi: vanno nella
+barra rapida e in mano) o "Indossa" (armature); la scheda Equipaggiamento mostra Mano e i quattro
+pezzi con i confronti. Un'armeria con tutte le armi è accanto al punto di partenza.
 Combattimento: J colpo (o clic sul mondo in esplorazione), K forte (tenuto = carica), L o Maiusc
 capriola, R cambia arma, H editor dell'eroe, M rimette i manichini davanti, U magia (tenuto), Y magia successiva della barra, P pausa; clic destro = azione
 opposta in costruzione/scavo; J tenuto continua la catena.
@@ -51,6 +54,7 @@ xvfb-run -a godot --path . --script res://tools/e2e_swim.gd -- --out=/tmp/swim.p
 xvfb-run -a godot --path . --script res://tools/e2e_combat.gd -- --out=/tmp/combat.png
 xvfb-run -a godot --path . --script res://tools/e2e_magic.gd -- --out=/tmp/magic.png
 xvfb-run -a godot --path . --script res://tools/e2e_walk.gd -- --out=/tmp/walk.png
+xvfb-run -a godot --path . --script res://tools/e2e_armory.gd -- --out=/tmp/armory.png
 xvfb-run -a godot --path . --script res://tools/e2e_drop.gd -- --out=/tmp/drop.png
 xvfb-run -a godot --path . --script res://tools/gait_sheet.gd -- --out=/tmp/gait.png
 xvfb-run -a godot --path . --script res://tools/e2e_sandbox.gd -- --out=/tmp/sandbox.png

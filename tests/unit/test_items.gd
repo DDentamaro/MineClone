@@ -116,3 +116,46 @@ func test_pergamena_insegna_una_magia() -> void:
 	items.inv.add_item(&"scroll_nova", 1)
 	check(not bag.learn_scroll(items.inv, at), "gia' nota: non si consuma")
 	bag.free()
+
+
+func test_impugna_da_forziere_e_indossa() -> void:
+	var items := PlayerItems.new()
+	items.starter_kit()
+	var box := Inventory.new(18)
+	var rng := RandomNumberGenerator.new()
+	box.add(Loot.make_equipment(&"hammer_iron", 0, rng))
+	box.add(Loot.make_equipment(&"chest_iron", 0, rng))
+	# Barra con la spada in 0 (scelta): il martello va nel primo slot libero e diventa quello in mano.
+	check(items.wield_from(box, 0), "impugnato")
+	check_eq(items.held().id, &"hammer_iron", "martello in mano")
+	check_eq(items.selected, 1, "nel primo slot libero della barra")
+	check_eq(items.inv.get_slot(0).id, &"sword_wood", "la spada resta in barra")
+	check(box.get_slot(0) == null, "tolto dall'armeria")
+	check(not items.wield_from(box, 1), "l'armatura non si impugna")
+	check(items.wear_from(box, 1), "indossata")
+	check_eq(items.equipment.get_slot("chest").id, &"chest_iron", "busto di ferro")
+	check(items.stats().defense > 0.0, "difesa")
+	# Barra piena: scambio con quello in mano, che torna al posto del nuovo.
+	for k in PlayerItems.HOTBAR:
+		if items.inv.get_slot(k) == null:
+			items.inv.set_slot(k, ItemStack.new(&"stone", 5))
+	box.add(Loot.make_equipment(&"spear_iron", 0, rng))
+	var at := -1
+	for k in box.size():
+		if box.get_slot(k) != null and box.get_slot(k).id == &"spear_iron":
+			at = k
+	check(items.wield_from(box, at), "scambio")
+	check_eq(items.held().id, &"spear_iron", "lancia in mano")
+	check_eq(box.get_slot(at).id, &"hammer_iron", "il martello torna nell'armeria")
+
+
+func test_confronto_delle_statistiche() -> void:
+	var a := Equipment.Stats.new()
+	var b := Equipment.Stats.new()
+	b.defense = 2.5
+	b.melee = 1.6
+	var d := BagPanel.stat_diff(a, b)
+	check_eq(d.size(), 2, "due differenze")
+	check(d[0][1] and d[1][1], "entrambe migliori")
+	check(String(d[1][0]).contains("1.60"), "danno mostrato come moltiplicatore (%s)" % d[1][0])
+	check(BagPanel.stat_diff(b, b).is_empty(), "nessuna differenza")

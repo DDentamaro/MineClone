@@ -9,7 +9,7 @@ extends Node
 const REACH := 7.5
 ## Pannello sviluppatore: gli interruttori attivi del prototipo (riga 7855–7870).
 const DEV_BUTTONS := [
-	[&"dev_seed", "Nuovo seme"], [&"dev_lake", "Al lago"], [&"dev_time", "Ora +3h"], [&"dev_res", "Righe"], [&"dev_outline", "Contorni"],
+	[&"dev_close", "Chiudi ✕"], [&"dev_seed", "Nuovo seme"], [&"dev_lake", "Al lago"], [&"dev_time", "Ora +3h"], [&"dev_res", "Righe"], [&"dev_outline", "Contorni"],
 	[&"dev_edges", "Spigoli"], [&"dev_paint", "Dipinto"], [&"dev_dither", "Dither"], [&"dev_rays", "Raggi"],
 	[&"dev_grass", "Erba"], [&"dev_shadow", "Ombre"], [&"dev_clouds", "Nubi"], [&"dev_dummies", "Manichini"],
 	[&"dev_rot_l", "⟲ Ruota"], [&"dev_rot_r", "⟳ Ruota"], [&"dev_zin", "Zoom +"], [&"dev_zout", "Zoom −"],
@@ -97,6 +97,8 @@ var _build_ms := 0
 
 
 func _ready() -> void:
+	# Il tasto indietro di Android chiude i pannelli invece di uscire dal gioco.
+	get_tree().quit_on_go_back = false
 	_args = _parse_user_args()
 	# Preferenze del prototipo (chiavi isoterra.*): righe, spigoli, terza persona.
 	var rh := int(Settings.load_value("view", "rt_h", 360))
@@ -282,6 +284,7 @@ func _swap_world(w: WorldData) -> void:
 	ground.world = world
 	ground.clear()
 	_objects.scatter_treasure(world.world_seed, world.spawn_point())
+	_objects.place_armory(world.spawn_point())
 	sandbox.setup(world, edits, catalog, motor, _objects, _vegetation)
 	if combat != null:
 		combat.cancel()
@@ -629,6 +632,8 @@ func _read_stick() -> Vector2:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey:
 		var k := event as InputEventKey
+		if k.physical_keycode == KEY_ESCAPE and k.pressed and not k.echo and close_top_panel():
+			return
 		if k.physical_keycode == KEY_SPACE:
 			_jump_key = k.pressed
 		if k.physical_keycode == KEY_J and not k.echo:
@@ -684,6 +689,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _on_button(id: StringName) -> void:
 	match id:
+		&"dev_close":
+			_touch.dev_open = false
 		&"dev_seed":
 			regenerate(randi() % 1000000)
 		&"dev_lake":
@@ -948,6 +955,8 @@ func _restore(st: Dictionary) -> void:
 	_avatar.rotation.y = _avatar.facing
 	items.load_dict(st.get("items", {}))
 	_objects.load_array(st.get("objects", []))
+	# Salvataggi di prima dell'armeria: la si aggiunge accanto allo spawn.
+	_objects.place_armory(world.spawn_point())
 	ground.load_array(st.get("ground", []))
 	checkpoint = st.get("checkpoint", Vector3.INF)
 	_day.time = float(st.get("time", _day.time))
@@ -985,7 +994,23 @@ func load_game() -> bool:
 	return true
 
 
+## Tasto indietro (Android) o Esc: chiude il pannello aperto, uno alla volta.
+func close_top_panel() -> bool:
+	if _bag.is_open():
+		_bag.close()
+	elif _touch.dev_open:
+		_touch.dev_open = false
+	elif _touch.hero_open:
+		set_hero_editor(false)
+	else:
+		return false
+	_refresh_labels()
+	return true
+
+
 func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		close_top_panel()
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
 		_jump_key = false
 	if (what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED) and world != null and not _args.has("screenshot"):
@@ -1005,7 +1030,7 @@ func give_test_kit() -> void:
 ## Apre l'interfaccia dell'oggetto toccato.
 func _open_object(o: WorldObjects.Obj) -> void:
 	match o.type:
-		"chest", "treasure":
+		"chest", "treasure", "armory":
 			open_bag(o, "chest")
 		"workbench", "furnace":
 			open_bag(null, "craft")
@@ -1185,6 +1210,7 @@ func _refresh_spellbar() -> void:
 
 func _refresh_labels() -> void:
 	_touch.labels[&"camera"] = "Iso" if _camera_rig.mode == CameraRig.Mode.ISO else "3ª p."
+	_touch.labels[&"dev"] = "Chiudi" if _touch.dev_open else "Opzioni"
 	_touch.labels[&"dev_res"] = "Righe %d" % rt_height
 	for key: String in toggles:
 		_touch.labels[StringName("dev_" + key)] = "%s %s" % [_dev_label(key), "ON" if toggles[key] else "OFF"]
@@ -1198,6 +1224,11 @@ func _refresh_labels() -> void:
 
 
 func _on_world_tap(screen_pos: Vector2) -> void:
+	# Pannello delle opzioni aperto: un tocco sul mondo lo chiude e basta.
+	if _touch.dev_open:
+		_touch.dev_open = false
+		_refresh_labels()
+		return
 	var ray := _screen_ray(screen_pos)
 	if dig_debug:
 		var hit := VoxelQuery.raycast(world, catalog.opaque_table(), ray[0], ray[1], 400.0)

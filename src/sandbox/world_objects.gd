@@ -5,7 +5,11 @@ extends Node3D
 ## non sono voxel (il catalogo resta quello del prototipo) ma il giocatore non li
 ## attraversa e i blocchi non ci si posano sopra.
 
-const TYPES := ["workbench", "furnace", "chest", "campfire", "treasure"]
+const TYPES := ["workbench", "furnace", "chest", "campfire", "treasure", "armory"]
+## Contenuto dell'armeria vicino allo spawn: un'arma per tipo, gli attrezzi e
+## un'armatura intera, tutto di ferro (D-029).
+const ARMORY_ITEMS: Array[StringName] = [&"sword_iron", &"spear_iron", &"hammer_iron", &"greatsword_iron",
+	&"pick_iron", &"axe_iron", &"shovel_iron", &"head_iron", &"chest_iron", &"legs_iron", &"feet_iron"]
 const RADIUS := 0.42
 
 class Obj:
@@ -15,6 +19,8 @@ class Obj:
 	var rot := 0
 	var inv: Inventory
 	var node: MeshInstance3D
+	## Armeria: armi e attrezzi esposti sulla rastrelliera.
+	var shown: Array[MeshInstance3D] = []
 
 
 var world: WorldData
@@ -57,11 +63,83 @@ func place(type: String, cell: Vector3i, rot: int = 0) -> Obj:
 	o.type = type
 	o.cell = cell
 	o.rot = posmod(rot, 4)
-	if type == "chest" or type == "treasure":
+	if type == "chest" or type == "treasure" or type == "armory":
 		o.inv = Inventory.new(18)
 	list.append(o)
 	_make_node(o)
+	_watch(o)
 	return o
+
+
+## L'armeria mostra cio' che contiene: si aggiorna quando cambia.
+func _watch(o: Obj) -> void:
+	if o.type != "armory" or o.inv == null:
+		return
+	o.inv.changed.connect(func() -> void: refresh_display(o))
+	refresh_display(o)
+
+
+## Armi e attrezzi dell'armeria in piedi sulla rastrelliera (fino a 7).
+func refresh_display(o: Obj) -> void:
+	for n in o.shown:
+		if is_instance_valid(n):
+			n.queue_free()
+	o.shown.clear()
+	if o.node == null or o.inv == null:
+		return
+	var long: Array[ItemStack] = []
+	for s in o.inv.slots:
+		if s != null and s.def().kind in [ItemDefinition.Kind.WEAPON, ItemDefinition.Kind.TOOL] and long.size() < 7:
+			long.append(s)
+	for i in long.size():
+		var d := long[i].def()
+		var tint: Color = ItemLibrary.TIERS[clampi(d.tier - 1, 0, ItemLibrary.TIERS.size() - 1)]["color"]
+		var mesh := WeaponMeshes.build(WeaponLibrary.by_id(d.weapon).kind, tint) if d.kind == ItemDefinition.Kind.WEAPON \
+			else WeaponMeshes.build_tool(d.tool_type, tint)
+		var mi := MeshInstance3D.new()
+		mi.mesh = mesh
+		mi.material_override = _material
+		var sc := AvatarRig.WEAPON_SCALE
+		var bottom := mesh.get_aabb().position.y * sc
+		mi.scale = Vector3.ONE * sc
+		# In fila sulla base, appoggiati alla traversa (lieve inclinazione indietro).
+		mi.position = Vector3(-0.39 + i * 0.13, 0.09 - bottom, -0.02)
+		mi.rotation = Vector3(deg_to_rad(9.0), 0, 0)
+		o.node.add_child(mi)
+		o.shown.append(mi)
+	_light(o)
+
+
+## Armeria vicino allo spawn (fra 3 e 6 blocchi), piena come ARMORY_ITEMS.
+func place_armory(spawn: Vector3, rng: RandomNumberGenerator = null) -> Obj:
+	for o in list:
+		if o.type == "armory":
+			return o
+	if rng == null:
+		rng = RandomNumberGenerator.new()
+		rng.seed = 99
+	for r in range(3, 7):
+		for k in 16:
+			var a := k * TAU / 16.0 + 2.2
+			var x := floori(spawn.x + cos(a) * r)
+			var z := floori(spawn.z + sin(a) * r)
+			if x < 2 or z < 2 or x >= world.size_x - 2 or z >= world.size_z - 2:
+				continue
+			if world.water_level[z * world.size_x + x] != 0:
+				continue
+			var y := world.surface_height(x, z) + 1
+			if absf(y - spawn.y) > 2.0:
+				continue
+			# Girata verso lo spawn.
+			var to := Vector2(spawn.x - (x + 0.5), spawn.z - (z + 0.5))
+			var rot := posmod(roundi(atan2(-to.x, -to.y) / (PI * 0.5)), 4)
+			var o := place("armory", Vector3i(x, y, z), rot)
+			if o == null:
+				continue
+			for id in ARMORY_ITEMS:
+				o.inv.add(Loot.make_equipment(id, 0, rng))
+			return o
+	return null
 
 
 func remove(o: Obj) -> void:
@@ -77,7 +155,7 @@ func center_of(o: Obj) -> Vector3:
 ## Raccoglie l'oggetto (col contenuto) nello zaino; falso se non entra tutto.
 ## I forzieri del tesoro non si raccolgono.
 func pick_up(o: Obj, inv: Inventory) -> bool:
-	if o.type == "treasure":
+	if o.type == "treasure" or o.type == "armory":
 		return false
 	var items: Array[ItemStack] = [ItemStack.new(StringName(o.type))]
 	if o.inv != null:
@@ -233,6 +311,10 @@ func _light(o: Obj) -> void:
 	var i := world.index(o.cell.x, o.cell.y, o.cell.z)
 	o.node.set_instance_shader_parameter(&"sun_here", world.sun[i] / 15.0)
 	o.node.set_instance_shader_parameter(&"blk_here", maxf(world.blk[i] / 15.0, 0.55 if o.type == "campfire" or o.type == "furnace" else 0.0))
+	for n in o.shown:
+		if is_instance_valid(n):
+			n.set_instance_shader_parameter(&"sun_here", world.sun[i] / 15.0)
+			n.set_instance_shader_parameter(&"blk_here", world.blk[i] / 15.0)
 
 
 ## Aggiorna la luce degli oggetti (dopo edit vicini).
@@ -259,6 +341,14 @@ static func build_mesh(type: String) -> ArrayMesh:
 			k.box(Vector3(0, 0.42, 0), Vector3(0.86, 0.84, 0.86), Color(0.50, 0.49, 0.50), 0.05)
 			k.box(Vector3(0, 0.3, -0.43), Vector3(0.36, 0.3, 0.04), Color(1.0, 0.55, 0.18), 0.01)
 			k.box(Vector3(0, 0.88, 0.2), Vector3(0.22, 0.14, 0.22), Color(0.36, 0.35, 0.36), 0.02)
+		"armory":
+			# Rastrelliera: base, due montanti, traversa con le tacche.
+			k.box(Vector3(0, 0.04, 0), Vector3(0.96, 0.08, 0.42), dark, 0.02)
+			for sx in [-1.0, 1.0]:
+				k.box(Vector3(0.46 * sx, 0.5, 0.14), Vector3(0.07, 1.0, 0.07), wood, 0.015)
+			k.box(Vector3(0, 0.74, 0.14), Vector3(0.98, 0.07, 0.07), wood.lightened(0.1), 0.015)
+			k.box(Vector3(0, 0.98, 0.14), Vector3(1.0, 0.06, 0.09), dark, 0.015)
+			k.box(Vector3(0, 0.86, 0.19), Vector3(0.32, 0.12, 0.02), Color(0.78, 0.62, 0.3), 0.01)
 		"chest", "treasure":
 			var body := wood if type == "chest" else Color(0.40, 0.24, 0.16)
 			var band := metal if type == "chest" else Color(0.92, 0.74, 0.28)
@@ -302,3 +392,4 @@ func load_array(a: Array) -> void:
 			o.inv.load_array(d["inv"])
 		list.append(o)
 		_make_node(o)
+		_watch(o)

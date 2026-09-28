@@ -45,6 +45,8 @@ var close_rect := Rect2()
 var button_rects := {}
 ## Slot dello zaino del giocatore nell'ultimo disegno (indice -> Rect2).
 var slot_rects := {}
+## Slot del forziere/armeria nell'ultimo disegno (indice -> Rect2).
+var chest_rects := {}
 
 
 func _ready() -> void:
@@ -156,6 +158,13 @@ func _text_center(r: Rect2, text: String, size_dp: float, col: Color) -> void:
 	draw_string(_font, r.get_center() + Vector2(-ts.x * 0.5, ts.y * 0.3), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
 
 
+## Testo a capo automatico entro `width`; restituisce l'altezza occupata.
+func _text_wrap(p: Vector2, text: String, size_dp: float, col: Color, width: float) -> float:
+	var fs := int(dp(size_dp))
+	draw_multiline_string(_font, p, text, HORIZONTAL_ALIGNMENT_LEFT, width, fs, -1, col)
+	return _font.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, width, fs).y
+
+
 ## Testo che rimpicciolisce fino a stare in `width` (invece di essere tagliato).
 func _text_fit(p: Vector2, text: String, size_dp: float, col: Color, width: float) -> void:
 	var fs := int(dp(size_dp))
@@ -178,6 +187,7 @@ func _draw() -> void:
 	bar_rects.clear()
 	button_rects.clear()
 	slot_rects.clear()
+	chest_rects.clear()
 	if not visible or items == null:
 		return
 	var s := size
@@ -196,6 +206,8 @@ func _draw() -> void:
 		var label: String = t[1]
 		if t[0] == "chest" and chest != null and chest.type == "treasure":
 			label = "Tesoro"
+		if t[0] == "chest" and chest != null and chest.type == "armory":
+			label = "Armeria"
 		var w := _font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, int(dp(15.0))).x + dp(28.0)
 		var key: String = t[0]
 		tab_rects[key] = Rect2(x, panel.position.y + m * 0.6, w, th)
@@ -250,7 +262,14 @@ func _grid(inv: Inventory, origin: Vector2, cols: int, cell: float, on_tap: Call
 		var idx := i
 		if inv == items.inv:
 			slot_rects[i] = r
+		elif chest != null and inv == chest.inv:
+			chest_rects[i] = r
+		if inv == items.inv and i == items.selected:
+			# Lo slot in mano: bordo dorato e scritta, come nella barra in basso.
+			draw_rect(r.grow(dp(3.0)), Color(1, 0.78, 0.25), false, dp(3.0))
 		_slot(r, inv.get_slot(i), _sel_inv == inv and _sel_i == i, func() -> void: on_tap.call(inv, idx), i < hotbar_rows * cols)
+		if inv == items.inv and i == items.selected:
+			_text(r.position + Vector2(dp(3.0), dp(11.0)), "in mano", 9, Color(1, 0.85, 0.4))
 
 
 ## Tocco su uno slot: seleziona, oppure sposta/unisce/scambia con il selezionato.
@@ -273,107 +292,275 @@ func _tap_slot(inv: Inventory, i: int) -> void:
 func _draw_bag(body: Rect2) -> void:
 	var cols := 6
 	var cell := _slot_size(body, cols, 5, 0.58)
-	_text(body.position + Vector2(0, dp(16.0)), "Barra rapida (prima riga) e zaino — tocca un oggetto, poi uno slot per spostarlo", 13, Color(0.8, 0.85, 0.8))
+	_text(body.position + Vector2(0, dp(16.0)), "Prima riga = barra rapida: lo slot dorato è l'oggetto in mano. Tocca un oggetto per vedere cosa farne.", 13, Color(0.85, 0.9, 0.85))
 	_grid(items.inv, body.position + Vector2(0, dp(26.0)), cols, cell, _tap_slot, 1)
 	var info := Rect2(body.position.x + cols * (cell + dp(6.0)) + dp(10.0), body.position.y + dp(26.0), body.size.x - cols * (cell + dp(6.0)) - dp(10.0), body.size.y - dp(26.0))
 	_draw_info(info)
+
+
+## Statistiche se `held` fosse in mano e `armor` indossata (null = come ora).
+func _stats_if(held: ItemStack, armor: ItemStack) -> Equipment.Stats:
+	var eq := Equipment.new()
+	eq.load_dict(items.equipment.to_dict())
+	if armor != null:
+		eq.equip(armor.duplicate_stack())
+	return PlayerItems.stats_for(eq, held)
+
+
+## Differenze leggibili fra due gruppi di statistiche: [testo, migliore?].
+static func stat_diff(a: Equipment.Stats, b: Equipment.Stats) -> Array:
+	var out := []
+	var rows := [["difesa", a.defense, b.defense, "%+.1f", false], ["danno", a.melee, b.melee, "×%.2f", true],
+		["critico", a.crit * 100.0, b.crit * 100.0, "%+d%%", false], ["Output", a.mana_max, b.mana_max, "%+d", false],
+		["magie", a.arcane, b.arcane, "×%.2f", true], ["scavo", a.dig, b.dig, "×%.2f", true], ["passo", a.speed, b.speed, "×%.2f", true]]
+	for r: Array in rows:
+		var d: float = float(r[2]) - float(r[1])
+		if absf(d) < 1e-3:
+			continue
+		var txt: String = ("%s %s" % [r[0], String(r[3]) % float(r[2])]) if r[4] else ("%s %s" % [r[0], String(r[3]) % (roundi(d) if String(r[3]).contains("d") else d)])
+		out.append([txt, d > 0.0])
+	return out
+
+
+## Azioni per l'oggetto `i` di `inv`: [testo, azione, in evidenza].
+func _actions(inv: Inventory, i: int) -> Array:
+	var st := inv.get_slot(i)
+	var d := st.def()
+	var out := []
+	var from_bag := inv == items.inv
+	if PlayerItems.can_wield(st):
+		if from_bag and i == items.selected:
+			out.append(["In mano ✓", Callable(), false])
+		else:
+			out.append(["Impugna", func() -> void:
+				items.wield_from(inv, i)
+				message.emit("in mano: %s" % Loot.full_name(items.held()))
+				_sel_i = -1, true])
+	if d.kind == ItemDefinition.Kind.ARMOR:
+		out.append(["Indossa", func() -> void:
+			items.wear_from(inv, i)
+			message.emit("indossato: %s" % Loot.full_name(st))
+			_sel_i = -1, true])
+	if d.kind == ItemDefinition.Kind.SCROLL and magic != null:
+		var known := magic.known.has(d.spell)
+		out.append(["Già nota" if known else "Impara", (func() -> void:
+			if learn_scroll(inv, i):
+				_sel_i = -1) if not known else Callable(), true])
+	if chest != null and not from_bag:
+		out.append(["Prendi", func() -> void:
+			_transfer(inv, i, items.inv)
+			_sel_i = -1, false])
+	if chest != null and from_bag:
+		out.append(["Metti qui", func() -> void:
+			_transfer(inv, i, chest.inv)
+			_sel_i = -1, false])
+	if from_bag and chest == null:
+		if i >= PlayerItems.HOTBAR and PlayerItems.can_wield(st):
+			out.append(["In barra", func() -> void:
+				var free := -1
+				for k in PlayerItems.HOTBAR:
+					if items.inv.get_slot(k) == null:
+						free = k
+						break
+				Inventory.move(items.inv, i, items.inv, free if free >= 0 else items.selected)
+				items.held_changed.emit()
+				_sel_i = -1, false])
+		if st.count > 1:
+			out.append(["Dividi", func() -> void:
+				var room := -1
+				for k in inv.size():
+					if inv.get_slot(k) == null:
+						room = k
+						break
+				if room >= 0:
+					inv.set_slot(room, inv.take(i, st.count / 2))
+					items.held_changed.emit(), false])
+		out.append(["Getta", func() -> void:
+			var o := inv.take(i)
+			items.held_changed.emit()
+			if o != null:
+				dropped.emit(o)
+			message.emit("gettato a terra: %s (resta 5 minuti)" % d.display_name)
+			_sel_i = -1, false])
+	return out
+
+
+## Sposta (tutto quello che entra) da un inventario all'altro.
+func _transfer(from: Inventory, i: int, to: Inventory) -> void:
+	var st := from.get_slot(i)
+	if st == null:
+		return
+	var left := to.add(st.duplicate_stack())
+	if left == 0:
+		from.set_slot(i, null)
+	else:
+		st.count = left
+		from.changed.emit()
+		message.emit("non c'è spazio")
+	items.held_changed.emit()
+
+
+## Come si usa: una riga per tipo di oggetto.
+static func usage_hint(d: ItemDefinition) -> String:
+	match d.kind:
+		ItemDefinition.Kind.WEAPON:
+			return "Arma: si usa in mano. \"Impugna\" la mette nella barra rapida e la sceglie; i colpi si fanno con Colpo e Forte."
+		ItemDefinition.Kind.TOOL:
+			return "Attrezzo: in mano, tieni premuto sul mondo per scavare o abbattere; colpisce anche, ma piano."
+		ItemDefinition.Kind.ARMOR:
+			return "Armatura: \"Indossa\" la mette addosso e conta sempre, anche senza averla in mano."
+		ItemDefinition.Kind.BLOCK:
+			return "Blocco: in mano, tocca il mondo per posarlo."
+		ItemDefinition.Kind.STATION:
+			return "Stazione: in mano, tocca il suolo per piazzarla; tocca la stazione per usarla."
+		ItemDefinition.Kind.SCROLL:
+			return "Pergamena: \"Impara\" aggiunge la magia al libro (scheda Magie)."
+	return "Materiale: serve nelle ricette (scheda Craft)."
 
 
 func _draw_info(r: Rect2) -> void:
 	draw_rect(r, Color(0.1, 0.12, 0.13, 0.9))
 	if _sel_inv == null or _sel_i < 0 or _sel_inv.get_slot(_sel_i) == null:
 		_text(r.position + Vector2(dp(10.0), dp(24.0)), "Nessun oggetto selezionato", 15, Color(0.7, 0.7, 0.7))
+		_text_wrap(r.position + Vector2(dp(10.0), dp(48.0)), "Tocca un oggetto: qui compaiono le sue statistiche e i pulsanti per impugnarlo, indossarlo, spostarlo o gettarlo.", 12, Color(0.65, 0.7, 0.68), r.size.x - dp(20.0))
 		return
 	var st := _sel_inv.get_slot(_sel_i)
 	var d := st.def()
+	var x := r.position.x + dp(10.0)
+	var w := r.size.x - dp(20.0)
 	var y := r.position.y + dp(26.0)
-	_text(Vector2(r.position.x + dp(10.0), y), Loot.full_name(st), 17, Loot.RARITY_COLORS[st.rarity()], r.size.x - dp(20.0))
+	_text(Vector2(x, y), Loot.full_name(st), 17, Loot.RARITY_COLORS[st.rarity()], w)
 	y += dp(22.0)
 	if d.is_equipment():
-		_text(Vector2(r.position.x + dp(10.0), y), Loot.RARITY_NAMES[st.rarity()], 13, Loot.RARITY_COLORS[st.rarity()])
+		_text(Vector2(x, y), Loot.RARITY_NAMES[st.rarity()], 13, Loot.RARITY_COLORS[st.rarity()])
 		y += dp(20.0)
 	for line in Loot.describe(st):
-		_text(Vector2(r.position.x + dp(10.0), y), "• " + line, 14, Color(0.9, 0.92, 0.88), r.size.x - dp(20.0))
+		_text(Vector2(x, y), "• " + line, 14, Color(0.9, 0.92, 0.88), w)
 		y += dp(19.0)
+	y += _text_wrap(Vector2(x, y + dp(4.0)), usage_hint(d), 12, Color(0.7, 0.8, 0.95), w) + dp(12.0)
+	# Confronto con l'equipaggiamento attuale.
+	var now := items.stats()
+	var then: Equipment.Stats = null
+	if PlayerItems.can_wield(st) and d.is_equipment():
+		then = _stats_if(st, null)
+	elif d.kind == ItemDefinition.Kind.ARMOR:
+		then = _stats_if(items.held(), st)
+	if then != null:
+		var diffs := stat_diff(now, then)
+		var what := "Se lo impugni:" if d.kind != ItemDefinition.Kind.ARMOR else "Se lo indossi:"
+		_text(Vector2(x, y), what + ("  nessuna differenza" if diffs.is_empty() else ""), 13, Color(0.85, 0.88, 0.85))
+		y += dp(18.0)
+		for df: Array in diffs:
+			_text(Vector2(x + dp(8.0), y), df[0], 13, Color(0.55, 0.95, 0.55) if df[1] else Color(1.0, 0.55, 0.5))
+			y += dp(17.0)
+	var acts := _actions(_sel_inv, _sel_i)
 	var bw := (r.size.x - dp(30.0)) * 0.5
 	var bh := dp(40.0)
-	var by := r.end.y - bh - dp(10.0)
-	var inv := _sel_inv
-	var i := _sel_i
-	if d.kind == ItemDefinition.Kind.SCROLL and magic != null:
-		var known := magic.known.has(d.spell)
-		_button(Rect2(r.position.x + dp(10.0), by - bh - dp(8.0), bw, bh), "Già nota" if known else "Impara", func() -> void:
-			if learn_scroll(inv, i):
-				_sel_i = -1, not known, true)
-	if d.kind == ItemDefinition.Kind.ARMOR and inv == items.inv:
-		_button(Rect2(r.position.x + dp(10.0), by - bh - dp(8.0), bw, bh), "Indossa", func() -> void:
-			items.equip_from(i)
-			_sel_i = -1, true, true)
-	if inv == items.inv and i >= PlayerItems.HOTBAR:
-		_button(Rect2(r.position.x + dp(20.0) + bw, by - bh - dp(8.0), bw, bh), "In barra", func() -> void:
-			var free := -1
-			for k in PlayerItems.HOTBAR:
-				if items.inv.get_slot(k) == null:
-					free = k
-					break
-			Inventory.move(items.inv, i, items.inv, free if free >= 0 else items.selected)
-			items.held_changed.emit()
-			_sel_i = -1)
-	if st.count > 1:
-		_button(Rect2(r.position.x + dp(10.0), by, bw, bh), "Dividi", func() -> void:
-			var half := st.count / 2
-			var room := -1
-			for k in inv.size():
-				if inv.get_slot(k) == null:
-					room = k
-					break
-			if room >= 0:
-				var part := inv.take(i, half)
-				inv.set_slot(room, part)
-				items.held_changed.emit())
-	_button(Rect2(r.position.x + dp(20.0) + bw, by, bw, bh), "Getta", func() -> void:
-		var out := inv.take(i)
-		items.held_changed.emit()
-		if out != null:
-			dropped.emit(out)
-		message.emit("gettato a terra: %s (resta 5 minuti)" % d.display_name)
-		_sel_i = -1)
+	var rows := ceili(acts.size() / 2.0)
+	for k in acts.size():
+		var a: Array = acts[k]
+		var bx := r.position.x + dp(10.0) + (k % 2) * (bw + dp(10.0))
+		var by := r.end.y - dp(10.0) - (rows - k / 2) * (bh + dp(8.0)) + dp(8.0)
+		var cb: Callable = a[1]
+		_button(Rect2(bx, by, bw, bh), a[0], cb, cb.is_valid(), a[2])
+
+
+## Scheda Equipaggiamento: Mano + 4 pezzi d'armatura; si sceglie uno slot e a
+## destra compaiono gli oggetti dello zaino che ci vanno, col confronto.
+var eq_slot := "hand"
+var eq_rects := {}
 
 
 func _draw_equip(body: Rect2) -> void:
-	var cell := minf(dp(70.0), body.size.y / 5.5)
-	var y := body.position.y + dp(10.0)
-	for k in Equipment.SLOTS:
-		var r := Rect2(body.position.x, y, cell, cell)
-		var name: String = k
-		_slot(r, items.equipment.get_slot(k), false, func() -> void:
-			if not items.unequip_to_bag(name):
-				message.emit("zaino pieno"))
-		var st := items.equipment.get_slot(k)
-		_text(Vector2(r.end.x + dp(12.0), r.position.y + cell * 0.45), EQ_NAMES[k], 14, Color(0.75, 0.8, 0.78))
-		_text(Vector2(r.end.x + dp(12.0), r.position.y + cell * 0.8), Loot.full_name(st) if st != null else "—", 15,
-			Loot.RARITY_COLORS[st.rarity()] if st != null else Color(0.5, 0.5, 0.5), body.size.x * 0.4)
-		y += cell + dp(8.0)
-	var h := items.held()
-	var sx := body.position.x + body.size.x * 0.55
-	_text(Vector2(sx, body.position.y + dp(24.0)), "In mano: %s" % (Loot.full_name(h) if h != null else "niente"), 16,
-		Loot.RARITY_COLORS[h.rarity()] if h != null else Color.WHITE, body.size.x * 0.44)
-	var st := items.stats()
+	eq_rects.clear()
+	_text(body.position + Vector2(0, dp(16.0)), "Tocca uno slot a sinistra, poi scegli a destra cosa impugnare o indossare. Mano = l'oggetto scelto nella barra rapida.", 13, Color(0.85, 0.9, 0.85))
+	var top := body.position.y + dp(28.0)
+	var cell := minf(dp(62.0), (body.size.y - dp(40.0)) / 5.0 - dp(6.0))
+	var names := {"hand": "Mano"}
+	names.merge(EQ_NAMES)
+	var col_w := body.size.x * 0.30
+	var y := top
+	for k in ["hand"] + Equipment.SLOTS:
+		var r := Rect2(body.position.x, y, col_w, cell)
+		eq_rects[k] = r
+		var st := items.held() if k == "hand" else items.equipment.get_slot(k)
+		var sel: bool = k == eq_slot
+		draw_rect(r, Color(0.14, 0.18, 0.18, 0.95) if sel else Color(0.1, 0.12, 0.13, 0.9))
+		draw_rect(r, Color(1, 0.85, 0.4) if sel else Color(0.4, 0.5, 0.46, 0.8), false, dp(2.5 if sel else 1.0))
+		_slot(Rect2(r.position + Vector2(dp(4.0), dp(4.0)), Vector2(cell - dp(8.0), cell - dp(8.0))), st, false, Callable())
+		_text(Vector2(r.position.x + cell + dp(6.0), r.position.y + cell * 0.42), names[k], 13, Color(0.75, 0.8, 0.78))
+		_text_fit(Vector2(r.position.x + cell + dp(6.0), r.position.y + cell * 0.8), Loot.full_name(st) if st != null else ("mani nude" if k == "hand" else "vuoto"), 14,
+			Loot.RARITY_COLORS[st.rarity()] if st != null else Color(0.55, 0.55, 0.55), col_w - cell - dp(10.0))
+		var key: String = k
+		_hits.append([r, func() -> void: eq_slot = key])
+		y += cell + dp(6.0)
+	# Candidati per lo slot scelto.
+	var lx := body.position.x + col_w + dp(12.0)
+	var lw := body.size.x * 0.40
+	var rows := []
+	for i in items.inv.size():
+		var st := items.inv.get_slot(i)
+		if st == null:
+			continue
+		var ok: bool = (eq_slot == "hand" and PlayerItems.can_wield(st) and st.def().is_equipment()) or (eq_slot != "hand" and st.def().kind == ItemDefinition.Kind.ARMOR and st.def().slot == eq_slot)
+		if ok and not (eq_slot == "hand" and i == items.selected):
+			rows.append(i)
+	_text(Vector2(lx, top + dp(12.0)), ("Armi e attrezzi nello zaino" if eq_slot == "hand" else "%s nello zaino" % EQ_NAMES[eq_slot]), 14, Color(0.9, 0.9, 0.85))
+	var ry := top + dp(22.0)
+	var worn := items.equipment.get_slot(eq_slot) if eq_slot != "hand" else null
+	if worn != null:
+		var sn := eq_slot
+		_button(Rect2(lx, ry, lw, dp(38.0)), "Togli: %s" % Loot.full_name(worn), func() -> void:
+			if not items.unequip_to_bag(sn):
+				message.emit("zaino pieno"), true, false)
+		ry += dp(44.0)
+	if rows.is_empty():
+		_text_wrap(Vector2(lx, ry + dp(16.0)), "Niente da mettere qui. Armi e armature si trovano nell'armeria vicino all'inizio e nei tesori, o si creano al banco (scheda Craft).", 12, Color(0.65, 0.7, 0.68), lw)
+	var now := items.stats()
+	var rh := dp(56.0)
+	var shown := 0
+	for i: int in rows:
+		if ry + rh > body.end.y:
+			_text(Vector2(lx, body.end.y - dp(4.0)), "+%d altri nello zaino" % (rows.size() - shown), 12, Color(0.65, 0.7, 0.68))
+			break
+		var st := items.inv.get_slot(i)
+		var row := Rect2(lx, ry, lw, rh)
+		draw_rect(row, Color(0.12, 0.15, 0.15, 0.9))
+		_slot(Rect2(row.position + Vector2(dp(4.0), dp(4.0)), Vector2(rh - dp(8.0), rh - dp(8.0))), st, false, Callable())
+		_text_fit(row.position + Vector2(rh + dp(2.0), dp(20.0)), Loot.full_name(st), 13, Loot.RARITY_COLORS[st.rarity()], lw - rh - dp(96.0))
+		var then := _stats_if(st, null) if eq_slot == "hand" else _stats_if(items.held(), st)
+		var parts: Array[String] = []
+		for df: Array in stat_diff(now, then):
+			parts.append(("▲ " if df[1] else "▼ ") + String(df[0]))
+		_text_fit(row.position + Vector2(rh + dp(2.0), dp(40.0)), "  ".join(parts) if not parts.is_empty() else "uguale", 11, Color(0.75, 0.85, 0.75), lw - rh - dp(96.0))
+		var idx: int = i
+		var label := "Impugna" if eq_slot == "hand" else "Indossa"
+		_button(Rect2(row.end.x - dp(88.0), row.position.y + dp(8.0), dp(82.0), rh - dp(16.0)), label, func() -> void:
+			if eq_slot == "hand":
+				items.wield_from(items.inv, idx)
+			else:
+				items.wear_from(items.inv, idx)
+			message.emit("%s: %s" % ["in mano" if eq_slot == "hand" else "indossato", Loot.full_name(st)]), true, true)
+		ry += rh + dp(6.0)
+		shown += 1
+	# Statistiche attuali.
+	var sx := lx + lw + dp(14.0)
+	var st2 := items.stats()
 	var lines := [
-		"Difesa  %.1f" % st.defense,
-		"Danno corpo a corpo  ×%.2f" % st.melee,
-		"Critico  %d%%" % roundi(st.crit * 100.0),
-		"Output delle magie  +%d" % roundi(st.mana_max),
-		"Dissipazione della pressione  +%.1f" % st.mana_regen,
-		"Danno delle magie  ×%.2f" % st.arcane,
-		"Velocità di scavo  ×%.2f" % st.dig,
-		"Velocità di movimento  ×%.2f" % st.speed,
+		"Difesa  %.1f" % st2.defense,
+		"Danno corpo a corpo  ×%.2f" % st2.melee,
+		"Critico  %d%%" % roundi(st2.crit * 100.0),
+		"Output delle magie  +%d" % roundi(st2.mana_max),
+		"Dissipazione  +%.1f" % st2.mana_regen,
+		"Danno delle magie  ×%.2f" % st2.arcane,
+		"Scavo  ×%.2f" % st2.dig,
+		"Passo  ×%.2f" % st2.speed,
 	]
-	var yy := body.position.y + dp(56.0)
+	_text(Vector2(sx, top + dp(12.0)), "Statistiche", 14, Color(0.9, 0.9, 0.85))
+	var yy := top + dp(36.0)
 	for l: String in lines:
-		_text(Vector2(sx, yy), l, 15, Color(0.9, 0.93, 0.9))
-		yy += dp(24.0)
-	_text(Vector2(sx, body.end.y - dp(10.0)), "Tocca un pezzo indossato per toglierlo", 12, Color(0.6, 0.65, 0.62))
+		_text(Vector2(sx, yy), l, 13, Color(0.9, 0.93, 0.9), body.end.x - sx)
+		yy += dp(21.0)
 
 
 func _draw_craft(body: Rect2) -> void:
@@ -430,27 +617,32 @@ func _draw_chest(body: Rect2) -> void:
 	if chest == null or chest.inv == null:
 		return
 	var cols := 6
-	var cell := minf(_slot_size(body, cols, 8, 0.62), dp(58.0))
-	_text(body.position + Vector2(0, dp(16.0)), ("Tesoro" if chest.type == "treasure" else "Forziere") + " — tocca un oggetto per spostarlo dall'altra parte", 13, Color(0.8, 0.85, 0.8))
-	var transfer := func(from: Inventory, i: int, to: Inventory) -> void:
-		var st := from.get_slot(i)
-		if st == null:
-			return
-		var left := to.add(st.duplicate_stack())
-		if left == 0:
-			from.set_slot(i, null)
-		else:
-			st.count = left
-			from.changed.emit()
-		items.held_changed.emit()
-	_grid(chest.inv, body.position + Vector2(0, dp(26.0)), cols, cell, func(inv: Inventory, i: int) -> void: transfer.call(inv, i, items.inv))
+	var left_w := body.size.x * 0.6
+	var cell := minf((left_w - dp(6.0) * (cols - 1)) / cols, dp(58.0))
+	var title: String = {"treasure": "Tesoro", "armory": "Armeria"}.get(chest.type, "Forziere")
+	var hint := "tocca un'arma e premi \"Impugna\" per averla subito in mano" if chest.type == "armory" else "tocca un oggetto per vedere cosa farne"
+	_text(body.position + Vector2(0, dp(16.0)), "%s — %s" % [title, hint], 13, Color(0.85, 0.9, 0.85))
+	_grid(chest.inv, body.position + Vector2(0, dp(26.0)), cols, cell, _tap_select)
 	var y2 := body.position.y + dp(26.0) + 3 * (cell + dp(6.0)) + dp(22.0)
-	_text(Vector2(body.position.x, y2 - dp(6.0)), "Zaino", 13, Color(0.8, 0.85, 0.8))
-	_grid(items.inv, Vector2(body.position.x, y2), cols * 2, cell * 0.9, func(inv: Inventory, i: int) -> void: transfer.call(inv, i, chest.inv))
-	var all := Rect2(body.end.x - dp(170.0), body.position.y + dp(26.0), dp(170.0), dp(44.0))
+	_text(Vector2(body.position.x, y2 - dp(6.0)), "Zaino (la prima riga è la barra rapida)", 13, Color(0.8, 0.85, 0.8))
+	var bcell := minf((left_w - dp(6.0) * 11) / 12.0, cell)
+	_grid(items.inv, Vector2(body.position.x, y2), cols * 2, bcell, _tap_select)
+	var info := Rect2(body.position.x + left_w + dp(10.0), body.position.y + dp(26.0), body.size.x - left_w - dp(10.0), body.size.y - dp(26.0) - dp(52.0))
+	_draw_info(info)
+	var all := Rect2(info.position.x, info.end.y + dp(8.0), info.size.x, dp(44.0))
 	_button(all, "Prendi tutto", func() -> void:
 		for i in chest.inv.size():
-			transfer.call(chest.inv, i, items.inv), true, true)
+			_transfer(chest.inv, i, items.inv), true, false)
+
+
+## Tocco su uno slot di forziere/zaino nella scheda del forziere: solo selezione.
+func _tap_select(inv: Inventory, i: int) -> void:
+	if _sel_inv == inv and _sel_i == i:
+		_sel_i = -1
+		_sel_inv = null
+	elif inv.get_slot(i) != null:
+		_sel_inv = inv
+		_sel_i = i
 
 
 ## Pergamena: impara la magia (consuma la pergamena) e la mette nel primo slot libero.
