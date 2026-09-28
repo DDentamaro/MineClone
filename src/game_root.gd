@@ -813,12 +813,7 @@ func _refresh_held() -> void:
 		return
 	_held_key = key
 	var wd := WeaponLibrary.by_id(items.weapon_id())
-	var mesh: ArrayMesh = null
-	var d := items.held_def()
-	if d != null and d.kind == ItemDefinition.Kind.WEAPON:
-		mesh = WeaponMeshes.build(wd.kind, ItemLibrary.TIERS[d.tier - 1]["color"])
-	elif d != null and d.kind == ItemDefinition.Kind.TOOL:
-		mesh = WeaponMeshes.build_tool(d.tool_type, ItemLibrary.TIERS[d.tier - 1]["color"])
+	var mesh := WeaponMeshes.for_item(items.held_def())
 	if combat.weapon != wd or mesh != null or _avatar.rig.held_mesh != null:
 		combat.set_weapon(wd)
 		combat.draw_t = PlayerAvatar.SWAP_TIME * 0.6
@@ -834,16 +829,7 @@ func _refresh_armor() -> void:
 	if key == _armor_key:
 		return
 	_armor_key = key
-	_avatar.rig.set_armor_all(armor_colors(items.equipment))
-
-
-## Colore del materiale per slot d'armatura (trasparente = vuoto).
-static func armor_colors(eq: Equipment) -> Dictionary:
-	var out := {}
-	for slot in Equipment.SLOTS:
-		var st := eq.get_slot(slot)
-		out[slot] = ItemLibrary.TIERS[st.def().tier - 1]["color"] if st != null else Color(0, 0, 0, 0)
-	return out
+	_avatar.rig.set_armor_all(items.equipment.colors())
 
 
 func _refresh_hotbar() -> void:
@@ -1051,6 +1037,7 @@ func open_bag(chest: WorldObjects.Obj = null, tab: String = "bag") -> void:
 	_touch.blocked = true
 	_hold_active = false
 	get_tree().paused = true
+	_bag.recipe = recipe
 	_bag.open(items, _objects.stations_near(motor.position, 3.2), chest, tab)
 
 

@@ -83,6 +83,15 @@ func stats(held: ItemStack = null) -> Stats:
 	return st
 
 
+## Colore del materiale per slot (trasparente = vuoto): per i pezzi sull'eroe.
+func colors() -> Dictionary:
+	var out := {}
+	for k in SLOTS:
+		var st: ItemStack = slots[k]
+		out[k] = ItemLibrary.TIERS[st.def().tier - 1]["color"] if st != null else Color(0, 0, 0, 0)
+	return out
+
+
 func to_dict() -> Dictionary:
 	var out := {}
 	for k: String in slots:

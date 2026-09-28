@@ -122,15 +122,21 @@ func _process(_dt: float) -> bool:
 				_tap_at((bag.button_rects["Prendi"] as Rect2).get_center())
 			if _frame == 150:
 				_check(_game.items.inv.count(&"feet_iron") == 1, "stivali nello zaino")
-				_tap_at((bag.tab_rects["equip"] as Rect2).get_center())
+				_tap_at((bag.tab_rects["bag"] as Rect2).get_center())
 			if _frame == 158:
-				_tap_at((bag.eq_rects["feet"] as Rect2).get_center())
+				_check(bag.eq_rects.has("feet") and bag.eq_rects.has("hand"), "inventario con la miniatura e gli slot dell'eroe")
+				var at := -1
+				for i in _game.items.inv.size():
+					var st := _game.items.inv.get_slot(i)
+					if st != null and st.id == &"feet_iron":
+						at = i
+				_tap_at((bag.slot_rects[at] as Rect2).get_center())
 			if _frame == 166:
 				_shot("equipaggiamento")
-				_check(bag.button_rects.has("Indossa"), "stivali fra i candidati dei piedi")
-				_tap_at((bag.button_rects["Indossa"] as Rect2).get_center())
+				# Come in Minecraft: oggetto scelto, poi lo slot dei piedi sulla miniatura.
+				_tap_at((bag.eq_rects["feet"] as Rect2).get_center())
 			if _frame == 174:
-				_check(_game.items.equipment.get_slot("feet") != null, "stivali indossati dalla scheda Equipaggiamento")
+				_check(_game.items.equipment.get_slot("feet") != null, "stivali indossati toccando lo slot dei piedi")
 				_tap_at((bag.eq_rects["hand"] as Rect2).get_center())
 			if _frame == 182:
 				_shot("mano")

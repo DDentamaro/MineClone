@@ -30,6 +30,17 @@ static func _set_material(c: Color) -> void:
 		_dark = c.darkened(0.35)
 
 
+## Mesh dell'oggetto in mano (arma o attrezzo nel colore del materiale), o null.
+static func for_item(d: ItemDefinition) -> ArrayMesh:
+	if d == null:
+		return null
+	if d.kind == ItemDefinition.Kind.WEAPON:
+		return build(WeaponLibrary.by_id(d.weapon).kind, ItemLibrary.TIERS[d.tier - 1]["color"])
+	if d.kind == ItemDefinition.Kind.TOOL:
+		return build_tool(d.tool_type, ItemLibrary.TIERS[d.tier - 1]["color"])
+	return null
+
+
 ## `mat` colora le parti "di metallo" col materiale dell'oggetto (legno, pietra, rame...).
 static func build(kind: WeaponDefinition.Kind, mat: Color = Color(0, 0, 0, 0)) -> ArrayMesh:
 	_set_material(mat)
