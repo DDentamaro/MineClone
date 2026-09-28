@@ -34,6 +34,9 @@ const KARMA_HIT := {"ago": [1, .30, .05, .38, 4, .38], "zoltraak": [3, .42, .10,
 	"giudizio": [6, .66, .16, 1.55, 18, 1.30], "nova": [0, .66, .18, 2.60, 24, 0.0]}
 
 
+const WATER_SIZE := 1.45
+
+
 func _g(p: Vector3, v: Vector3, el: String, mode: int, life: float, size: float, grav: float = 0.0, drag: float = 0.0, t0: float = 1.0) -> Grains.Grain:
 	if grains == null:
 		return null
@@ -43,7 +46,8 @@ func _g(p: Vector3, v: Vector3, el: String, mode: int, life: float, size: float,
 	g.el = el
 	g.mode = mode
 	g.life = life
-	g.s = size
+	# Gocce piu' grosse (D-035): a 360 righe quelle da 2 cm sparivano.
+	g.s = size * (WATER_SIZE if el == "water" else 1.0)
 	g.g = grav
 	g.drag = drag
 	g.t0 = t0

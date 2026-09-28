@@ -24,10 +24,6 @@ signal button_up(id: StringName)
 signal world_hold(position: Vector2, active: bool)
 ## Pulsante tenuto a lungo (barra delle magie: apre il libro su quello slot).
 signal button_long(id: StringName)
-## Mira della magia alla Brawl Stars (D-034): il dito sul pulsante Magia fa da
-## joystick; al rilascio `aim` (schermo, lunghezza 0..1), `aimed` falso = tocco
-## secco (mira automatica), `canceled` = dito perso.
-signal magic_aim_released(aim: Vector2, aimed: bool, canceled: bool)
 
 const TAP_MAX_MOVE := 8.0
 const TAP_MAX_MS := 450
@@ -87,12 +83,6 @@ var _toast_col := Color.WHITE
 var _toast_t := 0.0
 const LONG_MS := 450
 var spell_selected := 0
-## Joystick della magia: vettore corrente (x destra, y giu', lunghezza 0..1) e
-## se il pulsante e' tenuto. Sotto AIM_DEAD il rilascio e' un tocco secco.
-const AIM_RADIUS_DP := 72.0
-const AIM_DEAD := 0.25
-var aim_vec := Vector2.ZERO
-var aim_active := false
 ## Fase del lancio (0 nessuna, 1 raccolta, 2 recupero) e avanzamento 0..1.
 var cast_phase := 0
 var cast_u := 0.0
@@ -111,6 +101,12 @@ var hero_open := false:
 		hero_open = v
 		queue_redraw()
 const DEV_BUTTON_W_DP := 118.0
+## Aggancio attivo (D-035): il pulsante Lock si accende di rosso.
+var lock_on := false:
+	set(v):
+		if v != lock_on:
+			lock_on = v
+			queue_redraw()
 const DEV_BUTTON_H_DP := 48.0
 
 var _fingers := {} # index -> Finger
@@ -126,6 +122,7 @@ func _init() -> void:
 	add_button(&"heavy", "Forte", true)
 	add_button(&"dodge", "Schiva", false)
 	add_button(&"magic", "Magia", true)
+	add_button(&"lock", "Lock", false)
 	add_button(&"mode", "Modo", false)
 	add_button(&"weapon", "Arma", false)
 	add_button(&"hero", "Eroe", false)
@@ -274,6 +271,9 @@ func _layout() -> void:
 			r = Rect2(s.x - m - big + (big - med) * 0.5, s.y - m - big - m * 0.4 - med, med, med)
 		elif b.id == &"magic":
 			r = Rect2(attack_x - m * 0.4 - med, s.y - m - med, med, med)
+		elif b.id == &"lock":
+			# Aggancio (D-035): sopra la Magia, a portata di pollice.
+			r = Rect2(attack_x - m * 0.4 - med * 0.5 - small * 0.5, s.y - m - med - m * 0.4 - small, small, small)
 		else:
 			var i := row.find(b.id)
 			if i < 0:
@@ -398,9 +398,6 @@ func _touch_down(index: int, p: Vector2) -> bool:
 			f.role = Role.BUTTON
 			f.button = b.id
 			b.held = true
-			if b.id == &"magic":
-				aim_active = true
-				aim_vec = Vector2.ZERO
 			# Il dito si registra prima dei segnali: se il pulsante apre un pannello
 			# (reset dei tocchi), il dito sparisce davvero.
 			_fingers[index] = f
@@ -474,9 +471,7 @@ func _touch_move(index: int, p: Vector2) -> bool:
 			elif f.moved > TAP_MAX_MOVE:
 				camera_dragged.emit(delta)
 		Role.BUTTON:
-			if f.button == &"magic":
-				var r := button_rect(&"magic")
-				aim_vec = ((p - r.get_center()) / dp(AIM_RADIUS_DP)).limit_length(1.0)
+			pass
 	queue_redraw()
 	return true
 
@@ -505,10 +500,6 @@ func _touch_up(index: int, p: Vector2, canceled: bool) -> bool:
 		Role.BUTTON:
 			if f.button == &"__outside" and not canceled:
 				world_tapped.emit(p)
-			if f.button == &"magic" and aim_active:
-				aim_active = false
-				magic_aim_released.emit(aim_vec, aim_vec.length() >= AIM_DEAD, canceled)
-				aim_vec = Vector2.ZERO
 			for b in _buttons:
 				if b.id == f.button:
 					b.held = _button_still_held(b.id)
@@ -520,8 +511,6 @@ func _touch_up(index: int, p: Vector2, canceled: bool) -> bool:
 
 ## Azzera tutti gli input mantenuti (perdita di focus, pausa, menu, morte).
 func reset() -> void:
-	aim_active = false
-	aim_vec = Vector2.ZERO
 	for f: Finger in _fingers.values():
 		if f.holding:
 			world_hold.emit(f.last, false)
@@ -597,6 +586,9 @@ func _draw() -> void:
 			draw_rect(b.rect, Color(0.08, 0.1, 0.12, 0.72 if not b.held else 0.9))
 			draw_rect(b.rect, Color(0.63, 0.89, 0.78, 0.8), false, dp(1.5))
 			r = b.rect.size.y * 0.5 * 2.2
+		elif b.id == &"lock" and lock_on:
+			draw_circle(c, r, Color(0.55, 0.06, 0.05, 0.8))
+			draw_arc(c, r, 0.0, TAU, 40, Color(1.0, 0.3, 0.25, 1.0), dp(3.0), true)
 		else:
 			draw_circle(c, r, Color(0.08, 0.1, 0.12, 0.55 if not b.held else 0.8))
 			draw_arc(c, r, 0.0, TAU, 40, Color(0.63, 0.89, 0.78, 0.8), dp(2.0), true)
@@ -727,15 +719,6 @@ func _draw_magic_button(b: VButton) -> void:
 	var q := r * 1.05
 	SpellIcons.draw(self, Rect2(c - Vector2(q, q) * 0.5, Vector2(q, q)), magic_spell, magic_blocked != "")
 	draw_arc(c, r, 0.0, TAU, 40, magic_spell.color().lightened(0.3), dp(2.5), true)
-	# Joystick della mira: anello, zona morta (tocco secco) e pomello.
-	if aim_active:
-		var ar := dp(AIM_RADIUS_DP)
-		var col := magic_spell.color()
-		draw_circle(c, ar, Color(0, 0, 0, 0.28))
-		draw_arc(c, ar, 0.0, TAU, 48, Color(col, 0.8), dp(2.0), true)
-		draw_arc(c, ar * AIM_DEAD, 0.0, TAU, 32, Color(1, 1, 1, 0.35), dp(1.5), true)
-		var aimed := aim_vec.length() >= AIM_DEAD
-		draw_circle(c + aim_vec * ar, r * 0.45, Color(col, 0.9) if aimed else Color(1, 1, 1, 0.5))
 	# Raccolta in corso: arco azzurro dentro il cerchio (il nome e' sopra la barra).
 	if cast_phase == 1:
 		draw_arc(c, r - dp(4.0), -PI * 0.5, -PI * 0.5 + TAU * clampf(cast_u, 0.0, 1.0), 40, Color("#8fd3ff"), dp(3.0), true)

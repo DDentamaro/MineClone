@@ -9,7 +9,9 @@ const CAP := 3600
 ## Palette per elemento: ombra, corpo, caldo, nucleo, picco (EL_RGB, HTML 7996).
 const EL_RGB := {
 	"fire": [Vector3(.08, .035, .018), Vector3(.42, .10, .025), Vector3(.86, .30, .04), Vector3(1.0, .72, .28), Vector3(1, .96, .78)],
-	"water": [Vector3(.025, .09, .14), Vector3(.05, .25, .38), Vector3(.12, .52, .68), Vector3(.55, .84, .90), Vector3(.94, .99, 1)],
+	# Acqua schiarita (D-035): la palette di RMNDWN (.025,.09,.14 -> .94,.99,1)
+	# era blu notte e sul prato e sulla terra si leggeva come sporco.
+	"water": [Vector3(.10, .34, .60), Vector3(.16, .53, .92), Vector3(.36, .76, 1.0), Vector3(.74, .94, 1.0), Vector3(1, 1, 1)],
 	"air": [Vector3(.28, .34, .35), Vector3(.52, .62, .64), Vector3(.72, .82, .83), Vector3(.88, .94, .95), Vector3(.98, 1, 1)],
 	"earth": [Vector3(.14, .09, .055), Vector3(.30, .22, .13), Vector3(.48, .36, .21), Vector3(.66, .52, .34), Vector3(.84, .74, .58)],
 	"karma": [Vector3(.08, .04, .12), Vector3(.30, .14, .50), Vector3(.60, .38, .92), Vector3(.86, .74, 1.0), Vector3(1, .97, 1)],

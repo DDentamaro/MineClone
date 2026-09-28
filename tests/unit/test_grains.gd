@@ -8,8 +8,12 @@ func _grains() -> Grains:
 
 
 func test_colori_degli_elementi() -> void:
-	check_eq(Grains.el_color("water", 1.0), Vector3(.94, .99, 1), "picco")
-	check_eq(Grains.el_color("water", 0.0), Vector3(.025, .09, .14), "ombra")
+	check_eq(Grains.el_color("water", 1.0), Vector3(1, 1, 1), "picco")
+	check_eq(Grains.el_color("water", 0.0), Vector3(.10, .34, .60), "ombra")
+	# D-035: anche l'acqua piu' scura resta un blu leggibile sul prato.
+	for u in [0.0, 0.3, 0.6]:
+		var c := Grains.el_color("water", u)
+		check(c.z > 0.55 and c.z > c.x + 0.4, "blu acceso a %.1f (%s)" % [u, c])
 	check_eq(Grains.el_color("sconosciuto", 0.0), Vector3(.08, .035, .018), "ripiego sul fuoco")
 
 

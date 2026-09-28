@@ -58,6 +58,11 @@ var hitstop := 0.0
 ## Attacchi iniziati (l'avatar ci riconosce un colpo nuovo, anche in catena).
 var starts := 0
 var lock_target: CombatTarget
+## Bersaglio agganciato col Lock (D-035): ogni colpo parte verso di lui (anche
+## fuori dal cono della mira assistita) e lo segue durante la carica.
+var forced: CombatTarget
+## Oltre questa distanza il Lock orienta il colpo ma lo scatto resta il suo.
+const FORCED_RANGE := 12.0
 ## Guida del motore: velocita' imposta (scatti, capriole) o scala dello stick.
 var drive_on := false
 var drive := Vector2.ZERO
@@ -251,11 +256,15 @@ func _start_attack(id: StringName, motor: PlayerMotor, targets: Array, stick: Ve
 	# Mira assistita leggera: la direzione voluta (stick o sguardo) si corregge
 	# di al massimo 20° verso un bersaglio vicino al suo asse.
 	var want := facing if stick.length() < 0.2 else heading(stick)
-	lock_target = _pick_target(motor.position, want, targets, a)
+	var hard := _forced_ok(motor)
+	lock_target = forced if hard else _pick_target(motor.position, want, targets, a)
 	var dist_goal := a.lunge
 	if lock_target != null:
 		var v := Vector2(lock_target.position.x - motor.position.x, lock_target.position.z - motor.position.z)
-		want += clampf(wrapf(heading(v) - want, -PI, PI), -AIM_ASSIST, AIM_ASSIST)
+		if hard:
+			want = heading(v) if v.length() > 0.05 else want
+		else:
+			want += clampf(wrapf(heading(v) - want, -PI, PI), -AIM_ASSIST, AIM_ASSIST)
 		var stop := a.radial_ahead if a.shape == AttackDefinition.Shape.RADIAL else (a.strike if a.strike > 0.0 else weapon.strike_dist)
 		dist_goal = clampf(v.length() - stop, 0.0, a.lunge * 1.25)
 	facing = want
@@ -273,6 +282,13 @@ func lunge_dist() -> float:
 	if attack == null:
 		return 0.0
 	return _lunge_speed * (attack.windup * 0.6 + attack.active * 0.35)
+
+
+func _forced_ok(motor: PlayerMotor) -> bool:
+	if forced == null or not forced.alive:
+		return false
+	var v := Vector2(forced.position.x - motor.position.x, forced.position.z - motor.position.z)
+	return v.length() <= FORCED_RANGE and absf(forced.position.y - motor.position.y) < 3.0
 
 
 func _pick_target(from: Vector3, want: float, targets: Array, a: AttackDefinition) -> CombatTarget:
@@ -314,6 +330,13 @@ func _step_attack(dt: float, motor: PlayerMotor, targets: Array, stick: Vector2)
 			charging = false
 	var before := t
 	t += dt
+	# Lock: durante la carica il colpo continua a puntare il bersaglio che si
+	# sposta (i giri e le picchiate no).
+	if lock_target != null and lock_target == forced and t < a.windup and a.spin == 0.0 and not a.plunge and lock_target.alive:
+		var lv := Vector2(lock_target.position.x - motor.position.x, lock_target.position.z - motor.position.z)
+		if lv.length() > 0.3:
+			facing = heading(lv)
+			_attack_facing = facing
 	var in_dodge_cancel := buffer == &"dodge" and (phase() == 2 or before < a.windup * 0.5)
 	if in_dodge_cancel and motor.on_ground and cooldown <= 0.0:
 		_start_dodge(stick)

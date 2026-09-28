@@ -106,51 +106,6 @@ func is_legacy() -> bool:
 	return kind == "dart"
 
 
-## Mira alla Brawl Stars (D-034): "line" = fascia dal giocatore nella
-## direzione (proiettili, raggi, getti, frusta, onda), "point" = cerchio su un
-## punto a distanza scelta (aree, taglio, muro, meteorite), "self" = attorno a se'.
-func aim_shape() -> String:
-	if at_self or kind in ["buff", "pillar", "spray"]:
-		return "self"
-	if kind in ["column", "spikes", "rain", "cyclone", "vacuum", "updraft", "quake", "meteor", "slash", "wall", "push"]:
-		return "point"
-	return "line"
-
-
-## Portata della mira (m): quanto e' lunga la fascia o quanto lontano va il cerchio.
-func aim_range() -> float:
-	match kind:
-		"jet":
-			return reach
-		"beam", "shaft", "orb":
-			return minf(speed * life, 20.0)
-		"bolt", "volley", "ball", "dart":
-			return minf(speed * life, 16.0)
-		"throw", "twins", "wave":
-			return 11.0
-		"lash", "slash", "push", "wall":
-			return 8.0
-		"meteor":
-			return 14.0
-	return 12.0
-
-
-## Larghezza della fascia o raggio del cerchio (m).
-func aim_width() -> float:
-	match aim_shape():
-		"point":
-			if kind == "wall":
-				return width * 0.5
-			return maxf(0.8, area)
-		"self":
-			return maxf(1.0, area)
-	if kind == "jet":
-		return maxf(0.7, r1 * 2.0)
-	if kind == "wave":
-		return width
-	return maxf(0.7, maxf(r * 2.0, area * 0.5))
-
-
 ## Due mani con la postura a braccia unite o dai 120 di Output (RMNDWN K56).
 func two_handed() -> bool:
 	return both or output >= 120.0

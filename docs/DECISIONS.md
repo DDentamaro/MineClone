@@ -591,7 +591,7 @@ Richiesta del proprietario: continuare a rifinire il combattimento con un movese
 arma e ritmi diversi, lancia perforante, spadone e martello più lenti, IK delle gambe nei colpi;
 lasciare tutte le magie usabili per la prossima prova; lanciare le magie come in Brawl Stars
 (pulsante tenuto e direzionato, con una fascia davanti al giocatore che mostra la direzione).
-- **Lancio alla Brawl Stars:** il pulsante Magia è un joystick (raggio 72 dp, zona morta 25%).
+- **Lancio alla Brawl Stars (tolto in D-035, sostituito dal Lock):** il pulsante Magia è un joystick (raggio 72 dp, zona morta 25%).
   Tenendolo premuto compare a terra l'indicatore della magia scelta, del colore della scuola: una
   **fascia** dal giocatore nella direzione del dito per proiettili, raggi e getti (lunga quanto la
   portata, larga almeno 0,7 m); un **cerchio** sul punto scelto per le magie ad area (la distanza
@@ -626,3 +626,32 @@ lasciare tutte le magie usabili per la prossima prova; lanciare le magie come in
   tornano sotto le anche col passo d'assestamento. Giri e picchiate usano il passo normale.
   Misura (`tools/e2e_moveset.gd`, nuova voce): piede del colpo davanti all'altro di 0,20–0,38 m in
   ogni colpo; prima della correzione del piede dietro si arrivava a 1,2 m con gambe da 0,3 m.
+
+## D-035 — Lock sul bersaglio al posto della mira alla Brawl Stars, camminata laterale, acqua leggibile
+Richiesta del proprietario: togliere la mira delle magie di D-034; un sistema di aggancio (lock on)
+con un triangolo tridimensionale rosso sul bersaglio; con il lock la camminata diventa laterale
+(strafe) e i colpi seguono il bersaglio, sia le magie sia le armi sia i pugni; le magie d'acqua si
+vedono male.
+- **Via la mira alla Brawl Stars (D-034):** il pulsante Magia torna a premi e tieni (raccolta alla
+  pressione, lancio al rilascio o da solo al tocco). Tolti indicatore a terra (`AimIndicator`),
+  joystick del pulsante, `press_aimed` e le forme di mira delle magie.
+- **Lock** (`LockOn`): pulsante *Lock* sopra la Magia, tasto R, rotella del mouse. Aggancia il
+  bersaglio migliore entro 14 m (distanza + 3 × angolo in radianti dallo sguardo: davanti vince,
+  ma vale anche uno alle spalle); di nuovo Lock sgancia. Cade da solo se il bersaglio si rompe,
+  esce dalla scena o va oltre 18 m. Il pulsante resta rosso finché è attivo.
+- **Triangolo rosso** (`LockMarker`): piramide a base triangolare con la punta in giù, facce in tre
+  rossi diversi e contorno scuro (scafo rovesciato), gira e ondeggia sopra la testa del bersaglio,
+  si vede anche dietro alberi e muri, compare con uno scatto di scala.
+- **Camminata laterale:** con il lock lo sguardo resta sul bersaglio (rotazione più rapida della
+  corsa) e lo stick sposta di lato e all'indietro, al 78% della velocità; le gambe fanno i passi
+  laterali col passo procedurale di D-028. Misura (`tools/e2e_lockon.gd`): 1,2 s di stick a destra,
+  errore massimo dello sguardo 4°.
+- **Colpi che seguono il lock:** armi e pugni partono verso il bersaglio agganciato fino a 12 m,
+  a qualunque angolo (senza lock resta la mira assistita di D-033: 35° e correzione ≤ 20°), con lo
+  scatto che porta alla distanza vera dell'arma; durante la carica il colpo continua a girarsi sul
+  bersaglio che si sposta (non i giri e le picchiate). Le magie partono verso il bersaglio
+  agganciato senza cono, e i proiettili senza gravità gli curvano incontro (4 rad/s) se si sposta.
+- **Acqua leggibile:** la palette dell'acqua di RMNDWN (da blu notte .025/.09/.14 a .94/.99/1) sul
+  prato e sulla terra del gioco si leggeva come sporco scuro. Ora va da un blu medio (.10/.34/.60)
+  a un blu acceso (.16/.53/.92), a un celeste (.36/.76/1) e a schiuma bianca; le gocce sono 1,45
+  volte più grandi (a 360 righe quelle da 2 cm sparivano). Differenza voluta da RMNDWN.

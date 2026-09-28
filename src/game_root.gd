@@ -63,7 +63,11 @@ var combat: CombatController
 var magic := MagicSystem.new(1931)
 var mfx := MagicFx.new()
 var _earth_fx: EarthFx
-var _aim_ind: AimIndicator
+## Aggancio del bersaglio (D-035) e il suo triangolo rosso.
+var lock := LockOn.new()
+var _lock_marker: LockMarker
+## Camminata laterale col Lock: un po' piu' lenta della corsa libera.
+const STRAFE_SPEED := 0.78
 var _texts: FloatingText
 var _magic_key := false
 var _audio: MagicAudio
@@ -139,14 +143,14 @@ func _ready() -> void:
 		select_weapon(weapon_index)
 	fx.grains = _grains
 	mfx.grains = _grains
-	_aim_ind = AimIndicator.new()
-	_aim_ind.name = "AimIndicator"
-	_grains.get_parent().add_child(_aim_ind)
 	# Zolle vere delle magie di terra (D-032), accanto ai grani.
 	_earth_fx = EarthFx.new()
 	_earth_fx.name = "EarthFx"
 	_grains.get_parent().add_child(_earth_fx)
 	mfx.earth = _earth_fx
+	_lock_marker = LockMarker.new()
+	_lock_marker.name = "LockMarker"
+	_grains.get_parent().add_child(_lock_marker)
 	sandbox.grains = _grains
 	if saved.is_empty():
 		items.starter_kit()
@@ -231,13 +235,14 @@ func _ready() -> void:
 			open_bag(null, "magic"))
 	_touch.button_down.connect(func(id: StringName) -> void:
 		if id == &"heavy":
-			combat.press_heavy())
+			combat.press_heavy()
+		elif id == &"magic":
+			magic.press())
 	_touch.button_up.connect(func(id: StringName) -> void:
 		if id == &"heavy":
-			combat.release_heavy())
-	# Magia alla Brawl Stars (D-034): si lancia al rilascio del pulsante, nella
-	# direzione trascinata (tocco secco = mira automatica).
-	_touch.magic_aim_released.connect(_on_magic_aim)
+			combat.release_heavy()
+		elif id == &"magic":
+			magic.release())
 	if not saved.is_empty():
 		_restore(saved)
 	if TEST_ALL_SPELLS:
@@ -252,6 +257,7 @@ func _ready() -> void:
 ## runtime e vegetazione, giocatore allo spawn.
 func _swap_world(w: WorldData) -> void:
 	world = w
+	lock.clear()
 	# Come il main thread del prototipo: fluidi ripresi dai dati, code risvegliate.
 	FluidSystem.init_fluid(world, world.fluid)
 	edits = WorldEditService.new(world, catalog)
@@ -285,7 +291,6 @@ func _swap_world(w: WorldData) -> void:
 	combat.opaque = catalog.opaque_table()
 	mfx.world = world
 	_earth_fx.world = world
-	_aim_ind.world = world
 	_earth_fx.clear()
 	magic.world = world
 	magic.edits = edits
@@ -321,6 +326,13 @@ func _physics_process(dt: float) -> void:
 	if not combat.is_busy():
 		combat.facing = _avatar.facing
 	var targets := _dummies.targets()
+	lock.step(motor.position, targets)
+	var locked := lock.active()
+	combat.forced = lock.target if locked else null
+	magic.forced = combat.forced
+	_touch.lock_on = locked
+	if locked:
+		_avatar.aware_t = 2.5
 	if magic.is_casting():
 		# Durante la magia il corpo a corpo non parte (la capriola si').
 		if combat.buffer != &"dodge":
@@ -334,6 +346,8 @@ func _physics_process(dt: float) -> void:
 		magic.daylight = float(_day.state.get("daylight", 1.0))
 		# La magia mira nella direzione dello stick se spinto, altrimenti davanti.
 		var want := _avatar.facing if _move_world.length() < 0.2 else CombatController.heading(_move_world)
+		if locked:
+			want = lock.heading_from(motor.position)
 		magic.step(dt, motor, targets, want, _avatar.rig.cast_point(), not combat.is_busy())
 		if magic.hitstop > 0.0:
 			combat.hitstop = maxf(combat.hitstop, magic.hitstop)
@@ -348,6 +362,8 @@ func _physics_process(dt: float) -> void:
 		elif magic.phase == MagicSystem.Phase.GATHER:
 			motor.move_scale *= 0.35
 		motor.move_scale *= magic.player_speed()
+		if locked and not combat.is_busy():
+			motor.move_scale *= STRAFE_SPEED
 		motor.step(dt, _move_world, (_jump_key or _touch.is_held(&"jump")) and not combat.is_busy())
 		_avatar.position = motor.position
 		_push_out_of_dummies()
@@ -360,6 +376,9 @@ func _physics_process(dt: float) -> void:
 			_avatar.turn_to(combat.facing, dt, PlayerAvatar.ATTACK_TURN)
 		elif magic.phase == MagicSystem.Phase.GATHER:
 			_avatar.turn_to(magic.face, dt, PlayerAvatar.ATTACK_TURN)
+		elif locked and lock.flat_dist(motor.position) > 0.2:
+			# Lock: lo sguardo resta sul bersaglio, lo stick sposta di lato e indietro.
+			_avatar.turn_to(lock.heading_from(motor.position), dt, PlayerAvatar.LOCK_TURN)
 		else:
 			_avatar.face_towards(Vector2(motor.velocity.x, motor.velocity.z), dt)
 	for d in _dummies.step(0.0 if frozen else dt):
@@ -367,37 +386,6 @@ func _physics_process(dt: float) -> void:
 	# Posa dell'eroe al passo della fisica (D-028): la lama che ferisce e' quella
 	# che si vede, anche quando piu' passi di fisica cadono in un fotogramma.
 	_avatar.animate(0.0 if combat.hitstop > 0.0 else dt, motor, combat, magic)
-
-
-## Direzione nel mondo (piano XZ) del joystick della magia (schermo: x destra, y giu').
-func _aim_world(aim: Vector2) -> Vector2:
-	var w := _camera_rig.stick_to_world(Vector2(aim.x, -aim.y))
-	return w.normalized() if w.length() > 1e-4 else Vector2.ZERO
-
-
-func _on_magic_aim(aim: Vector2, aimed: bool, canceled: bool) -> void:
-	if canceled:
-		return
-	if aimed:
-		magic.press_aimed(_aim_world(aim), aim.length())
-	else:
-		magic.press_aimed(Vector2.ZERO, 0.0)
-	magic.release()
-
-
-## Fascia, cerchio o anello a terra mentre il dito direziona la magia.
-func _update_aim_indicator(p: Vector3) -> void:
-	if not _touch.aim_active or _touch.blocked:
-		_aim_ind.hide_aim()
-		return
-	var sp := magic.spell()
-	var shape := sp.aim_shape() if not sp.is_legacy() else "line"
-	var aimed := _touch.aim_vec.length() >= TouchControls.AIM_DEAD
-	var dir := _aim_world(_touch.aim_vec) if aimed else CombatController.forward(_avatar.facing)
-	var rng := sp.aim_range()
-	var dist := clampf(_touch.aim_vec.length() * rng, 1.5, rng)
-	var col := sp.color() if aimed else Color(sp.color(), 0.5)
-	_aim_ind.show_aim(shape, p, dir, dist, rng, sp.aim_width(), col)
 
 
 ## Numeri del danno delle magie (D-032). I colpi pieni escono subito; i colpi
@@ -623,7 +611,8 @@ func _process(dt: float) -> void:
 		save_game()
 	mfx.update(dt, magic, _avatar.rig.cast_point(), p)
 	_flush_damage_numbers(dt)
-	_update_aim_indicator(p)
+	_lock_marker.set_target(lock.target if lock.active() else null)
+	_lock_marker.update(dt)
 	_apply_magic_globals(_avatar.rig.cast_point(), p)
 	_audio_n += 1
 	_audio.handle(magic.events, _audio_n)
@@ -761,6 +750,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		match k.physical_keycode:
 			KEY_V:
 				_on_button(&"camera")
+			KEY_R:
+				toggle_lock()
 			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6:
 				items.select(k.physical_keycode - KEY_1)
 			KEY_I, KEY_TAB:
@@ -784,6 +775,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		# Clic destro: usa/apri l'oggetto sotto il cursore (forziere, banco, fornace, falò).
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_MIDDLE:
+			toggle_lock()
+			return
 		if mb.pressed and mb.button_index == MOUSE_BUTTON_RIGHT:
 			var ray := _screen_ray(mb.position)
 			var o := _objects.pick(ray[0], ray[1])
@@ -811,8 +805,19 @@ func _confirm(id: StringName, text: String) -> bool:
 	return false
 
 
+## Lock (D-035): aggancia il bersaglio migliore attorno all'eroe o sgancia.
+func toggle_lock() -> void:
+	if lock.toggle(motor.position, _avatar.facing, _dummies.targets()):
+		last_edit = "agganciato"
+	else:
+		last_edit = "sganciato" if not _dummies.targets().is_empty() else "nessun bersaglio"
+	_touch.lock_on = lock.active()
+
+
 func _on_button(id: StringName) -> void:
 	match id:
+		&"lock":
+			toggle_lock()
 		&"dev_close":
 			_touch.dev_open = false
 		&"dev_seed":

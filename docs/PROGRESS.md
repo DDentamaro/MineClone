@@ -7,6 +7,20 @@ si possano riprendere (5 minuti), selezione delle magie più chiara, hitbox/hurt
 armi e ai pugni, ritorno all'eroe del prototipo (più piccolo) con un passo migliore tenendo le
 animazioni di combattimento (D-028).
 
+Seguito del 28/09/2026 (D-035): tolta la mira alla Brawl Stars di D-034; Lock sul bersaglio con
+triangolo rosso 3D, camminata laterale, colpi d'arma, pugni e magie che seguono il bersaglio
+agganciato; magie d'acqua più chiare e gocce più grandi.
+
+### Test realmente eseguiti (D-035)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 219/219 PASS, log pulito (tolti i 4 test della mira; nuovi: scelta e sgancio del Lock, sgancio automatico, colpo di spada/pugni/lancia verso il bersaglio agganciato a 70°, carica che segue il bersaglio che si sposta, dardo che curva verso il bersaglio agganciato, pulsante Lock dentro lo schermo su 4 schermi, acqua blu acceso) |
+| `tools/e2e_lockon.gd` (nuova, tocchi veri) | OK: Lock aggancia il manichino a 65°, triangolo visibile, sguardo sul bersaglio durante 1,2 s di camminata laterale (errore massimo 4°), 3 colpi a segno con il manichino a 70° di lato, magia a segno (4 colpi), sgancio col pulsante, triangolo nascosto |
+| `e2e_magic` (e `--phone`), `e2e_combat`, `e2e_touch`, `e2e_sandbox`, `e2e_walk`, `e2e_drop`, `e2e_armory`, `e2e_swim`, `e2e_options` (e `--phone`), `e2e_moveset` | OK, nessun errore di script |
+| Export Android debug 0.14.0-m5 (versionCode 16) + `apksigner verify` + `aapt2 dump badging` | OK; mai installato su un telefono |
+
+Non verificato: sensazione del Lock e della camminata laterale su un telefono vero; FPS su telefono.
+
 Seguito del 28/09/2026 (D-034): magie lanciate alla Brawl Stars (pulsante tenuto e direzionato,
 fascia, cerchio o anello a terra), tutte le magie note per la prova, ritmi e moveset per arma
 (spadone e martello più lenti, lancia perforante con l'infilzata), passo delle gambe nei colpi.

@@ -77,6 +77,8 @@ class Dart:
 	var fade_life := 0.0
 	## Coerenza al contatto (per il disegno dell'impatto).
 	var k := 1.0
+	## Bersaglio agganciato col Lock (D-035): il proiettile gli curva incontro.
+	var seek: CombatTarget
 
 
 class FireCell:
@@ -103,6 +105,9 @@ var held := false
 var aim := Vector3.ZERO
 var face := 0.0
 var lock_target: CombatTarget
+## Bersaglio agganciato col Lock (D-035): scelto per ogni magia, senza cono.
+var forced: CombatTarget
+const SEEK_TURN := 4.0
 var darts: Array[Dart] = []
 ## CombatTarget -> {nome: {t, st, tick, since}}
 var statuses := {}
@@ -264,22 +269,6 @@ func release() -> void:
 	held = false
 
 
-## Mira alla Brawl Stars (D-034): direzione nel piano XZ (vuota = mira
-## automatica) e distanza 0..1 della portata per le magie a punto.
-var aim_dir := Vector2.ZERO
-var aim_frac := 1.0
-## La magia in corso ha una mira scelta dal giocatore.
-var aimed := false
-## Cono stretto in cui un bersaglio viene preso lungo la direzione scelta.
-const AIM_SNAP := 0.26
-
-
-func press_aimed(dir: Vector2, frac: float) -> void:
-	aim_dir = dir.normalized() if dir.length() > 1e-3 else Vector2.ZERO
-	aim_frac = clampf(frac, 0.0, 1.0)
-	press()
-
-
 func is_casting() -> bool:
 	return phase != Phase.NONE or not _pending.is_empty()
 
@@ -375,17 +364,17 @@ func step(dt: float, motor: PlayerMotor, targets: Array, facing: float, hand: Ve
 					auto_fire = ((tap or queued) and not held) or not s.is_legacy()
 					# La pressione sale quando la raccolta parte (RMNDWN L33895).
 					_press_add(s)
-					aimed = aim_dir != Vector2.ZERO and s.aim_shape() != "self"
-					if aimed:
-						facing = atan2(-aim_dir.x, -aim_dir.y)
-						face = facing
-					if s.at_self or (aimed and s.aim_shape() == "point"):
-						lock_target = null
-					elif aimed:
-						lock_target = _pick_target(motor.position, facing, targets, AIM_SNAP, s.aim_range())
-					else:
+					if not s.at_self and forced != null and forced.alive:
+						# Lock (D-035): la magia parte verso il bersaglio agganciato.
+						lock_target = forced
+						var fv := forced.position - motor.position
+						if Vector2(fv.x, fv.z).length() > 0.05:
+							facing = atan2(-fv.x, -fv.z)
+							face = facing
+					elif not s.at_self:
 						lock_target = _pick_target(motor.position, facing, targets)
-					aim_dir = Vector2.ZERO
+					else:
+						lock_target = null
 					aim = _resolve_aim(motor, facing, s)
 					events.append({"type": "gather", "el": s.el, "spell": s})
 		Phase.GATHER:
@@ -426,7 +415,7 @@ func step(dt: float, motor: PlayerMotor, targets: Array, facing: float, hand: Ve
 	_step_pose(dt, s)
 
 
-func _pick_target(from: Vector3, facing: float, targets: Array, cone: float = LOCK_CONE, max_range: float = LOCK_RANGE) -> CombatTarget:
+func _pick_target(from: Vector3, facing: float, targets: Array) -> CombatTarget:
 	var best: CombatTarget = null
 	var score := INF
 	for o in targets:
@@ -435,10 +424,10 @@ func _pick_target(from: Vector3, facing: float, targets: Array, cone: float = LO
 			continue
 		var v := Vector2(tg.position.x - from.x, tg.position.z - from.z)
 		var d := v.length()
-		if d > max_range or d < 0.3:
+		if d > LOCK_RANGE or d < 0.3:
 			continue
 		var ang := absf(wrapf(atan2(-v.x, -v.y) - facing, -PI, PI))
-		if ang > cone:
+		if ang > LOCK_CONE:
 			continue
 		var sc := d + ang * 4.0
 		if sc < score:
@@ -452,11 +441,6 @@ func _pick_target(from: Vector3, facing: float, targets: Array, cone: float = LO
 func _resolve_aim(motor: PlayerMotor, facing: float, s: SpellDefinition = null) -> Vector3:
 	if lock_target != null and lock_target.alive:
 		return lock_target.position + Vector3(0, lock_target.height * 0.55, 0)
-	if aimed and s != null:
-		# Mira scelta: punto a distanza (aree) o fondo della fascia (proiettili).
-		var r := s.aim_range()
-		var dist := clampf(aim_frac * r, 1.5, r) if s.aim_shape() == "point" else r
-		return motor.position + _fwd(face) * dist + Vector3(0, 0.55, 0)
 	var dist := AIM_DIST if s == null or s.is_legacy() else 10.0
 	return motor.position + _fwd(facing) * dist + Vector3(0, 0.55, 0)
 
@@ -548,6 +532,8 @@ func _spawn_dart(s: SpellDefinition, o: Vector3, d: Vector3) -> Dart:
 	if s.grav > 0.0:
 		var dist := Vector2(aim.x - o.x, aim.z - o.z).length()
 		dart.v.y += 0.5 * MG * s.grav * dist / s.speed
+	if forced != null and lock_target == forced and s.grav <= 0.0:
+		dart.seek = forced
 	darts.append(dart)
 	return dart
 
@@ -608,6 +594,19 @@ func _step_darts(dt: float, motor: PlayerMotor, targets: Array, hand: Vector3 = 
 			continue
 		P.t += dt
 		P.prev = P.p
+		if P.seek != null and P.seek.alive:
+			# Lock: curva verso il centro del bersaglio (SEEK_TURN rad/s), stessa velocita'.
+			var to := P.seek.position + Vector3(0, P.seek.height * 0.55, 0) - P.p
+			var spd := P.v.length()
+			if spd > 0.1 and to.length() > 0.2:
+				var cur := P.v / spd
+				var want := to.normalized()
+				var ang := cur.angle_to(want)
+				if ang > 1e-4:
+					var ax := cur.cross(want)
+					ax = ax.normalized() if ax.length() > 1e-5 else Vector3.UP
+					P.v = cur.rotated(ax, minf(ang, SEEK_TURN * dt)) * spd
+				P.reach = maxf(P.reach, (P.p - P.origin).length() + to.length() + 0.5)
 		P.v.y -= MG * S.grav * dt
 		if S.drag > 0.0:
 			P.v *= exp(-S.drag * dt)

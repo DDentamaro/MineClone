@@ -118,9 +118,8 @@ func cast(s: SpellDefinition, _i: int, hand: Vector3, d: Vector3, motor: PlayerM
 			m.statuses[m.player][s.status]["t"] = s.fx_life
 			m.events.append({"type": "buff", "el": s.el, "p": motor.position, "spell": s})
 		"wall":
-			# Muraglia al 60% tra la mano e la mira (RMNDWN struct wall at .6);
-			# con la mira scelta (D-034) proprio dove il cerchio la indica.
-			var at := m.aim if m.aimed else hand.lerp(m.aim, 0.6)
+			# Muraglia al 60% tra la mano e la mira (RMNDWN struct wall at .6).
+			var at := hand.lerp(m.aim, 0.6)
 			_wall(s, ground_at(Vector3(at.x, motor.position.y, at.z)), flat, motor)
 		"pillar":
 			_pillar(s, motor)

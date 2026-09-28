@@ -6,6 +6,8 @@ extends Node3D
 
 const TURN_RATE := 14.0
 const ATTACK_TURN := 40.0
+## Con il Lock (D-035) il corpo si gira sul bersaglio piu' in fretta della corsa.
+const LOCK_TURN := 18.0
 
 var facing := 0.0
 var rig: AvatarRig
