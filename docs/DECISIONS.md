@@ -547,3 +547,41 @@ delle magie sul telefono era tagliata e non tutti e 5 gli slot si potevano preme
   (azzurra) e del recupero (rossa), sopra la riga il nome con livello e Output (o il motivo del
   blocco) e la barra della Pressione. La barra rapida in basso si restringe per non finire sotto
   il pulsante Magia. Test con la scala dp di quattro schermi (fra cui 2400×1080 a 440 dpi).
+
+## D-033 — Opzioni modali, mira assistita leggera, catene che vanno a segno, forte a terra
+Richiesta del proprietario: toccando le opzioni si blocca tutto; rifinire combattimento e movimenti
+delle armi, colpi forti e mani nude, con meno mira automatica e colpi che si collegano in modo
+fluido; il secondo pugno non colpisce mai; il colpo forte che salta in aria non è realistico.
+- **Opzioni:** su un telefono in orizzontale (~390 dp di altezza) il flusso di 25 pulsanti da
+  118×48 dp usciva dal bordo in basso e copriva stick, pulsanti d'azione e barra delle magie:
+  ogni tocco premeva un'opzione a caso ("Nuovo seme" rigenerava il mondo, "Pausa" fermava tutto,
+  "Scava debug" cambiava i comandi). Riprodotto con `tools/e2e_options.gd --phone`. Ora è un
+  pannello modale sotto la riga in alto, con la griglia adattata allo schermo (colonne da 84 a 118
+  dp, righe da 30 a 48 dp); mentre è aperto il resto dei comandi è spento e il gioco si vede
+  velato; un tocco fuori lo chiude; "Nuovo seme" e "Carica" chiedono un secondo tocco entro 3 s.
+- **Misure prima di cambiare** (`tools/e2e_moveset.gd`, hitbox vere dell'eroe, un tocco ogni
+  .12 s): al primo giro mancavano gancio e montante dei pugni, rovescio e calata della spada,
+  entrambi gli affondi della lancia, il montante del martello, la calata dello spadone. Cause:
+  l'affondo portava alla portata "astratta" delle armi, più lunga di quella vera delle armi ridotte
+  sul nuovo eroe (colpi corti di 5–50 cm); i colpi di catena spingevano il bersaglio fuori portata
+  (il primo colpo del martello a 4,6 m); gli affondi e le calate uscivano di lato (la lancia di 43°,
+  le calate di mezzo metro a destra), perché l'arma sta nella mano destra.
+- **Mira assistita leggera:** il bersaglio si aggancia solo entro 35° dalla direzione voluta (stick
+  o sguardo) e a portata d'affondo (+0,6 m); la direzione si corregge di al massimo 20°. Prima: cono
+  di 80°, rotazione piena verso il bersaglio e affondo fino a 1,8 m oltre il suo. Un bersaglio a 40°
+  resta dov'è: lo si prende puntando lo stick.
+- **Distanza vera di contatto:** `WeaponDefinition.strike_dist` (pugni .72, spada 1,15, lancia
+  1,25, martello 1,0, spadone 1,25, attrezzi .95) e `AttackDefinition.strike` per i colpi diversi
+  (montante .55, affondi della lancia 1,3, fendente dall'alto .9, montante del martello .8, calata
+  dello spadone 1,05). L'affondo porta lì e non oltre l'affondo del colpo (×1,25).
+- **Catene fluide:** il colpo premuto durante un attacco resta in coda fino al punto di seguito
+  (prima scadeva dopo .3 s: un tocco presto su un colpo lento del martello si perdeva). I colpi di
+  catena spingono poco (pugni 1,2–2, spada 1,8, lancia 1,6, martello 3,5, spadone 3), così il
+  bersaglio resta a portata; spinge forte il colpo finale.
+- **Pose che puntano dove colpiscono:** negli affondi della lancia e nelle calate il petto gira
+  (40–55°) e porta avanti la spalla destra, come nel diretto dei pugni.
+- **Forte della spada:** non più un balzo con il corpo alzato di mezzo metro e le gambe raccolte,
+  ma un fendente dall'alto a due mani con un passo avanti, piedi a terra, caricabile. Montante dei
+  pugni, montante della spada e del martello: saltelli ridotti a 4–5 cm.
+- **Esito misurato:** tutte le catene vanno a segno al primo giro (pugni: jab, diretto, gancio,
+  montante), tutti i colpi forti colpiscono, nessuno solleva l'eroe.
