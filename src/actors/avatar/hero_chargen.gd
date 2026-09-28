@@ -396,8 +396,11 @@ static func build(dna: Dictionary, hair_lib: Dictionary = {}) -> Array:
 	var metal_d := rgb(96, 102, 108)
 	var gold := rgb(217, 164, 65)
 	var H: Dictionary = BODY["head"]
-	var hat := String(dna.get("hat", "none"))
-	var hides_top := hat in ["cappuccio", "elmo", "paglia", "punta"]
+	# Elmo dell'armatura (D-030): il cappello non si disegna e i capelli sopra
+	# si nascondono come sotto i cappelli coprenti del prototipo.
+	var helm: bool = dna.get("helm", false)
+	var hat := "none" if helm else String(dna.get("hat", "none"))
+	var hides_top := helm or hat in ["cappuccio", "elmo", "paglia", "punta"]
 	var cut_y: float = H["cutY"]
 	var nape_z: float = H["napeZ"]
 	var nape: float = H["nape"]
@@ -564,7 +567,7 @@ static func _face(W: Builder, dna: Dictionary, Cl: Dictionary, dark: Color, whit
 		"graffi":
 			for i in 3:
 				P.call("cicatrice", .14 + i * .09, .175 + i * .09, 1.66, 2.16, scar_c, Zs, rot_t(2, -.35, Vector3(.16 + i * .09, 1.9, 0)))
-	if dna.get("ears", true) and hat != "cappuccio" and hat != "elmo":
+	if dna.get("ears", true) and hat != "cappuccio" and hat != "elmo" and not dna.get("helm", false):
 		var Er: Dictionary = BODY["ear"]
 		var emin: Vector3 = Er["min"]
 		var emax: Vector3 = Er["max"]
@@ -828,6 +831,36 @@ static func _body_acc(W: Builder, dna: Dictionary, Cl: Dictionary, gold: Color) 
 		"sciarpa":
 			Ab.call("sciarpa", Vector3(-.50, 1.38, -.46), Vector3(.50, 1.60, .40), .09, acc)
 			Ab.call("sciarpa", Vector3(.18, .95, .24), Vector3(.38, 1.46, .36), .05, acc, rot_t(2, .08, Vector3(.28, 1.46, 0)))
+
+
+# ---------------------------------------------------------------- facce sotto l'armatura (D-030)
+
+## Toglie dai pezzi i triangoli tutti dentro un volume dell'armatura dello
+## stesso osso (`boxes`: osso -> [AABB], unita' del modello): quelli a cavallo
+## del bordo restano, cosi' sotto l'orlo dell'armatura non si aprono buchi.
+static func cull_inside(parts: Array, boxes: Dictionary) -> void:
+	if boxes.is_empty():
+		return
+	for p: Dictionary in parts:
+		var list: Array = boxes.get(p["bone"], [])
+		if list.is_empty():
+			continue
+		var g: Dictionary = p["geo"]
+		var P: PackedVector3Array = g["position"]
+		var I: PackedInt32Array = g["index"]
+		var keep := PackedInt32Array()
+		for j in range(0, I.size(), 3):
+			var inside := false
+			for b0: AABB in list:
+				var b := b0.grow(0.02)
+				if b.has_point(P[I[j]]) and b.has_point(P[I[j + 1]]) and b.has_point(P[I[j + 2]]):
+					inside = true
+					break
+			if not inside:
+				keep.append(I[j])
+				keep.append(I[j + 1])
+				keep.append(I[j + 2])
+		g["index"] = keep
 
 
 # ---------------------------------------------------------------- occlusione cotta (CHARGEN.rig.bakeAO)

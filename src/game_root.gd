@@ -834,12 +834,16 @@ func _refresh_armor() -> void:
 	if key == _armor_key:
 		return
 	_armor_key = key
+	_avatar.rig.set_armor_all(armor_colors(items.equipment))
+
+
+## Colore del materiale per slot d'armatura (trasparente = vuoto).
+static func armor_colors(eq: Equipment) -> Dictionary:
+	var out := {}
 	for slot in Equipment.SLOTS:
-		var st := items.equipment.get_slot(slot)
-		var col := Color(0, 0, 0, 0)
-		if st != null:
-			col = ItemLibrary.TIERS[st.def().tier - 1]["color"]
-		_avatar.rig.set_armor(slot, col)
+		var st := eq.get_slot(slot)
+		out[slot] = ItemLibrary.TIERS[st.def().tier - 1]["color"] if st != null else Color(0, 0, 0, 0)
+	return out
 
 
 func _refresh_hotbar() -> void:

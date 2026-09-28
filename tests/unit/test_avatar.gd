@@ -119,3 +119,33 @@ func test_il_colpo_segue_le_pose_chiave() -> void:
 	s2.dodge = 0.5
 	var p2 := an.target_pose(0.0, s2)
 	check(absf(absf((p2[&"body"] as Vector3).x) - PI) < 0.01, "capriola a meta': mezzo giro")
+
+
+func _tris(parts: Array, bone: String, name: String = "") -> int:
+	var n := 0
+	for p: Dictionary in parts:
+		if p["bone"] == bone and (name == "" or p["name"] == name):
+			n += (p["geo"]["index"] as PackedInt32Array).size() / 3
+	return n
+
+
+func test_facce_sotto_l_armatura_tolte() -> void:
+	var r := AvatarRecipe.new()
+	var none := AvatarRig.body_parts(r, {})
+	var iron := Color(0.78, 0.66, 0.58)
+	var worn := AvatarRig.body_parts(r, {"head": iron, "chest": iron, "legs": iron, "feet": iron})
+	check(_tris(worn, "torso", "busto") < _tris(none, "torso", "busto"), "busto coperto dalla corazza")
+	check(_tris(worn, "head", "capelli") < _tris(none, "head", "capelli"), "capelli sotto l'elmo")
+	check_eq(_tris(worn, "head", "orecchio"), 0, "niente orecchie che bucano l'elmo")
+	check(_tris(worn, "head", "testa") > 0, "il viso resta")
+	# Nessun triangolo rimasto tutto dentro un volume dell'armatura.
+	var boxes := AvatarRig.armor_boxes({"chest": iron})
+	var inside := 0
+	for p: Dictionary in AvatarRig.body_parts(r, {"chest": iron}):
+		for b: AABB in boxes.get(p["bone"], []):
+			var P: PackedVector3Array = p["geo"]["position"]
+			var I: PackedInt32Array = p["geo"]["index"]
+			for j in range(0, I.size(), 3):
+				if b.has_point(P[I[j]]) and b.has_point(P[I[j + 1]]) and b.has_point(P[I[j + 2]]):
+					inside += 1
+	check_eq(inside, 0, "niente facce dentro la corazza")

@@ -57,24 +57,39 @@ static func chest_offset() -> Vector3:
 	return Vector3(0, -(0.06 + 0.16), 0)
 
 
-## Mesh per osso della ricetta con occlusione cotta (dalla cache), o null se
-## non e' ancora pronta.
-static func cached_meshes(r: AvatarRecipe) -> Variant:
-	return _mesh_cache.get(r.to_json())
+## Pezzi del corpo per ricetta e armatura indossata (D-030): con l'elmo i
+## capelli sopra, il cappello e le orecchie spariscono (come i cappelli del
+## prototipo); le facce del corpo dentro i pezzi d'armatura non si costruiscono,
+## cosi' capelli, busto e gambe non attraversano elmo, corazza e schinieri.
+static func body_parts(r: AvatarRecipe, armor: Dictionary) -> Array:
+	var dna := r.dna.duplicate()
+	if (armor.get("head", Color(0, 0, 0, 0)) as Color).a > 0.0:
+		dna["helm"] = true
+	var parts := HeroChargen.build(dna, HeroChargen.hair_lib())
+	HeroChargen.cull_inside(parts, armor_boxes(armor))
+	return parts
+
+
+static func _key(r: AvatarRecipe, armor: Dictionary) -> String:
+	var worn: Array[String] = []
+	for k in Equipment.SLOTS:
+		if (armor.get(k, Color(0, 0, 0, 0)) as Color).a > 0.0:
+			worn.append(k)
+	return r.to_json() + "|" + ",".join(worn)
 
 
 ## Mesh con occlusione cotta, calcolate subito (test, strumenti).
-static func hero_meshes(r: AvatarRecipe) -> Dictionary:
-	var key := r.to_json()
+static func hero_meshes(r: AvatarRecipe, armor: Dictionary = {}) -> Dictionary:
+	var key := _key(r, armor)
 	if not _mesh_cache.has(key):
-		var parts := HeroChargen.build(r.dna, HeroChargen.hair_lib())
+		var parts := body_parts(r, armor)
 		HeroChargen.bake_ao(parts)
 		_store(key, HeroChargen.to_rig(parts, {&"chest": chest_offset()}))
 	return _mesh_cache[key]
 
 
 static func _store(key: String, m: Dictionary) -> void:
-	if _mesh_cache.size() > 8:
+	if _mesh_cache.size() > 12:
 		_mesh_cache.clear()
 	_mesh_cache[key] = m
 
@@ -107,13 +122,13 @@ func _exit_tree() -> void:
 ## Mesh da mostrare ora: con occlusione se pronte, altrimenti senza (e parte
 ## il calcolo dell'occlusione su un thread).
 func _meshes_now(r: AvatarRecipe) -> Dictionary:
-	var key := r.to_json()
+	var key := _key(r, _armor_colors)
 	if _mesh_cache.has(key) or sync_ao or not is_inside_tree():
-		return hero_meshes(r)
-	var parts := HeroChargen.build(r.dna, HeroChargen.hair_lib())
+		return hero_meshes(r, _armor_colors)
+	var parts := body_parts(r, _armor_colors)
 	if _ao_task < 0:
 		_ao_key = key
-		var ao_parts := HeroChargen.build(r.dna, HeroChargen.hair_lib())
+		var ao_parts := body_parts(r, _armor_colors)
 		_ao_parts = ao_parts
 		_ao_task = WorkerThreadPool.add_task(func() -> void: HeroChargen.bake_ao(ao_parts), false, "occlusione eroe")
 	return HeroChargen.to_rig(parts, {&"chest": chest_offset()})
@@ -156,10 +171,9 @@ func build(r: AvatarRecipe) -> void:
 		var hm := held_mesh
 		weapon = null
 		set_weapon(wd, hm)
-	var armor := _armor_colors.duplicate()
 	_armor.clear()
-	for slot_name: String in armor:
-		set_armor(slot_name, armor[slot_name])
+	for slot_name: String in _armor_colors:
+		_add_armor(slot_name, _armor_colors[slot_name])
 
 
 func _mesh_node(bone: StringName, m: ArrayMesh) -> MeshInstance3D:
@@ -319,59 +333,97 @@ var _armor := {}
 var _armor_colors := {}
 
 
+## Un pezzo d'armatura: colore del materiale, trasparente = slot vuoto. Se
+## cambia cosa si indossa, il corpo si ricostruisce (facce coperte tolte).
 func set_armor(slot: String, mat: Color) -> void:
-	_armor_colors[slot] = mat
-	for n: MeshInstance3D in _armor.get(slot, []):
-		_instances.erase(n)
-		n.get_parent().remove_child(n)
-		n.queue_free()
-	_armor[slot] = []
-	if mat.a <= 0.0 or bones.is_empty():
+	var all := _armor_colors.duplicate()
+	all[slot] = mat
+	set_armor_all(all)
+
+
+func set_armor_all(colors: Dictionary) -> void:
+	var before := _key(recipe, _armor_colors)
+	_armor_colors = colors.duplicate()
+	if bones.is_empty():
 		return
-	# Pezzi a cubi smussati nelle unita' del modello CHARGEN, poi nelle ossa.
-	var W := HeroChargen.Builder.new()
+	if _key(recipe, _armor_colors) != before:
+		build(recipe)
+		return
+	for slot_name: String in _armor_colors:
+		_add_armor(slot_name, _armor_colors[slot_name])
+
+
+## Pezzi d'armatura nelle unita' del modello CHARGEN: [nome, osso, min, max, raggio, colore].
+static func armor_boxes_for(slot: String, mat: Color) -> Array:
+	var out := []
 	var band := mat.darkened(0.3)
 	var hi := mat.lightened(0.18)
 	var T: Dictionary = HeroChargen.BODY["torso"]
 	var tmin: Vector3 = T["min"]
 	var tmax: Vector3 = T["max"]
-	var box := func(n: String, bone: String, mn: Vector3, mx: Vector3, r: float, col: Color) -> void:
-		W.add(n, bone, HeroChargen.rbox(mn, mx, r, col))
 	match slot:
 		"head":
-			box.call("elmo", "head", Vector3(-.63, 2.18, -.64), Vector3(.63, 2.76, .63), .16, mat)
-			box.call("elmo", "head", Vector3(-.63, 1.76, -.64), Vector3(.63, 2.30, -.02), .08, mat)
-			box.call("elmo", "head", Vector3(-.65, 2.16, -.66), Vector3(.65, 2.30, .65), .04, band)
-			box.call("elmo", "head", Vector3(-.06, 1.80, .54), Vector3(.06, 2.30, .67), .03, band)
+			out.append(["elmo", "head", Vector3(-.63, 2.18, -.64), Vector3(.63, 2.76, .63), .16, mat])
+			out.append(["elmo", "head", Vector3(-.63, 1.76, -.64), Vector3(.63, 2.30, -.02), .08, mat])
+			out.append(["elmo", "head", Vector3(-.65, 2.16, -.66), Vector3(.65, 2.30, .65), .04, band])
+			out.append(["elmo", "head", Vector3(-.06, 1.80, .54), Vector3(.06, 2.30, .67), .03, band])
 			for s in [1, -1]:
-				box.call("elmo", "head", Vector3(.50 if s > 0 else -.65, 1.66, -.02), Vector3(.65 if s > 0 else -.50, 2.22, .30), .05, mat)
-			box.call("elmo", "head", Vector3(-.07, 2.74, -.07), Vector3(.07, 2.92, .07), .04, hi)
+				out.append(["elmo", "head", Vector3(.50 if s > 0 else -.65, 1.66, -.02), Vector3(.65 if s > 0 else -.50, 2.22, .30), .05, mat])
+			out.append(["elmo", "head", Vector3(-.07, 2.74, -.07), Vector3(.07, 2.92, .07), .04, hi])
 		"chest":
-			box.call("corazza", "torso", Vector3(tmin.x - .05, .98, tmin.z - .05), Vector3(tmax.x + .05, 1.50, tmax.z + .07), .10, mat)
-			box.call("corazza", "torso", Vector3(-.30, 1.10, tmax.z + .03), Vector3(.30, 1.40, tmax.z + .10), .05, hi)
-			box.call("corazza", "torso", Vector3(tmin.x - .04, .95, tmin.z - .04), Vector3(tmax.x + .04, 1.03, tmax.z + .06), .03, band)
+			out.append(["corazza", "torso", Vector3(tmin.x - .05, .98, tmin.z - .05), Vector3(tmax.x + .05, 1.50, tmax.z + .07), .10, mat])
+			out.append(["corazza", "torso", Vector3(-.30, 1.10, tmax.z + .03), Vector3(.30, 1.40, tmax.z + .10), .05, hi])
+			out.append(["corazza", "torso", Vector3(tmin.x - .04, .95, tmin.z - .04), Vector3(tmax.x + .04, 1.03, tmax.z + .06), .03, band])
 			for s in [1, -1]:
 				var m := "L" if s > 0 else "R"
-				box.call("spallaccio", "arm" + m + "U", Vector3(.50 if s > 0 else -.84, 1.08, -.38), Vector3(.84 if s > 0 else -.50, 1.60, .26), .10, mat)
-				box.call("spallaccio", "arm" + m + "U", Vector3(.78 if s > 0 else -.86, 1.06, -.40), Vector3(.86 if s > 0 else -.78, 1.62, .28), .03, band)
+				out.append(["spallaccio", "arm" + m + "U", Vector3(.50 if s > 0 else -.84, 1.08, -.38), Vector3(.84 if s > 0 else -.50, 1.60, .26), .10, mat])
+				out.append(["spallaccio", "arm" + m + "U", Vector3(.78 if s > 0 else -.86, 1.06, -.40), Vector3(.86 if s > 0 else -.78, 1.62, .28), .03, band])
 		"legs":
-			box.call("fiancale", "torso", Vector3(tmin.x - .04, .72, tmin.z - .04), Vector3(tmax.x + .04, .95, tmax.z + .06), .05, band)
+			out.append(["fiancale", "torso", Vector3(tmin.x - .04, .72, tmin.z - .04), Vector3(tmax.x + .04, .95, tmax.z + .06), .05, band])
 			for s in [1, -1]:
 				var m := "L" if s > 0 else "R"
 				var lx := [-.02, .53] if s > 0 else [-.53, .02]
-				box.call("cosciale", "leg" + m + "U", Vector3(lx[0], .42, -.36), Vector3(lx[1], .78, .24), .10, mat)
-				box.call("ginocchiera", "leg" + m + "F", Vector3(lx[0] + .1, .30, .14), Vector3(lx[1] - .1, .46, .27), .05, hi)
+				out.append(["cosciale", "leg" + m + "U", Vector3(lx[0], .42, -.36), Vector3(lx[1], .78, .24), .10, mat])
+				out.append(["ginocchiera", "leg" + m + "F", Vector3(lx[0] + .1, .30, .14), Vector3(lx[1] - .1, .46, .27), .05, hi])
 		"feet":
 			for s in [1, -1]:
 				var m := "L" if s > 0 else "R"
 				var lx := [-.02, .53] if s > 0 else [-.53, .02]
-				box.call("stivale", "leg" + m + "F", Vector3(lx[0], -.01, -.36), Vector3(lx[1], .30, .30), .10, mat)
-				box.call("stivale", "leg" + m + "F", Vector3(lx[0] + .02, .26, -.37), Vector3(lx[1] - .02, .33, .26), .03, band)
+				out.append(["stivale", "leg" + m + "F", Vector3(lx[0], -.01, -.36), Vector3(lx[1], .30, .30), .10, mat])
+				out.append(["stivale", "leg" + m + "F", Vector3(lx[0] + .02, .26, -.37), Vector3(lx[1] - .02, .33, .26), .03, band])
+	return out
+
+
+## Volumi coperti dall'armatura indossata: osso -> [AABB] (unita' del modello).
+static func armor_boxes(colors: Dictionary) -> Dictionary:
+	var out := {}
+	for slot: String in colors:
+		if (colors[slot] as Color).a <= 0.0:
+			continue
+		for b: Array in armor_boxes_for(slot, colors[slot]):
+			if not out.has(b[1]):
+				out[b[1]] = []
+			out[b[1]].append(AABB(b[2], (b[3] as Vector3) - (b[2] as Vector3)))
+	return out
+
+
+func _add_armor(slot: String, mat: Color) -> void:
+	for n: MeshInstance3D in _armor.get(slot, []):
+		_instances.erase(n)
+		if n.get_parent() != null:
+			n.get_parent().remove_child(n)
+		n.queue_free()
+	_armor[slot] = []
+	if mat.a <= 0.0 or bones.is_empty():
+		return
+	var W := HeroChargen.Builder.new()
+	for b: Array in armor_boxes_for(slot, mat):
+		W.add(b[0], b[1], HeroChargen.rbox(b[2], b[3], b[4], b[5]))
 	var meshes := HeroChargen.to_rig(W.parts, {&"chest": chest_offset()})
 	var list: Array = []
-	for b: StringName in meshes:
-		for m: ArrayMesh in meshes[b]:
-			list.append(_mesh_node(b, m))
+	for bn: StringName in meshes:
+		for m: ArrayMesh in meshes[bn]:
+			list.append(_mesh_node(bn, m))
 	_armor[slot] = list
 
 
