@@ -72,6 +72,18 @@ func cylinder(base: Vector3, r: float, h: float, c: Color) -> void:
 		line(base + o, base + o + Vector3(0, h, 0), c)
 
 
+func sphere(c: Vector3, r: float, col: Color) -> void:
+	for ax in 3:
+		var prev := Vector3.ZERO
+		for i in 17:
+			var a := TAU * i / 16.0
+			var v := Vector3(cos(a), sin(a), 0) if ax == 0 else (Vector3(cos(a), 0, sin(a)) if ax == 1 else Vector3(0, cos(a), sin(a)))
+			var p := c + v * r
+			if i > 0:
+				line(prev, p, col)
+			prev = p
+
+
 func finish() -> void:
 	if _open:
 		_mesh.surface_end()

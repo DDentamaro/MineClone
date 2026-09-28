@@ -1,6 +1,34 @@
 # Avanzamento
 
-## Stato corrente: M5 — Sandbox persistente con equipaggiamento RPG e magia ampliata · completata (senza prova su telefono)
+## Stato corrente: M5 — Sandbox persistente, equipaggiamento RPG, magia ampliata, eroe del prototipo · completata (senza prova su telefono)
+
+Sessione del 28/09/2026 (seguito). Richieste del proprietario dopo la prova: oggetti gettati che
+si possano riprendere (5 minuti), selezione delle magie più chiara, hitbox/hurtbox legate alle
+armi e ai pugni, ritorno all'eroe del prototipo (più piccolo) con un passo migliore tenendo le
+animazioni di combattimento (D-028).
+
+### Fatto (D-028)
+- **Oggetti a terra** (`GroundItems`): "Getta" posa l'oggetto, si riprende passandoci sopra,
+  sparisce dopo 5 minuti, resta nel salvataggio.
+- **Magie più chiare** (`SpellIcons`): icone per forma, pulsante Magia con la magia scelta e il
+  suo nome, numeri degli slot, nome al cambio, slot tenuto = libro, "Metti nello slot 1–5".
+- **Eroe del prototipo** (`HeroChargen`): porting di CHARGEN con le misure del rig del prototipo
+  e l'editor con le sue scelte; occlusione su un thread.
+- **Passo procedurale** (`GaitLegs`): piedi piantati e IK come il CharacterRig del prototipo.
+- **Hitbox sulle armi:** sfere lungo la lama o sui pugni contro la capsula del bersaglio, solo
+  nella fase attiva; posa dell'eroe al passo della fisica.
+
+### Test realmente eseguiti (D-028)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 189/189 PASS, log pulito (15 test nuovi: oggetti a terra 4, passo 5, hitbox 5, generatore dell'eroe 1; ricetta e altezza aggiornati) |
+| `tools/e2e_drop.gd` (tocchi reali nello zaino) | OK: spada gettata, a terra davanti all'eroe, ripresa passandoci sopra (l'eroe è spostato sul punto: lo stick non fa parte di questa prova) |
+| `tools/e2e_magic.gd` | OK: slot vuoto → libro sullo slot 5, "Metti nello slot 5", slot tenuto premuto → libro sullo slot 2, 14 magie lanciate, 61 colpi |
+| `tools/e2e_walk.gd` (stick vero) | OK: 21 m di corsa, 25–32 passi, piede d'appoggio fermo (0 mm), arresto con piedi piantati, salto, colpo |
+| `tools/e2e_combat.gd` | OK con le hitbox vere: catena di spada 5 colpi (combo 5), martello caricato 8, magia 16; screenshot all'istante del contatto |
+| `tools/e2e_sandbox.gd`, `e2e_touch.gd`, `e2e_swim.gd` | OK |
+| Prototipo aperto in Chromium (Playwright, SwiftShader) | eroe "v0.39-chargen" confrontato a occhio con il nostro alla stessa ricetta; lo zoom del prototipo non si è potuto avvicinare dallo script |
+
 
 Sessione del 28/09/2026. Richiesta del proprietario: M5 senza grotte, con aspetti da gioco di
 ruolo: equipaggiamento e magia ampliata dal file del proprietario (`RMNDWN_k122.html`, D-027).
@@ -51,6 +79,8 @@ ruolo: equipaggiamento e magia ampliata dal file del proprietario (`RMNDWN_k122.
 | Export Android debug 0.7.0-m5 (versionCode 9) + `apksigner verify` + `aapt2 dump badging` | OK; minSdk 24, targetSdk 36; mai installato su un telefono |
 
 ### Limiti aperti dopo M5
+- Hitbox: tarate sui manichini; senza nemici veri non c'è ancora prova di bilanciamento.
+- L'occlusione dell'eroe costa ~0,5–0,9 s su desktop (su un thread): mai misurata su telefono.
 - Nessuna prova su telefono né misura di FPS.
 - La difesa dell'armatura non ha ancora effetto (nemici rinviati, D-009).
 - Un solo salvataggio; "Nuovo seme" sostituisce il mondo al salvataggio successivo.

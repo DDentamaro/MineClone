@@ -11,8 +11,13 @@ extends RefCounted
 ##   un colpo (e la prima meta' della carica); un colpo nell'ultima parte della
 ##   capriola diventa l'attacco in corsa dell'arma.
 ## - In aria il colpo diventa una picchiata con urto ad area all'atterraggio.
-## - Colpi: arco spazzato, striscia che si allunga (affondi) o area; un colpo
-##   per bersaglio per attacco (salvo `rehit`), hitstop, scossa della camera.
+## - Colpi (D-028): con `hitboxes` forniti dal rig il danno nasce dal contatto
+##   hitbox/hurtbox come nel prototipo (sfere lungo la lama o sui pugni contro
+##   la capsula del bersaglio, test spazzato tra un passo e l'altro), solo nella
+##   fase attiva del colpo e nel primo tratto del seguito, solo con la lama in
+##   movimento; gli urti al suolo (area) restano ad area. Senza rig (test) i
+##   colpi usano le forme astratte: arco, striscia, area. Un colpo per bersaglio
+##   per attacco (salvo `rehit`), hitstop, scossa della camera.
 ##
 ## Nessun nodo: `step` e' deterministico e gira nei test headless.
 
@@ -69,6 +74,14 @@ var _prev_u := 0.0
 var _impact_done := false
 var _attack_facing := 0.0
 var _last_dodge_end := -99.0
+## Hitbox dell'arma in coordinate globali ([centro, raggio]), aggiornate dal
+## gioco prima di ogni passo; vuoto = forme astratte.
+var hitboxes: Array = []
+var _prev_boxes: Array = []
+## Seguito in cui la lama ferisce ancora (frazione del rientro).
+const FOLLOW := 0.3
+## Velocita' minima della sfera per ferire (la mano in guardia, l'elsa ferma no).
+const MIN_SPEED := 1.0
 
 
 func _init(w: WeaponDefinition = null) -> void:
@@ -219,6 +232,7 @@ func _start_attack(id: StringName, motor: PlayerMotor, targets: Array, stick: Ve
 	state = State.ATTACK
 	t = 0.0
 	_prev_u = 0.0
+	_prev_boxes = hitboxes.duplicate()
 	_impact_done = false
 	_hit_log.clear()
 	charging = a.charge_max > 0.0 and heavy_held
@@ -313,7 +327,12 @@ func _step_attack(dt: float, motor: PlayerMotor, targets: Array, stick: Vector2)
 		move_scale = a.move_scale if t < le else lerpf(a.move_scale, 0.7, clampf((t - le) / maxf(a.recovery, 1e-3), 0.0, 1.0))
 	# Colpi.
 	var ph := phase()
-	if ph == 1 and not a.plunge:
+	var blade := not hitboxes.is_empty() and a.shape != AttackDefinition.Shape.RADIAL and not a.plunge
+	if blade:
+		if ph == 1 or (ph == 2 and phase_u() <= FOLLOW):
+			_blade_hits(motor.position, targets, dt)
+		_prev_boxes = hitboxes.duplicate()
+	elif ph == 1 and not a.plunge:
 		var u := phase_u()
 		match a.shape:
 			AttackDefinition.Shape.ARC:
@@ -327,7 +346,7 @@ func _step_attack(dt: float, motor: PlayerMotor, targets: Array, stick: Vector2)
 					var f := forward(facing)
 					events.append({"type": "impact", "attack": a, "position": motor.position + Vector3(f.x, 0, f.y) * a.radial_ahead})
 		_prev_u = u
-	elif ph == 2 and before < a.windup + a.active and not a.plunge:
+	elif ph == 2 and before < a.windup + a.active and not a.plunge and not blade:
 		# Chiusura del colpo: ultimo tratto dell'arco anche con passi lunghi.
 		if a.shape == AttackDefinition.Shape.ARC:
 			_arc_hits(motor.position, targets, _prev_u, 1.0)
@@ -467,6 +486,49 @@ func _radial_hit(from: Vector3, targets: Array) -> void:
 		_hit(tg, dir, from)
 
 
+## Capsula verticale del bersaglio (hurtbox): [y0, y1, raggio].
+static func hurtbox(tg: CombatTarget) -> Array:
+	return [tg.position.y + 0.08, tg.position.y + tg.height * 0.95, tg.radius]
+
+
+static func sphere_capsule(c: Vector3, r: float, tg: CombatTarget) -> bool:
+	var hb := hurtbox(tg)
+	var cy := clampf(c.y, hb[0], hb[1])
+	var d := Vector3(c.x - tg.position.x, c.y - cy, c.z - tg.position.z)
+	return d.length_squared() <= (r + float(hb[2])) * (r + float(hb[2]))
+
+
+## Contatto spazzato: la sfera nella posizione di ora e in 3 punti intermedi
+## dal passo precedente (niente passaggi a vuoto a pochi FPS).
+func _blade_hits(from: Vector3, targets: Array, dt: float) -> void:
+	var same := _prev_boxes.size() == hitboxes.size()
+	for o in targets:
+		var tg := o as CombatTarget
+		if tg == null or not _can_hit(tg):
+			continue
+		for i in hitboxes.size():
+			var c: Vector3 = hitboxes[i][0]
+			var r: float = hitboxes[i][1]
+			var p0: Vector3 = _prev_boxes[i][0] if same else c
+			if not same or dt <= 0.0 or p0.distance_to(c) / dt < MIN_SPEED:
+				continue
+			var at := Vector3.INF
+			for k in [0.25, 0.5, 0.75, 1.0]:
+				var q := p0.lerp(c, k)
+				if sphere_capsule(q, r, tg):
+					at = q
+					break
+			if at == Vector3.INF:
+				continue
+			# Direzione: dal giocatore al bersaglio, piegata nel verso della lama.
+			var radial := Vector2(tg.position.x - from.x, tg.position.z - from.z)
+			radial = radial.normalized() if radial.length() > 0.05 else forward(_attack_facing)
+			var mv := Vector2(c.x - p0.x, c.z - p0.z)
+			var dir := (radial + mv.normalized() * 0.55).normalized() if mv.length() > 1e-4 else radial
+			_hit(tg, dir, from, at)
+			break
+
+
 ## Vero se tra `a` e `b` non c'e' un blocco opaco (raggio voxel).
 func clear_path(a: Vector3, b: Vector3) -> bool:
 	if world == null or opaque.is_empty():
@@ -479,7 +541,7 @@ func clear_path(a: Vector3, b: Vector3) -> bool:
 	return h == null
 
 
-func _hit(tg: CombatTarget, dir: Vector2, from: Vector3) -> void:
+func _hit(tg: CombatTarget, dir: Vector2, from: Vector3, at: Vector3 = Vector3.INF) -> void:
 	# Niente colpi attraverso le pareti: dal petto (o dal punto d'urto) al bersaglio.
 	var eye := from + Vector3(0, 0.9, 0)
 	if attack.shape == AttackDefinition.Shape.RADIAL:
@@ -500,5 +562,9 @@ func _hit(tg: CombatTarget, dir: Vector2, from: Vector3) -> void:
 	combo_t = 0.0
 	var p := tg.position + Vector3(0, tg.height * 0.6, 0)
 	var back := Vector3(from.x - p.x, 0, from.z - p.z).normalized() * tg.radius
+	if at != Vector3.INF:
+		# Scintilla dove la lama tocca: sulla superficie della capsula.
+		p = Vector3(tg.position.x, clampf(at.y, tg.position.y + 0.1, tg.position.y + tg.height), tg.position.z)
+		back = Vector3(at.x - p.x, 0, at.z - p.z).normalized() * tg.radius
 	events.append({"type": "hit", "attack": attack, "target": tg, "position": p + back, "dir": Vector3(dir.x, 0, dir.y),
 		"damage": dmg, "shake": attack.shake * (1.0 + cf * 0.6) * (1.3 if crit else 1.0), "charge": cf, "crit": crit})

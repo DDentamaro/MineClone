@@ -1,7 +1,7 @@
 class_name GaitLegs
 extends RefCounted
 ## Locomozione procedurale dell'eroe del prototipo (D-028): porting di
-## `CharacterRig.updateAnimation` (HTML 6121–6202, costanti GAIT). Piedi
+## `CharacterRig.updateAnimation` (HTML 6221–6357, costanti GAIT a 5775). Piedi
 ## piantati nel mondo, passo con arco 9,48(1-u)^3 u verso un bersaglio
 ## ri-stimato ogni frame (casa + avanzamento del corpo nel tempo residuo +
 ## meta' della corsa d'appoggio), cadenza e fattore d'appoggio che dipendono

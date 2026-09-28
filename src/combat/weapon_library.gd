@@ -83,6 +83,7 @@ static func _fists() -> WeaponDefinition:
 	w.air_attack = &"dive"
 	w.trail_from = -0.02
 	w.trail_to = 0.08
+	w.hit_r = 0.12
 	w.relaxed = pose({"arm_l": [4, 0, -6], "fore_l": [16, 0, 0], "arm_r": [4, 0, 6], "fore_r": [16, 0, 0]})
 	w.guard = pose({"arm_l": [34, 10, -8], "fore_l": [112, 0, 0], "arm_r": [26, 8, 10], "fore_r": [118, 0, 0], "chest": [0, 12, 0], "hand_r": [-60, 0, 0], "hand_l": [-60, 0, 0]})
 	var jab := {"windup": 0.05, "active": 0.07, "recovery": 0.16, "chain_at": 0.2, "shape": AttackDefinition.Shape.THRUST,
@@ -135,6 +136,7 @@ static func _tool() -> WeaponDefinition:
 	w.display_name = "Attrezzo"
 	w.trail_from = 0.35
 	w.trail_to = 0.62
+	w.hit_r = 0.12
 	return w
 
 
@@ -218,6 +220,7 @@ static func _spear() -> WeaponDefinition:
 	w.air_attack = &"plunge"
 	w.trail_from = 1.25
 	w.trail_to = 1.62
+	w.hit_from = 0.95
 	w.move_mult = 1.0
 	w.relaxed = pose({"arm_r": [10, 0, 10], "fore_r": [70, 0, 0], "hand_r": [0, 0, 0], "arm_l": [4, 0, -6], "fore_l": [14, 0, 0]})
 	w.guard = pose({"arm_r": [8, 0, 12], "fore_r": [72, 0, 0], "hand_r": [-62, 0, 0], "chest": [0, -20, 0], "head": [0, 18, 0]})
@@ -266,6 +269,8 @@ static func _hammer() -> WeaponDefinition:
 	w.air_attack = &"meteor"
 	w.trail_from = 0.72
 	w.trail_to = 1.0
+	w.hit_from = 0.78
+	w.hit_r = 0.17
 	w.relaxed = pose({"arm_r": [40, 24, 12], "fore_r": [124, 0, 0], "hand_r": [-16, 0, 0], "arm_l": [4, 0, -6], "fore_l": [14, 0, 0]})
 	w.guard = pose({"arm_r": [38, 22, 12], "fore_r": [118, 0, 0], "hand_r": [-20, 0, 0], "chest": [0, -10, 0]})
 	var sw := {"windup": 0.24, "active": 0.14, "recovery": 0.34, "chain_at": 0.2, "shape": AttackDefinition.Shape.ARC,
@@ -317,6 +322,7 @@ static func _greatsword() -> WeaponDefinition:
 	w.air_attack = &"plunge"
 	w.trail_from = 0.3
 	w.trail_to = 1.45
+	w.hit_r = 0.11
 	w.relaxed = pose({"arm_r": [40, 22, 12], "fore_r": [122, 0, 0], "hand_r": [-12, 0, 0], "arm_l": [4, 0, -6], "fore_l": [14, 0, 0]})
 	w.guard = pose({"arm_r": [30, 16, 8], "fore_r": [70, 0, 0], "hand_r": [-52, 0, 0], "chest": [0, -12, 0]})
 	var sw := {"windup": 0.2, "active": 0.15, "recovery": 0.3, "chain_at": 0.2, "shape": AttackDefinition.Shape.ARC,

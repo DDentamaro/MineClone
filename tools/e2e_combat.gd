@@ -81,6 +81,11 @@ func _process(_dt: float) -> bool:
 				_tap(&"attack")
 			if c.attack != null and c.phase() == 1 and c.phase_u() > 0.45:
 				_shot("swing_%s" % c.attack.id)
+			# Istante del contatto: hitbox della lama sul manichino colpito.
+			if c.attack != null and (c.phase() == 1 or (c.phase() == 2 and c.phase_u() <= CombatController.FOLLOW)):
+				for d in _game._dummies.dummies:
+					if d.flash > 0.3:
+						_shot("contatto")
 			if _frame == 150:
 				_hits = _count_hits()
 				_log.append("spada: colpi a segno %d, combo massima %d" % [_hits, _max_combo])

@@ -68,6 +68,8 @@ var _audio: MagicAudio
 var _light_key := false
 var paused := false
 var show_hitboxes := false
+## Danno dal contatto della lama (D-028); falso = forme astratte di M4.
+var use_blade_hitboxes := true
 var _preset_i := 0
 var _hitbox_lines: DebugLines
 var _cursor_lines: DebugLines
@@ -306,6 +308,8 @@ func _physics_process(dt: float) -> void:
 		# Durante la magia il corpo a corpo non parte (la capriola si').
 		if combat.buffer != &"dodge":
 			combat.buffer = &""
+	# Hitbox vere: la lama (o i pugni) nella posa corrente dell'eroe.
+	combat.hitboxes = _avatar.rig.hitboxes() if use_blade_hitboxes else []
 	combat.step(dt, motor, targets, _move_world)
 	_handle_combat_events()
 	var frozen := combat.hitstop > 0.0
@@ -340,6 +344,9 @@ func _physics_process(dt: float) -> void:
 			_avatar.face_towards(Vector2(motor.velocity.x, motor.velocity.z), dt)
 	for d in _dummies.step(0.0 if frozen else dt):
 		fx.broke(d)
+	# Posa dell'eroe al passo della fisica (D-028): la lama che ferisce e' quella
+	# che si vede, anche quando piu' passi di fisica cadono in un fotogramma.
+	_avatar.animate(0.0 if combat.hitstop > 0.0 else dt, motor, combat, magic)
 
 
 ## Riquadri dei colpi (Hitbox) e cubo del cursore di costruzione.
@@ -348,9 +355,15 @@ func _draw_debug() -> void:
 	if show_hitboxes:
 		for d in _dummies.dummies:
 			if d.alive:
-				_hitbox_lines.cylinder(d.position, d.radius, d.height, Color(0.4, 1, 0.5) if d.flash <= 0.0 else Color(1, 0.3, 0.3))
+				var hb := CombatController.hurtbox(d)
+				_hitbox_lines.cylinder(Vector3(d.position.x, hb[0], d.position.z), hb[2], hb[1] - hb[0], Color(0.4, 1, 0.5) if d.flash <= 0.0 else Color(1, 0.3, 0.3))
 		var a := combat.attack
-		if a != null:
+		if a != null and not combat.hitboxes.is_empty() and a.shape != AttackDefinition.Shape.RADIAL and not a.plunge:
+			# Hitbox della lama: gialle quando feriscono, grigie altrimenti.
+			var live := combat.phase() == 1 or (combat.phase() == 2 and combat.phase_u() <= CombatController.FOLLOW)
+			for hb: Array in combat.hitboxes:
+				_hitbox_lines.sphere(hb[0], hb[1], Color(1, 0.9, 0.2) if live else Color(0.6, 0.6, 0.6))
+		elif a != null:
 			var col := Color(1, 0.9, 0.2) if combat.phase() == 1 else Color(0.6, 0.6, 0.6)
 			var base := motor.position + Vector3(0, 0.05, 0)
 			var f := combat._attack_facing
@@ -506,7 +519,6 @@ func _process(dt: float) -> void:
 	_autosave_t += dt
 	if _autosave_t >= AUTOSAVE_S and not _args.has("screenshot"):
 		save_game()
-	_avatar.animate(0.0 if combat.hitstop > 0.0 else dt, motor, combat, magic)
 	mfx.update(dt, magic, _avatar.rig.cast_point(), p)
 	_apply_magic_globals(_avatar.rig.cast_point(), p)
 	_audio_n += 1

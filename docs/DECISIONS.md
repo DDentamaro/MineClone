@@ -359,3 +359,43 @@ nucleo K116, segni di materia K122). Presi regole e numeri, non il codice.
 - **Interfaccia:** barra di 5 magie sul bordo destro (tocco = scelta, slot vuoto = apre il libro;
   Y scorre), scheda "Magie" nello zaino (colonne per scuola, dettagli, bloccate e oltre
   l'Output segnate, tocca una magia e poi uno slot). Libro e barra si salvano.
+
+## D-028 — Eroe del prototipo, passo procedurale, hitbox sulle armi, oggetti a terra
+Richiesta del proprietario dopo la prova della magia ampliata: locomozione dell'eroe "pessima",
+tornare al personaggio di IsoTerra (più piccolo) tenendo le animazioni di combattimento; danno
+legato alle armi e ai pugni per avere un tempo chiaro; oggetti gettati che si possano riprendere
+(5 minuti); selezione delle magie più chiara. Supera in parte D-022 (l'aspetto e le gambe).
+- **Eroe:** porting di CHARGEN v2 e CHARGEN.rig del prototipo (`HeroChargen`): scatole smussate
+  ad arco, viso a placche, 16 acconciature (i due capelli "originali" estratti invariati in
+  `data/hero/hair.json` da `tools/extract_hero_hair.py`), cappelli, barbe, cicatrici, pitture,
+  accessori, occlusione cotta nella posa di riposo e pezzi riespressi nelle ossa. Misure del rig
+  del prototipo: anca .32, collo .80, omero .21, avambraccio+mano .28, coscia .15, stinco+piede
+  .185, testa ×.54 (grande). L'occlusione si calcola su un thread (l'eroe appare subito senza,
+  poi si aggiorna) con una cache per ricetta. Il personaggio guarda -Z: i pezzi del modello
+  (+Z davanti) sono ruotati di 180°, restando anatomicamente corretti.
+- **Ricetta:** il DNA di CHARGEN (v2) sostituisce quello di M4; una ricetta v1 salvata torna a
+  "Eroe 1". L'editor fa scorrere le scelte del prototipo (acconciatura, cappello, occhi,
+  sopracciglia, bocca, barba, viso, maniche, gambe, schiena, cintura) e le sue palette; "Casuale"
+  usa il generatore del prototipo (Mulberry32, stesso seme = stesso eroe).
+- **Passo:** porting di `CharacterRig.updateAnimation` (costanti GAIT) in `GaitLegs`: piedi
+  piantati nel mondo, IK a due ossa col ginocchio in avanti, cadenza e appoggio secondo la
+  velocità, arco 9,48(1-u)³u, bersaglio ri-stimato ogni frame, assestamento da fermi, bacino che
+  scende sui gradini, bob, ondeggio e inclinazione, gambe raccolte in aria. L'animatore di M4 tiene
+  braccia, busto e colpi (le pose chiave restano); durante capriola e nuoto le gambe tornano sue.
+  Verificato che il piede d'appoggio non scivola (test e prova e2e: 0 mm su 21 m di corsa).
+- **Armi:** stesse mesh di M4 a scala 0,72 nella mano (la spada è ~0,7 m come nel prototipo).
+  Armature del M5 rifatte a cubi smussati sulle nuove proporzioni.
+- **Hitbox/hurtbox (come il prototipo):** il danno nasce dal contatto tra sfere lungo il tratto
+  che ferisce dell'arma (o su mano e polso a mani nude) e la capsula verticale del bersaglio, con
+  test spazzato fra un passo e l'altro. Ferisce solo nella fase attiva del colpo e nel primo 30%
+  del seguito, e solo se la sfera si muove (≥1 m/s: la mano in guardia o l'elsa ferma no). Gli
+  urti al suolo (martello, picchiata) restano ad area. Un colpo per bersaglio per attacco (salvo i
+  giri), niente colpi attraverso i muri. La posa dell'eroe ora si calcola al passo della fisica:
+  la lama che ferisce è quella che si vede anche a pochi FPS. Il pulsante Hitbox mostra le sfere
+  (gialle quando feriscono) e le capsule. Senza rig (test) restano le forme astratte di M4.
+- **Oggetti a terra:** "Getta" posa l'oggetto davanti all'eroe; si riprende passandoci sopra dopo
+  1 s; sparisce dopo 5 minuti (lampeggia negli ultimi 10 s); resta nel salvataggio con la sua età.
+- **Magie:** icone disegnate per forma nel colore della scuola (grigie oltre l'Output, lucchetto se
+  sconosciute), pulsante Magia con icona e nome della magia scelta (o il motivo del blocco), numero
+  dello slot sulla barra, nome al centro dello schermo al cambio, slot tenuto premuto = libro su
+  quello slot, nel libro "Metti nello slot 1–5".

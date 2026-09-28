@@ -283,6 +283,28 @@ func blade_segment() -> PackedVector3Array:
 	return PackedVector3Array([g * Vector3(0, weapon.trail_from, 0), g * Vector3(0, weapon.trail_to, 0)])
 
 
+## Hitbox dell'arma (D-028) in coordinate globali: [centro, raggio] lungo il
+## tratto che ferisce, o sui pugni (mano e polso) a mani nude.
+func hitboxes() -> Array:
+	var out := []
+	if weapon == null or socket == null or not is_inside_tree():
+		return out
+	if weapon.kind == WeaponDefinition.Kind.FISTS:
+		for side in [&"r", &"l"]:
+			var hx: Transform3D = (bones[StringName("hand_" + side)] as Node3D).global_transform
+			out.append([hx * Vector3(0, -HAND, 0), weapon.hit_r])
+			out.append([hx * Vector3(0, 0.05, 0), weapon.hit_r * 0.75])
+		return out
+	var g := socket.global_transform
+	var a := weapon.hit_from if weapon.hit_from >= 0.0 else weapon.trail_from
+	var b := weapon.hit_to if weapon.hit_to >= 0.0 else weapon.trail_to
+	var length := (b - a) * WEAPON_SCALE
+	var n := maxi(2, ceili(length / (weapon.hit_r * 1.5))) + 1
+	for i in n:
+		out.append([g * Vector3(0, lerpf(a, b, float(i) / (n - 1)), 0), weapon.hit_r])
+	return out
+
+
 ## Punto di lancio della magia: palmo sinistro, in coordinate globali.
 func cast_point() -> Vector3:
 	var x := global_transform * rig_xf(bones[&"hand_l"]) if is_inside_tree() else rig_xf(bones[&"hand_l"])
