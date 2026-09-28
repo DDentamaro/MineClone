@@ -7,6 +7,19 @@ si possano riprendere (5 minuti), selezione delle magie più chiara, hitbox/hurt
 armi e ai pugni, ritorno all'eroe del prototipo (più piccolo) con un passo migliore tenendo le
 animazioni di combattimento (D-028).
 
+Seguito del 28/09/2026 (D-033): opzioni come pannello modale che entra nel telefono, mira
+assistita leggera, catene che vanno a segno con ogni arma, forte della spada a terra.
+
+### Test realmente eseguiti (D-033)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 211/211 PASS, log pulito (nuovi: mira assistita leggera, correzione massima 20°, colpo in coda fino al seguito, catena di pugni a segno) |
+| `tools/e2e_options.gd` e `--phone` (nuova) | OK: pannello dentro lo schermo, stick spento col pannello aperto, un tocco su Nuovo seme non rigenera, chiusura con Opzioni, Chiudi e tocco fuori; nessun fotogramma bloccato |
+| `tools/e2e_moveset.gd` (nuova, hitbox vere) | Prima: 9 colpi del primo giro a vuoto. Dopo: OK, tutte le catene e tutti i forti a segno, salto 0 m |
+| `e2e_combat`, `e2e_touch`, `e2e_sandbox`, `e2e_walk`, `e2e_drop`, `e2e_swim`, `e2e_magic` | OK, nessun errore di script |
+| `tools/e2e_armory.gd` | OK dopo aver spostato il tocco "sul mondo" fuori dal pannello modale (prima toccava il centro dello schermo, ora dentro il pannello) |
+| Export Android debug 0.12.0-m5 (versionCode 14) + `apksigner verify` | OK; mai installato su un telefono |
+
 Seguito del 28/09/2026 (D-032): terra come il reticolo di granelli di RMNDWN (dopo una prova con
 cubetti solidi che non è piaciuta) con i Coni gemelli, accumulo della sostanza nel palmo al posto
 del glifo, colpi continui di fuoco e acqua, numeri del danno, barra delle magie che entra nel

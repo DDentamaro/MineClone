@@ -84,7 +84,8 @@ func _process(_dt: float) -> bool:
 				_check(not _game._touch.dev_open, "chiuse col pulsante Chiudi")
 				_tap(&"dev")
 			if _frame == 35:
-				_tap_at(Vector2(640, 420))
+				# Fuori dal pannello modale (D-033): la striscia in basso sotto il pannello.
+				_tap_at(Vector2(_game._touch.size.x * 0.5, _game._touch.size.y - 3.0))
 			if _frame == 45:
 				_check(not _game._touch.dev_open, "chiuse toccando il mondo")
 				_tap(&"dev")
