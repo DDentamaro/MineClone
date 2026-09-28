@@ -106,7 +106,7 @@ func test_pinch_zoom_senza_tap() -> void:
 func test_pulsanti() -> void:
 	var tc := _make()
 	var jump := tc.button_rect(&"jump").get_center()
-	var mode := tc.button_rect(&"mode").get_center()
+	var mode := tc.button_rect(&"bag").get_center()
 	_down(tc, 2, jump)
 	check(tc.is_held(&"jump"), "salto mantenuto")
 	_down(tc, 5, Vector2(200, 600))
@@ -115,7 +115,7 @@ func test_pulsanti() -> void:
 	_up(tc, 2, jump)
 	check(not tc.is_held(&"jump"), "salto rilasciato")
 	_down(tc, 1, mode)
-	check_eq(_buttons, [&"mode"] as Array[StringName], "modo premuto una volta")
+	check_eq(_buttons, [&"bag"] as Array[StringName], "zaino premuto una volta")
 	_up(tc, 1, mode)
 	check_eq(_taps.size(), 0, "i pulsanti non generano tap sul mondo")
 	tc.free()
@@ -133,4 +133,20 @@ func test_reset_su_perdita_focus() -> void:
 	# Un rilascio tardivo non produce azioni.
 	_up(tc, 1, Vector2(1200, 650))
 	check_eq(_buttons.size(), 0, "nessuna azione")
+	tc.free()
+
+
+func test_tocco_tenuto_sul_mondo() -> void:
+	var tc := _make()
+	var holds: Array = []
+	tc.world_hold.connect(func(p: Vector2, on: bool) -> void: holds.append(on))
+	_down(tc, 0, Vector2(900, 300))
+	# Il tempo passa: simulato spostando l'inizio del dito indietro.
+	for f in tc._fingers.values():
+		f.t0 -= 300
+	tc._process(0.016)
+	check_eq(holds, [true], "inizio della tenuta")
+	_up(tc, 0, Vector2(900, 300))
+	check_eq(holds, [true, false], "fine della tenuta")
+	check_eq(_taps.size(), 0, "una tenuta non e' un tap")
 	tc.free()

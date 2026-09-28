@@ -16,6 +16,8 @@ func _initialize() -> void:
 	# Impostazioni proprie, per non toccare quelle del giocatore.
 	Settings.path = "user://e2e_settings.cfg"
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(Settings.path))
+	SaveService.path = "user://e2e_saves/world.save"
+	SaveService.delete_all()
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--out="):
 			_out = a.substr(6)
@@ -55,8 +57,10 @@ func _process(_dt: float) -> bool:
 				var moved := _game.motor.position.distance_to(_start_pos)
 				print("stick: spostamento %.2f in 60 frame (posizione %s)" % [moved, _game.motor.position])
 				_ok = _ok and moved > 1.0
-				_game._on_button(&"mode") # Esplora -> Costruisci
-				_game._select_block(BlockCatalog.STONE)
+				# Pietra nella barra rapida, scelta col suo pulsante.
+				_game.items.inv.set_slot(2, ItemStack.new(&"stone", 8))
+				_touch(2, _game._touch.button_rect(&"hot2").get_center(), true)
+				_touch(2, _game._touch.button_rect(&"hot2").get_center(), false)
 				_phase = 2
 				_frame = 0
 		2:

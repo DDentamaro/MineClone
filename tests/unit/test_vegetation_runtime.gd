@@ -61,3 +61,18 @@ func test_nuovo_mondo_scarta_il_lavoro_precedente() -> void:
 	check_eq(v.spots.size(), 0, "nessun albero del mondo precedente (pietra, niente erba)")
 	check_eq(v._grass_nodes.size(), 0, "nessuna erba")
 	v.free()
+
+
+func test_abbattere_un_albero() -> void:
+	var w := WorldFactory.from_fixture(BlockCatalog.load_default())
+	var rt := VegetationRuntime.new()
+	(Engine.get_main_loop() as SceneTree).root.add_child(rt)
+	rt.setup(w, BlockCatalog.load_default(), w.world_seed)
+	rt.flush()
+	var sp: Vegetation.TreeSpot = rt.spots[10]
+	var near_before := rt.trees_near(sp.x, sp.z, 0).size()
+	rt.kill_tree(sp)
+	check(sp.dead, "abbattuto")
+	check_eq(rt.trees_near(sp.x, sp.z, 0).size(), near_before - 1, "sparito dalla griglia")
+	check_eq(rt.dead_indices(), [10] as Array[int], "indice per il salvataggio")
+	rt.free()

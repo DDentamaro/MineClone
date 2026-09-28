@@ -21,6 +21,8 @@ func _initialize() -> void:
 	# Impostazioni proprie, per non toccare quelle del giocatore.
 	Settings.path = "user://e2e_settings.cfg"
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(Settings.path))
+	SaveService.path = "user://e2e_saves/world.save"
+	SaveService.delete_all()
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--out="):
 			_out = a.substr(6)
@@ -84,8 +86,7 @@ func _process(_dt: float) -> bool:
 				_log.append("spada: colpi a segno %d, combo massima %d" % [_hits, _max_combo])
 				_ok = _ok and _hits >= 3 and _max_combo >= 3
 				_game.show_hitboxes = false
-				_tap(&"weapon")
-				_tap(&"weapon")
+				_game.select_weapon(3)
 				_phase = 2
 				_frame = 0
 		2:

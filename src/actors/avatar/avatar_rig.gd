@@ -114,8 +114,13 @@ func build(r: AvatarRecipe) -> void:
 	(bones[&"hand_r"] as Node3D).add_child(socket)
 	if weapon != null:
 		var wd := weapon
+		var hm := held_mesh
 		weapon = null
-		set_weapon(wd)
+		set_weapon(wd, hm)
+	var armor := _armor_colors.duplicate()
+	_armor.clear()
+	for slot_name: String in armor:
+		set_armor(slot_name, armor[slot_name])
 
 
 func _head(r: AvatarRecipe, skin: Color) -> MeshKit:
@@ -164,10 +169,15 @@ func _mesh(bone: StringName, k: MeshKit) -> MeshInstance3D:
 	return mi
 
 
-func set_weapon(w: WeaponDefinition) -> void:
-	if w == weapon:
+## `mesh` sostituisce la mesh dell'arma (materiale dell'oggetto, attrezzi).
+var held_mesh: ArrayMesh
+
+
+func set_weapon(w: WeaponDefinition, mesh_override: ArrayMesh = null) -> void:
+	if w == weapon and mesh_override == held_mesh:
 		return
 	weapon = w
+	held_mesh = mesh_override
 	for n in _weapon_nodes:
 		_instances.erase(n)
 		n.get_parent().remove_child(n)
@@ -175,7 +185,7 @@ func set_weapon(w: WeaponDefinition) -> void:
 	_weapon_nodes.clear()
 	if w == null or bones.is_empty():
 		return
-	var mesh := WeaponMeshes.build(w.kind)
+	var mesh := held_mesh if held_mesh != null else WeaponMeshes.build(w.kind)
 	if w.kind == WeaponDefinition.Kind.FISTS:
 		for h in [&"hand_r", &"hand_l"]:
 			var mi := MeshInstance3D.new()
@@ -271,6 +281,79 @@ func blade_segment() -> PackedVector3Array:
 func cast_point() -> Vector3:
 	var x := global_transform * rig_xf(bones[&"hand_l"]) if is_inside_tree() else rig_xf(bones[&"hand_l"])
 	return x * Vector3(0, -HAND - 0.04, 0)
+
+
+## Armatura indossata (M5): pezzi a scatole smussate sopra le ossa, nel colore
+## del materiale. `mat` trasparente = slot vuoto.
+var _armor := {}
+
+
+var _armor_colors := {}
+
+
+func set_armor(slot: String, mat: Color) -> void:
+	_armor_colors[slot] = mat
+	for n: MeshInstance3D in _armor.get(slot, []):
+		_instances.erase(n)
+		n.get_parent().remove_child(n)
+		n.queue_free()
+	_armor[slot] = []
+	if mat.a <= 0.0 or bones.is_empty():
+		return
+	var w := recipe.width()
+	var band := mat.darkened(0.3)
+	var hi := mat.lightened(0.18)
+	var parts := []
+	match slot:
+		"head":
+			var k_head := MeshKit.new()
+			k_head.box(Vector3(0, 0.27, 0.01), Vector3(0.38, 0.22, 0.35), mat, 0.05)
+			k_head.box(Vector3(0, 0.39, 0.01), Vector3(0.1, 0.05, 0.38), hi, 0.015)
+			for sx in [-1.0, 1.0]:
+				k_head.box(Vector3(0.185 * sx, 0.15, 0.03), Vector3(0.03, 0.16, 0.24), band, 0.01)
+			k_head.box(Vector3(0, 0.17, 0.17), Vector3(0.36, 0.2, 0.03), band, 0.01)
+			parts.append([&"head", k_head])
+		"chest":
+			var k_chest := MeshKit.new()
+			k_chest.box(Vector3(0, 0.12, 0), Vector3(0.44 * w, 0.26, 0.27), mat, 0.05, 0.86)
+			k_chest.box(Vector3(0, 0.2, -0.137), Vector3(0.3 * w, 0.05, 0.02), hi, 0.01)
+			k_chest.box(Vector3(0, 0.02, 0), Vector3(0.40 * w, 0.05, 0.28), band, 0.012)
+			parts.append([&"chest", k_chest])
+			var k_belly := MeshKit.new()
+			k_belly.box(Vector3(0, 0.08, 0), Vector3(0.34 * w, 0.19, 0.225), mat.darkened(0.1), 0.03)
+			k_belly.box(Vector3(0, 0.12, 0), Vector3(0.35 * w, 0.03, 0.23), band, 0.008)
+			parts.append([&"spine", k_belly])
+			for side in ["l", "r"]:
+				var sx := 1.0 if side == "r" else -1.0
+				var ks := MeshKit.new()
+				ks.box(Vector3(0.02 * sx, 0.0, 0), Vector3(0.17 * w, 0.1, 0.17 * w), mat, 0.04)
+				ks.box(Vector3(0.02 * sx, -0.06, 0), Vector3(0.16 * w, 0.03, 0.16 * w), band, 0.01)
+				parts.append([StringName("arm_" + side), ks])
+		"legs":
+			var kh := MeshKit.new()
+			kh.box(Vector3(0, -0.07, 0), Vector3(0.35 * w, 0.12, 0.22), band, 0.03)
+			kh.box(Vector3(0, -0.07, -0.112), Vector3(0.22, 0.1, 0.02), mat, 0.01)
+			parts.append([&"hips", kh])
+			for side in ["l", "r"]:
+				var kl := MeshKit.new()
+				kl.box(Vector3(0, -0.12, -0.01), Vector3(0.16 * w, 0.22, 0.17), mat, 0.035, 0.9)
+				kl.box(Vector3(0, -0.27, -0.06), Vector3(0.1, 0.07, 0.06), hi, 0.015)
+				parts.append([StringName("leg_" + side), kl])
+		"feet":
+			for side in ["l", "r"]:
+				var kf := MeshKit.new()
+				kf.box(Vector3(0, -0.2, -0.01), Vector3(0.15, 0.13, 0.16), mat, 0.03)
+				kf.box(Vector3(0, -0.258, -0.03), Vector3(0.155, 0.1, 0.23), band, 0.03)
+				parts.append([StringName("shin_" + side), kf])
+	var list: Array = []
+	for pr: Array in parts:
+		var mi := MeshInstance3D.new()
+		mi.mesh = (pr[1] as MeshKit).commit()
+		mi.material_override = _material
+		(bones[pr[0]] as Node3D).add_child(mi)
+		_instances.append(mi)
+		list.append(mi)
+	_armor[slot] = list
 
 
 func set_light(sun: float, blk: float) -> void:

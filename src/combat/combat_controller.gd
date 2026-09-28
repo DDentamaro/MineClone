@@ -57,6 +57,10 @@ var clock := 0.0
 var world: WorldData
 var opaque := PackedByteArray()
 
+## Statistiche dell'equipaggiamento (M5): moltiplicatore del danno e critico (×1,5).
+var damage_mult := 1.0
+var crit_chance := 0.0
+var rng := RandomNumberGenerator.new()
 ## Cambio d'arma in corso (secondi): gli attacchi aspettano.
 var draw_t := 0.0
 var _hit_log := {}
@@ -486,7 +490,8 @@ func _hit(tg: CombatTarget, dir: Vector2, from: Vector3) -> void:
 	_hit_log[tg] = t
 	var cf := charge_fraction()
 	var mult := 1.0 + cf * attack.charge_bonus
-	var dmg := attack.damage * mult
+	var crit := rng.randf() < crit_chance
+	var dmg := attack.damage * mult * damage_mult * (1.5 if crit else 1.0)
 	var imp := Vector3(dir.x, 0, dir.y) * attack.knockback * (1.0 + cf * 0.5)
 	imp.y = attack.launch * (1.0 + cf * 0.3)
 	tg.take_hit(imp, dmg)
@@ -496,4 +501,4 @@ func _hit(tg: CombatTarget, dir: Vector2, from: Vector3) -> void:
 	var p := tg.position + Vector3(0, tg.height * 0.6, 0)
 	var back := Vector3(from.x - p.x, 0, from.z - p.z).normalized() * tg.radius
 	events.append({"type": "hit", "attack": attack, "target": tg, "position": p + back, "dir": Vector3(dir.x, 0, dir.y),
-		"damage": dmg, "shake": attack.shake * (1.0 + cf * 0.6), "charge": cf})
+		"damage": dmg, "shake": attack.shake * (1.0 + cf * 0.6) * (1.3 if crit else 1.0), "charge": cf, "crit": crit})

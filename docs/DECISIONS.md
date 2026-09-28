@@ -292,3 +292,38 @@ reversibile salvo dove indicato. Formato: contesto → decisione → conseguenze
   per l'arma e M per la magia; qui R/Y/U. Le funzioni ci sono tutte, anche a pulsante.
 - **Non verificabile qui:** telefono, FPS, renderer Compatibility. Il gate R è chiuso "senza prova
   su dispositivo", come le milestone precedenti.
+
+## D-026 — M5: sandbox persistente senza grotte, con equipaggiamento RPG
+- **Richiesta del proprietario (28/09/2026):** niente grotte in M5; al loro posto aspetti da
+  gioco di ruolo: equipaggiamento (scelto) e magia da ampliare partendo da un file che
+  manderà (D-027, in attesa). Le grotte restano dormienti come nel prototipo.
+- **Oggetto in mano:** la barra rapida (6 slot, i primi dello zaino da 30) decide tutto: un
+  blocco o una stazione si posano con un tocco, un'arma o un attrezzo colpisce, tenere premuto
+  scava o abbatte. Il pulsante "Modo" e il ciclo dei blocchi del prototipo non servono più; lo
+  scavo libero resta come "Scava debug" nel pannello ⚙. Tasti 1–6, I/Tab per lo zaino.
+- **Raccolta:** regole dormienti del prototipo (`BLOCK_INFO`, `breakTime`, `treeTime`,
+  `killTree`) rese attive, con due aggiunte: livelli dei minerali (rame da pietra, ferro da
+  rame, oro da ferro) e raccolta a mani nude di terra, sabbia e legno (altrimenti non si
+  potrebbe cominciare). Se il bottino non entra nello zaino il blocco non si rompe.
+- **Materiali:** legno < pietra < rame < ferro < oro; l'oro si consuma prima ma dà mana. Tutti
+  gli attrezzi e le armi hanno usura; le armature (rame, ferro, oro) hanno difesa.
+- **Rarità e affissi:** Comune, Non comune, Raro, Epico con 0–3 affissi (forza, critico, mente,
+  flusso, arcano, scavo, vento, tempra). Il craft dà per lo più oggetti comuni; i dieci forzieri
+  del tesoro sparsi nel mondo (deterministici per seme) danno bottino migliore lontano dallo
+  spawn. Le statistiche agiscono davvero: danno e critico dei colpi, mana/rigenerazione/danno
+  delle magie, velocità di scavo e di movimento; la difesa aspetta i nemici (D-009).
+- **Stazioni e contenitori:** banco da lavoro, fornace, forziere e falò sono oggetti piazzati (non
+  voxel: il catalogo dei blocchi resta quello del prototipo). Il falò è il punto di ritorno e
+  salva la partita.
+- **Salvataggio:** un file con intestazione, controllo e zstd; scrittura su .tmp verificata, poi
+  il file precedente diventa .bak; in lettura si ripiega sul .bak. Si salvano blocchi, acqua,
+  superficie, giocatore, zaino, armatura, oggetti piazzati con contenuto, alberi abbattuti,
+  falò, ora e mana; il resto si rigenera dal seme e la luce si ricalcola. Salvataggio automatico
+  ogni 60 s, al falò, alla chiusura e quando l'app va in pausa.
+- **Interfaccia:** pannello a tutto schermo (Zaino, Equipaggiamento, Craft, Forziere) disegnato
+  e gestito a mano come i controlli touch, perché i Control di Godot non ricevono i tocchi senza
+  l'emulazione del mouse. Il mondo si ferma mentre è aperto.
+
+## D-027 — Magia da ampliare (in attesa)
+- Il proprietario manderà un file a cui ispirarsi. Fino ad allora la magia resta quella del
+  gate R (quattro dardi e reazioni, D-024), con i bonus dell'equipaggiamento.

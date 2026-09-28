@@ -33,6 +33,9 @@ var _grass_jobs := {} # Vector2i -> task id
 var _grass_done := {} # Vector2i -> [versione, sessione, PackedFloat32Array]
 var _grass_nodes := {} # Vector2i -> MeshInstance3D
 var _tree_nodes: Array[MeshInstance3D] = []
+## Gruppi di alberi (Vector2i -> [lista, MeshInstance3D]) e template, per abbattere.
+var _groups := {}
+var _templates: Array[Vegetation.Template] = []
 var _mutex := Mutex.new()
 var _snapshot: WorldData
 var _snapshot_revision := -1
@@ -99,6 +102,7 @@ func _process_work(budget_ms: float, wait: bool) -> void:
 		_tree_result = []
 		_mutex.unlock()
 		if not res.is_empty() and int(res[0]) == _session:
+			_templates.assign(res[3])
 			_apply_trees(res[1], res[2])
 	for col: Vector2i in _grass_dirty.keys():
 		if _grass_jobs.size() >= max_jobs:
@@ -143,9 +147,9 @@ func _tree_job(snap: WorldData, op: PackedByteArray, seed_value: int, session: i
 		(groups[key] as Array).append(sp)
 	var meshes: Array = []
 	for key: Vector2i in groups:
-		meshes.append(_tree_group_arrays(snap, groups[key], tpls))
+		meshes.append([key, groups[key], _tree_group_arrays(snap, groups[key], tpls)])
 	_mutex.lock()
-	_tree_result = [session, list, meshes]
+	_tree_result = [session, list, meshes, tpls]
 	_mutex.unlock()
 
 
@@ -199,19 +203,52 @@ func _apply_trees(list: Array[Vegetation.TreeSpot], meshes: Array) -> void:
 		if not tree_grid.has(key):
 			tree_grid[key] = []
 		(tree_grid[key] as Array).append(sp)
-	for a: Array in meshes:
-		if (a[Mesh.ARRAY_VERTEX] as PackedVector3Array).is_empty():
-			continue
-		var mesh := ArrayMesh.new()
-		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, a, [], {},
-			Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT)
-		mesh.surface_set_material(0, tree_material)
+	for g: Array in meshes:
 		var inst := MeshInstance3D.new()
-		inst.mesh = mesh
 		inst.extra_cull_margin = 0.5
 		add_child(inst)
 		_tree_nodes.append(inst)
+		_groups[g[0]] = [g[1], inst]
+		_set_group_mesh(inst, g[2])
 	trees_ready.emit(spots.size())
+
+
+func _set_group_mesh(inst: MeshInstance3D, a: Array) -> void:
+	if (a[Mesh.ARRAY_VERTEX] as PackedVector3Array).is_empty():
+		inst.mesh = null
+		return
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, a, [], {},
+		Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT)
+	mesh.surface_set_material(0, tree_material)
+	inst.mesh = mesh
+
+
+## Abbatte un albero (killTree del prototipo, dormiente la'): il gruppo si
+## ricostruisce senza di lui; la griglia lo salta perche' `dead`.
+func kill_tree(sp: Vegetation.TreeSpot) -> void:
+	if sp.dead:
+		return
+	sp.dead = true
+	var key := Vector2i(int(sp.x / TREE_GROUP), int(sp.z / TREE_GROUP))
+	if _groups.has(key) and not _templates.is_empty():
+		var g: Array = _groups[key]
+		_set_group_mesh(g[1], _tree_group_arrays(world, g[0], _templates))
+
+
+## Indici degli alberi abbattuti (per il salvataggio) e ripristino.
+func dead_indices() -> Array[int]:
+	var out: Array[int] = []
+	for i in spots.size():
+		if spots[i].dead:
+			out.append(i)
+	return out
+
+
+func kill_indices(list: Array) -> void:
+	for i in list:
+		if int(i) >= 0 and int(i) < spots.size():
+			kill_tree(spots[int(i)])
 
 
 ## Alberi entro una cella della griglia 8x8 attorno a (x, z).
@@ -332,6 +369,8 @@ func _clear() -> void:
 	for inst in _tree_nodes:
 		inst.queue_free()
 	_tree_nodes.clear()
+	_groups.clear()
+	_templates.clear()
 	spots.clear()
 	tree_grid.clear()
 

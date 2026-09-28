@@ -20,9 +20,14 @@ signal button_pressed(id: StringName)
 ## Inizio e fine della pressione di qualsiasi pulsante (per i tasti tenuti).
 signal button_down(id: StringName)
 signal button_up(id: StringName)
+## Dito fermo sul mondo oltre HOLD_MS (scavo): inizio, posizione aggiornata, fine.
+signal world_hold(position: Vector2, active: bool)
 
 const TAP_MAX_MOVE := 8.0
 const TAP_MAX_MS := 450
+const HOLD_MS := 180
+## Slot della barra rapida (in basso al centro).
+const HOTBAR := 6
 ## Raggio di escursione dello stick in dp (prototipo: 40 px).
 const STICK_RADIUS_DP := 44.0
 ## Lato minimo delle aree toccabili (piano §6: almeno 48 dp).
@@ -40,6 +45,7 @@ class Finger:
 	var t0 := 0
 	var moved := 0.0
 	var button: StringName = &""
+	var holding := false
 
 
 class VButton:
@@ -58,6 +64,9 @@ var stick_vector := Vector2.ZERO
 var stick_center := Vector2.ZERO
 var left_handed := false
 var labels := {}
+## Icone della barra rapida: id -> {color, glyph, count, wear (0..1 o -1), rarity}.
+var icons := {}
+var hot_selected := 0
 ## Pulsanti nascosti in questo momento (es. "Auto" fuori dalla terza persona).
 var hidden_ids := {}
 ## Pannello sviluppatore (comandi tecnici del prototipo) aperto.
@@ -90,6 +99,9 @@ func _init() -> void:
 	add_button(&"weapon", "Arma", false)
 	add_button(&"spell", "Fuoco", false)
 	add_button(&"hero", "Eroe", false)
+	add_button(&"bag", "Zaino", false)
+	for i in HOTBAR:
+		add_button(StringName("hot%d" % i), "", false, &"hotbar")
 	add_button(&"block", "Blocco", false)
 	add_button(&"camera", "Camera", false)
 	add_button(&"dev", "⚙", false)
@@ -118,6 +130,8 @@ func _visible(b: VButton) -> bool:
 	if hidden_ids.get(b.id, false):
 		return false
 	match b.group:
+		&"hotbar":
+			return not hero_open
 		&"dev":
 			return dev_open
 		&"hero":
@@ -173,12 +187,18 @@ func _layout() -> void:
 	var m := dp(20.0)
 	var med := big * 0.78
 	# Riga in alto dal bordo verso il centro: camera, blocco, modo, arma, eroe.
-	var row: Array[StringName] = [&"camera", &"tps_auto", &"block", &"mode", &"weapon", &"spell", &"hero"]
+	var row: Array[StringName] = [&"camera", &"tps_auto", &"bag", &"spell", &"hero"]
 	var dw := dp(DEV_BUTTON_W_DP)
 	var dh := dp(DEV_BUTTON_H_DP)
 	var cursor := {}
+	var hs := dp(50.0)
+	var hx0 := s.x * 0.5 - (HOTBAR * hs + (HOTBAR - 1) * dp(4.0)) * 0.5
 	for b in _buttons:
 		var r := Rect2()
+		if b.group == &"hotbar":
+			var i := int(String(b.id).substr(3))
+			b.rect = Rect2(hx0 + i * (hs + dp(4.0)), s.y - m * 0.6 - hs, hs, hs)
+			continue
 		if b.group != &"main":
 			var c: Vector2 = cursor.get(b.group, Vector2(m, m + small + m + dh))
 			if c.x + dw > s.x - m:
@@ -202,6 +222,9 @@ func _layout() -> void:
 			r = Rect2(m, m + small * 0.9, small * 0.8, small * 0.8)
 		else:
 			var i := row.find(b.id)
+			if i < 0:
+				b.rect = Rect2(-1000, -1000, 0, 0)
+				continue
 			r = Rect2(s.x - m - small - i * (small + m * 0.5), m, small, small)
 		if left_handed and b.id != &"dev":
 			r.position.x = s.x - r.position.x - r.size.x
@@ -214,7 +237,13 @@ func in_stick_zone(p: Vector2) -> bool:
 	return zone_x and p.y > size.y * 0.35
 
 
+## Vero mentre un pannello a tutto schermo (zaino) ha l'input.
+var blocked := false
+
+
 func _input(event: InputEvent) -> void:
+	if blocked:
+		return
 	var handled := false
 	if event is InputEventScreenTouch:
 		var st := event as InputEventScreenTouch
@@ -263,6 +292,15 @@ func _touch_down(index: int, p: Vector2) -> bool:
 	return true
 
 
+func _process(_dt: float) -> void:
+	var now := Time.get_ticks_msec()
+	for f: Finger in _fingers.values():
+		if f.role == Role.CAMERA and not f.holding and not _pinch_used and f.moved <= TAP_MAX_MOVE \
+				and now - f.t0 >= HOLD_MS and _count_role(Role.CAMERA) == 1:
+			f.holding = true
+			world_hold.emit(f.last, true)
+
+
 func _touch_move(index: int, p: Vector2) -> bool:
 	var f: Finger = _fingers.get(index)
 	if f == null:
@@ -277,6 +315,11 @@ func _touch_move(index: int, p: Vector2) -> bool:
 			var l := d.length()
 			stick_vector = d / l * minf(1.0, l / r) if l > 0.0 else Vector2.ZERO
 		Role.CAMERA:
+			if f.holding:
+				# Il dito che scava puo' scorrere sul bersaglio senza ruotare la camera.
+				world_hold.emit(p, true)
+				queue_redraw()
+				return true
 			var cams := _fingers_with_role(Role.CAMERA)
 			if cams.size() >= 2:
 				var dd := cams[0].last.distance_to(cams[1].last)
@@ -301,7 +344,9 @@ func _touch_up(index: int, p: Vector2, canceled: bool) -> bool:
 			stick_vector = Vector2.ZERO
 		Role.CAMERA:
 			var quick := Time.get_ticks_msec() - f.t0 < TAP_MAX_MS
-			if not canceled and not _pinch_used and quick and f.moved <= TAP_MAX_MOVE:
+			if f.holding:
+				world_hold.emit(p, false)
+			elif not canceled and not _pinch_used and quick and f.moved <= TAP_MAX_MOVE:
 				world_tapped.emit(p)
 			if _count_role(Role.CAMERA) == 0:
 				_pinch_used = false
@@ -318,6 +363,9 @@ func _touch_up(index: int, p: Vector2, canceled: bool) -> bool:
 
 ## Azzera tutti gli input mantenuti (perdita di focus, pausa, menu, morte).
 func reset() -> void:
+	for f: Finger in _fingers.values():
+		if f.holding:
+			world_hold.emit(f.last, false)
 	_fingers.clear()
 	stick_vector = Vector2.ZERO
 	_pinch_used = false
@@ -367,6 +415,9 @@ func _draw() -> void:
 			continue
 		var c := b.rect.get_center()
 		var r := b.rect.size.x * 0.5
+		if b.group == &"hotbar":
+			_draw_hot_slot(b)
+			continue
 		if b.group != &"main":
 			draw_rect(b.rect, Color(0.08, 0.1, 0.12, 0.72 if not b.held else 0.9))
 			draw_rect(b.rect, Color(0.63, 0.89, 0.78, 0.8), false, dp(1.5))
@@ -382,6 +433,41 @@ func _draw() -> void:
 			size_px -= 1
 			ts = _font.get_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, -1, size_px)
 		draw_string(_font, c + Vector2(-ts.x * 0.5, ts.y * 0.3), text, HORIZONTAL_ALIGNMENT_CENTER, -1, size_px, Color.WHITE)
+	_draw_after()
+
+
+func _draw_hot_slot(b: VButton) -> void:
+	var i := int(String(b.id).substr(3))
+	var sel := i == hot_selected
+	draw_rect(b.rect, Color(0.08, 0.1, 0.12, 0.8 if sel else 0.55))
+	draw_rect(b.rect, Color(1, 0.9, 0.5, 1) if sel else Color(0.63, 0.89, 0.78, 0.6), false, dp(3.0 if sel else 1.5))
+	var ic: Dictionary = icons.get(b.id, {})
+	if ic.is_empty():
+		return
+	var inner := b.rect.grow(-b.rect.size.x * 0.2)
+	draw_rect(inner, ic["color"])
+	var rc: Color = ic.get("rarity_color", Color(0, 0, 0, 0))
+	if rc.a > 0.0:
+		draw_rect(inner.grow(dp(2.0)), rc, false, dp(2.0))
+	var g: String = ic.get("glyph", "")
+	var fs := int(dp(13.0))
+	var ts := _font.get_string_size(g, HORIZONTAL_ALIGNMENT_CENTER, -1, fs)
+	draw_string_outline(_font, inner.get_center() + Vector2(-ts.x * 0.5, ts.y * 0.3), g, HORIZONTAL_ALIGNMENT_CENTER, -1, fs, int(dp(3.0)), Color(0, 0, 0, 0.8))
+	draw_string(_font, inner.get_center() + Vector2(-ts.x * 0.5, ts.y * 0.3), g, HORIZONTAL_ALIGNMENT_CENTER, -1, fs, Color.WHITE)
+	var n: int = ic.get("count", 1)
+	if n > 1:
+		var t := str(n)
+		var p := b.rect.position + b.rect.size - Vector2(dp(4.0), dp(4.0))
+		var tsz := _font.get_string_size(t, HORIZONTAL_ALIGNMENT_RIGHT, -1, fs)
+		draw_string_outline(_font, p - Vector2(tsz.x, 0), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, int(dp(3.0)), Color(0, 0, 0, 0.9))
+		draw_string(_font, p - Vector2(tsz.x, 0), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
+	var wr: float = ic.get("wear", -1.0)
+	if wr >= 0.0:
+		var bar := Rect2(b.rect.position + Vector2(dp(4.0), b.rect.size.y - dp(6.0)), Vector2((b.rect.size.x - dp(8.0)) * wr, dp(3.0)))
+		draw_rect(bar, Color(1.0 - wr, 0.3 + 0.6 * wr, 0.2))
+
+
+func _draw_after() -> void:
 	if _has_role(Role.STICK):
 		var r := dp(STICK_RADIUS_DP)
 		draw_circle(stick_center, r * 1.25, Color(0, 0, 0, 0.25))

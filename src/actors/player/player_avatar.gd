@@ -21,6 +21,9 @@ var _relax := 0.0
 const SWAP_TIME := 0.46
 var _swap_t := -1.0
 var _swap_to: WeaponDefinition
+var _swap_mesh: ArrayMesh
+## Scavo in corso: fase del colpo ripetuto (-1 = no).
+var mining := -1.0
 
 
 func _ready() -> void:
@@ -40,19 +43,20 @@ func set_recipe(r: AvatarRecipe) -> void:
 	rig.build(r)
 
 
-func set_weapon(w: WeaponDefinition) -> void:
-	rig.set_weapon(w)
+func set_weapon(w: WeaponDefinition, mesh: ArrayMesh = null) -> void:
+	rig.set_weapon(w, mesh)
 	anim_state.weapon = w
 	trail.clear()
 	_swap_t = -1.0
 
 
 ## Cambio animato: la mano va dietro la spalla, l'arma cambia a meta'.
-func swap_weapon(w: WeaponDefinition) -> void:
+func swap_weapon(w: WeaponDefinition, mesh: ArrayMesh = null) -> void:
 	if rig.weapon == null:
-		set_weapon(w)
+		set_weapon(w, mesh)
 		return
 	_swap_to = w
+	_swap_mesh = mesh
 	_swap_t = 0.0
 	aware_t = 2.5
 
@@ -105,13 +109,16 @@ func animate(dt: float, motor: PlayerMotor, combat: CombatController, magic: Mag
 		aware_t = maxf(0.0, aware_t - dt)
 	_relax += ((1.0 if aware_t <= 0.0 else 0.0) - _relax) * (1.0 - exp(-dt * 4.0))
 	s.relax = _relax
+	s.mine = mining
+	if mining >= 0.0:
+		aware_t = 2.5
 	s.reach = 0.0
 	if _swap_t >= 0.0:
 		var half := SWAP_TIME * 0.5
 		var was := _swap_t
 		_swap_t += dt
 		if was < half and _swap_t >= half and _swap_to != null:
-			rig.set_weapon(_swap_to)
+			rig.set_weapon(_swap_to, _swap_mesh)
 			s.weapon = _swap_to
 			trail.clear()
 		s.reach = 1.0 - absf(_swap_t - half) / half

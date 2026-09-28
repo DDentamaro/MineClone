@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3]
+[gd_scene load_steps=21 format=3]
 
 [ext_resource type="Script" path="res://src/game_root.gd" id="1_root"]
 [ext_resource type="Script" path="res://src/world/runtime/world_runtime.gd" id="2_runtime"]
@@ -13,6 +13,7 @@
 [ext_resource type="Script" path="res://src/presentation/fx/water_effects.gd" id="11_wfx"]
 [ext_resource type="Script" path="res://src/actors/dummy/training_ground.gd" id="12_dummies"]
 [ext_resource type="Shader" path="res://src/presentation/shaders/post_grass.gdshader" id="13_postg"]
+[ext_resource type="Script" path="res://src/sandbox/world_objects.gd" id="14_objects"]
 
 [sub_resource type="Environment" id="env"]
 background_mode = 1
@@ -83,6 +84,9 @@ script = ExtResource("3_avatar")
 
 [node name="Dummies" type="Node3D" parent="WorldView"]
 script = ExtResource("12_dummies")
+
+[node name="Objects" type="Node3D" parent="WorldView"]
+script = ExtResource("14_objects")
 
 [node name="CameraRig" type="Node3D" parent="WorldView"]
 script = ExtResource("4_camera")

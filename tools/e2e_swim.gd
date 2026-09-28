@@ -16,6 +16,8 @@ func _initialize() -> void:
 	# Impostazioni proprie, per non toccare quelle del giocatore.
 	Settings.path = "user://e2e_settings.cfg"
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(Settings.path))
+	SaveService.path = "user://e2e_saves/world.save"
+	SaveService.delete_all()
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--out="):
 			_out = a.substr(6)

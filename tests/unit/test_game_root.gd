@@ -13,18 +13,23 @@ func _hit_down(g: GameRoot, dx: float) -> VoxelQuery.VoxelHit:
 	return VoxelQuery.raycast(g.world, g.catalog.opaque_table(), eye + Vector3(dx, 0, 0), Vector3.DOWN, 20.0)
 
 
+func _hold(g: GameRoot, id: StringName, n: int = 1) -> void:
+	g.items.inv.set_slot(1, ItemStack.new(id, n))
+	g.items.select(1)
+
+
 func test_avvio_allo_spawn() -> void:
 	var g := _scene()
 	check(g.world != null, "mondo caricato")
 	check_eq(g.motor.position, Vector3(96.5, 28, 96.5), "giocatore allo spawn")
-	check_eq(g.action_mode, GameRoot.ActionMode.EXPLORE, "modo iniziale")
+	check_eq(g.items.inv.get_slot(0).id, &"sword_wood", "spada di legno iniziale")
+	check_eq(g._objects.list.size(), 10, "forzieri del tesoro nel mondo")
 	g.free()
 
 
-func test_costruisci_e_scava() -> void:
+func test_costruisci_consuma_e_scava_in_debug() -> void:
 	var g := _scene()
-	g.action_mode = GameRoot.ActionMode.BUILD
-	g._select_block(BlockCatalog.STONE)
+	_hold(g, &"stone", 2)
 	var hit := _hit_down(g, 2.0)
 	check(hit != null, "suolo davanti")
 	var cell := hit.cell + hit.normal
@@ -32,18 +37,21 @@ func test_costruisci_e_scava() -> void:
 	check(g.apply_action(hit), "piazzato: %s" % g.last_edit)
 	check_eq(g.world.get_block(cell), BlockCatalog.STONE, "blocco nel mondo")
 	check_eq(g.world.revision, rev + 1, "un solo edit")
+	check_eq(g.items.inv.count(&"stone"), 1, "una pietra consumata")
 	# Nello stesso punto non si posa due volte (la cella e' occupata).
 	var hit2 := _hit_down(g, 2.0)
 	check_eq(hit2.cell, cell, "ora il raggio colpisce il nuovo blocco")
-	g.action_mode = GameRoot.ActionMode.DIG_DEBUG
-	check(g.apply_action(hit2), "rimosso: %s" % g.last_edit)
+	check(g.debug_dig(hit2), "rimosso: %s" % g.last_edit)
 	check_eq(g.world.get_block(cell), BlockCatalog.AIR, "tornato aria")
+	# Senza blocchi in mano non si posa niente.
+	g.items.select(3)
+	check(not g.apply_action(_hit_down(g, 2.0)), "mano vuota")
 	g.free()
 
 
 func test_non_si_costruisce_dentro_il_giocatore_ne_lontano() -> void:
 	var g := _scene()
-	g.action_mode = GameRoot.ActionMode.BUILD
+	_hold(g, &"stone", 5)
 	var under := _hit_down(g, 0.0)
 	var rev := g.world.revision
 	check(not g.apply_action(under), "sovrapposto al giocatore")
@@ -51,20 +59,47 @@ func test_non_si_costruisce_dentro_il_giocatore_ne_lontano() -> void:
 	far.cell += Vector3i(12, 0, 0)
 	check(not g.apply_action(far), "fuori portata")
 	check_eq(g.world.revision, rev, "nessun edit")
+	check_eq(g.items.inv.count(&"stone"), 5, "nulla consumato")
 	# La torcia non e' solida: si puo' posare anche nella cella del giocatore.
-	g._select_block(BlockCatalog.TORCH)
+	_hold(g, &"torch", 1)
 	check(g.apply_action(under), "torcia sotto i piedi: %s" % g.last_edit)
 	g.free()
 
 
 func test_roccia_madre_non_scavabile() -> void:
 	var g := _scene()
-	g.action_mode = GameRoot.ActionMode.DIG_DEBUG
 	var hit := VoxelQuery.VoxelHit.new()
 	hit.cell = Vector3i(96, 0, 96)
 	hit.id = BlockCatalog.BEDROCK
 	g.motor.position = Vector3(96.5, 1, 96.5)
-	check(not g.apply_action(hit), "y=0 protetto")
+	check(not g.debug_dig(hit), "y=0 protetto")
+	g.free()
+
+
+func test_stazione_piazzata_dalla_mano() -> void:
+	var g := _scene()
+	_hold(g, &"workbench", 1)
+	var hit := _hit_down(g, 2.0)
+	check(g.apply_action(hit), "banco piazzato: %s" % g.last_edit)
+	check(g._objects.at(hit.cell + hit.normal) != null, "banco nel mondo")
+	check_eq(g.items.inv.count(&"workbench"), 0, "consumato")
+	check(g._objects.stations_near(g.motor.position, 3.0).has("workbench"), "stazione vicina")
+	g.free()
+
+
+func test_l_arma_in_mano_decide_i_colpi() -> void:
+	var g := _scene()
+	g.items.select(0)
+	g._refresh_held()
+	check_eq(g.combat.weapon.id, &"sword", "spada di legno")
+	_hold(g, &"pick_stone")
+	g._refresh_held()
+	check_eq(g.combat.weapon.id, &"tool", "attrezzo")
+	g.items.select(4)
+	g._refresh_held()
+	check_eq(g.combat.weapon.id, &"fists", "mano vuota: pugni")
+	g._apply_stats()
+	check(absf(g.combat.damage_mult - 1.0) < 1e-4, "pugni senza bonus")
 	g.free()
 
 

@@ -1,6 +1,47 @@
 # Avanzamento
 
-## Stato corrente: gate R — parità · chiuso (senza prova su telefono)
+## Stato corrente: M5 — Sandbox persistente con equipaggiamento RPG · completata (senza prova su telefono)
+
+Sessione del 28/09/2026. Richiesta del proprietario: M5 senza grotte, con aspetti da gioco di
+ruolo: equipaggiamento (fatto) e magia ampliata da un file che manderà (D-027, in attesa).
+
+### Fatto
+- **Oggetti e zaino** (`ItemLibrary`, `ItemStack`, `Inventory`, `PlayerItems`): blocchi,
+  materiali, 15 attrezzi, 20 armi, 12 armature, 4 stazioni; zaino da 30 slot con barra rapida da
+  6; pile, spostamenti e scambi senza duplicazioni ne' perdite (test).
+- **Oggetto in mano:** tocco = posa (blocco o stazione) o colpo; tenere premuto = scava o
+  abbatte; l'arma o l'attrezzo in mano decide i colpi e la mesh in mano (con estrazione).
+- **Raccolta** (`Harvest`, `Harvester`): tempi del prototipo, livelli dei minerali, usura degli
+  attrezzi, abbattimento degli alberi (`kill_tree`), schegge, contorno del bersaglio con
+  l'avanzamento; niente rottura se il bottino non entra.
+- **Craft** (`Recipes`): a mano, al banco da lavoro, alla fornace (lingotti); tutto o niente.
+- **Oggetti piazzati** (`WorldObjects`): banco, fornace, forziere, falò (punto di ritorno e
+  salvataggio) e dieci forzieri del tesoro per mondo, deterministici; solidi per il giocatore.
+- **Equipaggiamento** (`Equipment`, `Loot`): quattro pezzi d'armatura visibili sull'eroe nel
+  colore del materiale; rarità e affissi; statistiche applicate a colpi (danno, critico),
+  magia (mana, rigenerazione, danno), scavo e movimento. Scritte "CRITICO!".
+- **Salvataggio** (`SaveService`): scrittura verificata con .tmp e .bak, ripiego sul backup;
+  salvataggio automatico, al falò, alla chiusura e in pausa dell'app; "Salva"/"Carica" nel ⚙.
+- **Interfaccia** (`BagPanel`): Zaino, Equipaggiamento, Craft (le ricette possibili in cima),
+  Forziere/Tesoro con "Prendi tutto"; tocchi e trascinamento come i controlli.
+
+### Test realmente eseguiti (M5)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 157/157 PASS, log pulito (19 test nuovi: oggetti, zaino, ricette, raccolta, oggetti piazzati, tesori, salvataggio, abbattimento) |
+| `tools/e2e_sandbox.gd` (tocchi reali) | OK: 3 alberi abbattuti a mano (12 legno) → banco creato dal pannello → posato dalla barra → bastoni e piccone di legno al banco → scavo → salvataggio → scena chiusa e riaperta con banco, piccone e bottino |
+| `tools/e2e_combat.gd`, `tools/e2e_touch.gd`, `tools/e2e_swim.gd` | OK (aggiornati alla barra rapida: la pietra si sceglie col suo slot) |
+
+### Limiti aperti dopo M5
+- Nessuna prova su telefono né misura di FPS.
+- La difesa dell'armatura non ha ancora effetto (nemici rinviati, D-009).
+- Un solo salvataggio; "Nuovo seme" sostituisce il mondo al salvataggio successivo.
+- La magia ampliata aspetta il file del proprietario (D-027).
+
+### Punto di ripresa
+Magia ampliata dal file del proprietario, poi M6 (mobile action: stamina, HUD finale, comfort).
+
+## Gate R — parità · chiuso (senza prova su telefono)
 
 Sessione del 27/09/2026. Confronto riga per riga della matrice di parità con il sorgente v0_64:
 recuperate le funzioni attive che mancavano o erano parziali (D-025). Restano fuori, per scelta

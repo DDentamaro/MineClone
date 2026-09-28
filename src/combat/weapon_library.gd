@@ -20,7 +20,7 @@ static var _cache: Array[WeaponDefinition] = []
 
 static func all() -> Array[WeaponDefinition]:
 	if _cache.is_empty():
-		_cache = [_fists(), _sword(), _spear(), _hammer(), _greatsword()]
+		_cache = [_fists(), _sword(), _spear(), _hammer(), _greatsword(), _tool()]
 	return _cache
 
 
@@ -125,6 +125,16 @@ static func _fists() -> WeaponDefinition:
 		_with(TUCK, {"arm_r": [170, 0, 20], "fore_r": [40, 0, 0], "arm_l": [170, 0, -20], "fore_l": [40, 0, 0]}),
 		_with(SQUAT, {"arm_r": [30, 0, 10], "fore_r": [10, 0, 0], "arm_l": [30, 0, -10], "fore_l": [10, 0, 0], "chest": [-30, 0, 0]}),
 		_with(SQUAT, {"arm_r": [40, 0, 20], "fore_r": [30, 0, 0], "arm_l": [40, 0, -20], "fore_l": [30, 0, 0]}))
+	return w
+
+
+## Attrezzo in mano (piccone, ascia, pala): colpisce con i movimenti della spada.
+static func _tool() -> WeaponDefinition:
+	var w := _sword()
+	w.id = &"tool"
+	w.display_name = "Attrezzo"
+	w.trail_from = 0.35
+	w.trail_to = 0.62
 	return w
 
 

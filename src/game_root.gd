@@ -5,11 +5,6 @@ extends Node
 ## camera isometrica (terza persona opzionale), stick touch ed edit di debug.
 ## M4: eroe animato, cinque armi, combattimento con manichini d'allenamento.
 
-enum ActionMode { EXPLORE, BUILD, DIG_DEBUG }
-
-const PLACEABLE: Array[int] = [BlockCatalog.DIRT, BlockCatalog.STONE, BlockCatalog.SAND, BlockCatalog.WOOD, BlockCatalog.TORCH]
-const MODE_LABELS := {ActionMode.EXPLORE: "Esplora", ActionMode.BUILD: "Costruisci", ActionMode.DIG_DEBUG: "Scava (debug)"}
-const MODE_BUTTON := {ActionMode.EXPLORE: "Esplora", ActionMode.BUILD: "Costr.", ActionMode.DIG_DEBUG: "Scava"}
 ## Portata di costruzione: game.reach + 1 dal punto occhi (riga 7099).
 const REACH := 7.5
 ## Pannello sviluppatore: gli interruttori attivi del prototipo (riga 7855–7870).
@@ -18,7 +13,7 @@ const DEV_BUTTONS := [
 	[&"dev_edges", "Spigoli"], [&"dev_paint", "Dipinto"], [&"dev_dither", "Dither"], [&"dev_rays", "Raggi"],
 	[&"dev_grass", "Erba"], [&"dev_shadow", "Ombre"], [&"dev_clouds", "Nubi"], [&"dev_dummies", "Manichini"],
 	[&"dev_rot_l", "⟲ Ruota"], [&"dev_rot_r", "⟳ Ruota"], [&"dev_zin", "Zoom +"], [&"dev_zout", "Zoom −"],
-	[&"dev_hitbox", "Hitbox"], [&"dev_pause", "Pausa"],
+	[&"dev_hitbox", "Hitbox"], [&"dev_pause", "Pausa"], [&"dev_digdebug", "Scava debug"], [&"dev_kit", "Kit di prova"], [&"dev_home", "Al falò"], [&"dev_save", "Salva"], [&"dev_load", "Carica"],
 ]
 ## Pulsanti del pannello da tenere premuti (rotazione continua come rot-l/rot-r).
 const DEV_HOLD: Array[StringName] = [&"dev_rot_l", &"dev_rot_r"]
@@ -43,13 +38,22 @@ const WEAPONS: Array[StringName] = [&"fists", &"sword", &"spear", &"hammer", &"g
 @onready var _water_fx: WaterEffects = $WorldView/WaterEffects
 @onready var _touch: TouchControls = %TouchControls
 @onready var _dummies: TrainingGround = $WorldView/Dummies
+@onready var _objects: WorldObjects = $WorldView/Objects
 
 var world: WorldData
 var catalog: BlockCatalog
 var edits: WorldEditService
 var motor: PlayerMotor
-var action_mode: ActionMode = ActionMode.EXPLORE
-var block_index := 0
+## Scavo di debug: un tocco toglie il blocco senza attrezzi ne' bottino (pannello ⚙).
+var dig_debug := false
+var sandbox := SandboxController.new()
+var items: PlayerItems = sandbox.items
+var _held_key := ""
+var _hold_active := false
+var _hold_pos := Vector2.ZERO
+var _mine_cycle := -1.0
+var _stats := Equipment.Stats.new()
+var _bag: BagPanel
 var last_edit := ""
 var combat: CombatController
 var magic := MagicSystem.new(1931)
@@ -60,7 +64,6 @@ var _audio: MagicAudio
 var _light_key := false
 var paused := false
 var show_hitboxes := false
-var inventory := {}
 var _preset_i := 0
 var _hitbox_lines: DebugLines
 var _cursor_lines: DebugLines
@@ -95,7 +98,16 @@ func _ready() -> void:
 	toggles["edges"] = bool(Settings.load_value("view", "edges", true))
 	catalog = BlockCatalog.load_default()
 	var w: WorldData
-	if _args.has("seed"):
+	var saved := {}
+	if not _args.has("seed") and not _args.has("fresh"):
+		saved = SaveService.load_state()
+	if not saved.is_empty():
+		w = _world_from_save(saved)
+		if w == null:
+			saved = {}
+	if w != null:
+		pass
+	elif _args.has("seed"):
 		w = WorldFactory.generate(int(_args["seed"]), catalog)
 	else:
 		w = WorldFactory.from_fixture(catalog)
@@ -108,13 +120,20 @@ func _ready() -> void:
 	motor = PlayerMotor.new(w)
 	recipe = AvatarRecipe.load_saved()
 	_avatar.set_recipe(recipe)
-	weapon_index = maxi(0, WEAPONS.find(StringName(Settings.load_value("combat", "weapon", "sword"))))
+	weapon_index = 0
 	if _args.has("weapon"):
 		weapon_index = maxi(0, WEAPONS.find(StringName(_args["weapon"])))
 	combat = CombatController.new(WeaponLibrary.by_id(WEAPONS[weapon_index]))
 	_avatar.set_weapon(combat.weapon)
+	if _args.has("weapon"):
+		select_weapon(weapon_index)
 	fx.grains = _grains
 	mfx.grains = _grains
+	sandbox.grains = _grains
+	if saved.is_empty():
+		items.starter_kit()
+	items.held_changed.connect(_refresh_held)
+	items.inv.changed.connect(_refresh_hotbar)
 	_texts = FloatingText.new()
 	_texts.name = "Texts"
 	_view.add_child(_texts)
@@ -126,6 +145,14 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_view.process_mode = Node.PROCESS_MODE_PAUSABLE
 	$HUD.process_mode = Node.PROCESS_MODE_ALWAYS
+	_bag = BagPanel.new()
+	_bag.name = "Bag"
+	$HUD.add_child(_bag)
+	_bag.closed.connect(func() -> void:
+		_touch.blocked = false
+		get_tree().paused = paused
+		_refresh_held())
+	_bag.message.connect(func(t: String) -> void: last_edit = t)
 	_audio = MagicAudio.new()
 	_audio.name = "MagicAudio"
 	add_child(_audio)
@@ -171,6 +198,9 @@ func _ready() -> void:
 	_touch.camera_dragged.connect(_camera_rig.drag)
 	_touch.zoom_scaled.connect(func(f: float) -> void: _camera_rig.set_zoom(_camera_rig.get_zoom() * f))
 	_touch.world_tapped.connect(_on_world_tap)
+	_touch.world_hold.connect(func(pos: Vector2, on: bool) -> void:
+		_hold_active = on
+		_hold_pos = pos)
 	_touch.button_pressed.connect(_on_button)
 	_touch.button_down.connect(func(id: StringName) -> void:
 		if id == &"heavy":
@@ -182,7 +212,10 @@ func _ready() -> void:
 			combat.release_heavy()
 		elif id == &"magic":
 			magic.release())
+	if not saved.is_empty():
+		_restore(saved)
 	_refresh_labels()
+	_refresh_held()
 	_camera_rig.update_camera(1.0, motor.position)
 
 
@@ -228,13 +261,19 @@ func _swap_world(w: WorldData) -> void:
 	magic.reset()
 	_dummies.setup(world)
 	_dummies.place_around(motor.position, _avatar.facing)
+	_objects.world = world
+	_objects.clear()
+	_objects.scatter_treasure(world.world_seed, world.spawn_point())
+	sandbox.setup(world, edits, catalog, motor, _objects, _vegetation)
 	if combat != null:
 		combat.cancel()
 
 
 func _physics_process(dt: float) -> void:
-	if motor == null or paused:
+	if motor == null or paused or _bag.is_open():
 		return
+	_apply_stats()
+	_step_mining(dt)
 	# Colpo tenuto premuto: la catena continua da sola (come J tenuto nel prototipo).
 	if (_touch.is_held(&"attack") or _light_key) and combat.buffer == &"" and not magic.is_casting():
 		if combat.state == CombatController.State.IDLE or (combat.state == CombatController.State.ATTACK and combat.phase() == 2):
@@ -265,11 +304,14 @@ func _physics_process(dt: float) -> void:
 		motor.drive_on = combat.drive_on
 		motor.drive = combat.drive
 		motor.move_scale = combat.move_scale * combat.weapon.move_mult
+		motor.move_scale *= _stats.speed
 		if magic.phase == MagicSystem.Phase.GATHER:
 			motor.move_scale *= 0.35
 		motor.step(dt, _move_world, (_jump_key or _touch.is_held(&"jump")) and not combat.is_busy())
 		_avatar.position = motor.position
 		_push_out_of_dummies()
+		motor.position = _objects.push_out(motor.position, PlayerMotor.RADIUS)
+		_avatar.position = motor.position
 		if combat.is_busy():
 			_avatar.turn_to(combat.facing, dt, PlayerAvatar.ATTACK_TURN)
 		elif magic.phase == MagicSystem.Phase.GATHER:
@@ -314,15 +356,25 @@ func _draw_debug() -> void:
 					_hitbox_lines.arc(base + fw * a.radial_ahead, a.radial, 0.0, TAU, col)
 	_hitbox_lines.finish()
 	_cursor_lines.begin()
-	if action_mode != ActionMode.EXPLORE and _mouse_pos.x >= 0.0:
-		var cam := _camera_rig.camera
-		var sub := screen_to_view(_mouse_pos)
-		var hit := VoxelQuery.raycast(world, catalog.opaque_table(), cam.project_ray_origin(sub), cam.project_ray_normal(sub), 400.0)
+	var ht := sandbox.harvester.target
+	if _avatar.mining >= 0.0 and ht != null:
+		# Bersaglio della raccolta: contorno e riquadro interno che si stringe.
+		var k := clampf(sandbox.harvester.progress, 0.0, 1.0)
+		if ht.kind == "block":
+			var lo := Vector3(ht.cell)
+			_cursor_lines.box(lo - Vector3.ONE * 0.02, lo + Vector3.ONE * 1.02, Color(1, 1, 1, 0.9))
+			var q := 0.5 * (1.0 - k)
+			_cursor_lines.box(lo + Vector3.ONE * (0.5 - q), lo + Vector3.ONE * (0.5 + q), Color(1, 0.8, 0.3, 0.9))
+		elif ht.kind == "tree":
+			_cursor_lines.cylinder(Vector3(ht.tree.x, ht.tree.y, ht.tree.z), 0.34 * ht.tree.scale + 0.1, 3.0 * ht.tree.scale * k + 0.1, Color(1, 0.8, 0.3, 0.9))
+	elif _mouse_pos.x >= 0.0 and (dig_debug or (items.held_def() != null and items.held_def().kind in [ItemDefinition.Kind.BLOCK, ItemDefinition.Kind.STATION])):
+		var ray := _screen_ray(_mouse_pos)
+		var hit := VoxelQuery.raycast(world, catalog.opaque_table(), ray[0], ray[1], 400.0)
 		if hit != null and Axes.cell_center(hit.cell).distance_to(motor.eye_position()) <= REACH:
-			var c := hit.cell + hit.normal if action_mode == ActionMode.BUILD else hit.cell
+			var c := hit.cell if dig_debug else hit.cell + hit.normal
 			var e := 0.02
 			_cursor_lines.box(Vector3(c) - Vector3(e, e, e), Vector3(c) + Vector3(1 + e, 1 + e, 1 + e),
-				Color(1, 1, 1, 0.9) if action_mode == ActionMode.BUILD else Color(1, 0.4, 0.3, 0.9))
+				Color(1, 0.4, 0.3, 0.9) if dig_debug else Color(1, 1, 1, 0.9))
 	_cursor_lines.finish()
 
 
@@ -406,6 +458,10 @@ func _handle_combat_events() -> void:
 			"hit":
 				fx.hit(e)
 				_camera_rig.shake(float(e["shake"]))
+				if bool(e.get("crit", false)):
+					_texts.spawn((e["position"] as Vector3) + Vector3(0, 0.5, 0), "CRITICO!", Color(1, 0.85, 0.3))
+				if items.wear_held(1):
+					sandbox.message = "l'arma si e' rotta!"
 			"impact":
 				fx.impact(e)
 				_camera_rig.shake((e["attack"] as AttackDefinition).shake)
@@ -417,11 +473,19 @@ func _handle_combat_events() -> void:
 func _process(dt: float) -> void:
 	if motor == null:
 		return
-	if paused:
-		_status.text = "PAUSA (P o ⚙ Pausa per riprendere)"
+	if paused or _bag.is_open():
+		if paused:
+			_status.text = "PAUSA (P o ⚙ Pausa per riprendere)"
+		_bag.queue_redraw()
+		_screenshot_tick()
 		return
 	var p := _avatar.get_global_transform_interpolated().origin
 	_update_camera_context(dt)
+	if not _pending_dead_trees.is_empty() and not _vegetation.spots.is_empty():
+		_apply_dead_trees()
+	_autosave_t += dt
+	if _autosave_t >= AUTOSAVE_S and not _args.has("screenshot"):
+		save_game()
 	_avatar.animate(0.0 if combat.hitstop > 0.0 else dt, motor, combat, magic)
 	mfx.update(dt, magic, _avatar.rig.cast_point(), p)
 	_apply_magic_globals(_avatar.rig.cast_point(), p)
@@ -431,8 +495,10 @@ func _process(dt: float) -> void:
 		if e["type"] == "text":
 			_texts.spawn(e["p"], e["text"])
 		elif e["type"] == "crater":
-			var nm: String = catalog.get_def(int(e["id"])).display_name
-			inventory[nm] = int(inventory.get(nm, 0)) + 1
+			# Il masso scava: il blocco finisce nello zaino (give del prototipo).
+			var drop := ItemLibrary.drop_for_block(int(e["id"]))
+			if drop != &"" and items.inv.add_item(drop, 1) == 0:
+				last_edit = "+1 %s dal cratere" % ItemLibrary.get_item(drop).display_name
 		elif e["type"] == "shake_tree":
 			var ts: Vegetation.TreeSpot = e["tree"]
 			var d: Vector2 = e["dir"]
@@ -461,24 +527,32 @@ func _process(dt: float) -> void:
 		_camera_rig.set_zoom(_camera_rig.get_zoom() * exp(dt * 0.8))
 	if Input.is_physical_key_pressed(KEY_X):
 		_camera_rig.set_zoom(_camera_rig.get_zoom() * exp(-dt * 0.8))
-	_status.text = "%d FPS · %s · %s · chunk in coda %d%s\nposizione %.1f %.1f %.1f%s" % [
-		Engine.get_frames_per_second(), MODE_LABELS[action_mode], catalog.get_def(PLACEABLE[block_index]).display_name,
+	if sandbox.message != "":
+		last_edit = sandbox.message
+		sandbox.message = ""
+	var h := items.held()
+	_status.text = "%d FPS · in mano: %s%s · chunk in coda %d%s\nposizione %.1f %.1f %.1f%s" % [
+		Engine.get_frames_per_second(), Loot.full_name(h) if h != null else "niente", " · SCAVO DEBUG" if dig_debug else "",
 		_runtime.pending_count(), (" · mondo pronto in %d ms" % _build_ms) if _build_ms > 0 else "",
 		motor.position.x, motor.position.y, motor.position.z, ("\n" + last_edit) if last_edit != "" else ""]
 	if motor.water_state != "dry":
 		_status.text += " · acqua: %s" % motor.water_state
 	_status.text += "\n%s%s · mana %d/%d · %s%s%s" % [combat.weapon.display_name, (" · combo %d" % combat.combo) if combat.combo > 1 else "",
-		int(magic.mana), int(MagicSystem.MANA_MAX), magic.spell().display_name,
+		int(magic.mana), int(magic.mana_max()), magic.spell().display_name,
 		(" · raduna %d%%%s" % [int(magic.w * 100.0), " ●" if magic.committed else ""]) if magic.phase == MagicSystem.Phase.GATHER else "",
 		(" · fuoco %d celle" % magic.fire.size()) if not magic.fire.is_empty() else ""]
-	if not inventory.is_empty():
-		var parts: Array[String] = []
-		for k: String in inventory:
-			parts.append("%s %d" % [k, inventory[k]])
-		_status.text += " · zaino: " + ", ".join(parts)
-	if _frames_after_build >= 0 and _vegetation.is_idle() and _water.is_idle():
+	if sandbox.harvester.target != null and sandbox.harvester.progress > 0.0:
+		_status.text += " · raccolta %d%%" % int(sandbox.harvester.progress * 100.0)
+	_screenshot_tick()
+
+
+func _screenshot_tick() -> void:
+	if _frames_after_build >= 0 and (_bag.is_open() or (_vegetation.is_idle() and _water.is_idle())):
 		_frames_after_build += 1
-		if _frames_after_build >= int(_args.get("frames", "30")):
+		var total := int(_args.get("frames", "30"))
+		if _args.has("bag") and not _bag.is_open() and _frames_after_build >= total - 4:
+			open_bag(null, String(_args["bag"]) if String(_args["bag"]) != "1" else "bag")
+		if _frames_after_build >= total:
 			_take_screenshot()
 
 
@@ -529,20 +603,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		if not k.pressed or k.echo:
 			return
 		match k.physical_keycode:
-			KEY_F:
-				_on_button(&"mode")
 			KEY_V:
 				_on_button(&"camera")
-			KEY_B:
-				_on_button(&"block")
-			KEY_T:
-				_select_block(BlockCatalog.TORCH)
-			KEY_1:
-				_select_block(BlockCatalog.DIRT)
-			KEY_2:
-				_select_block(BlockCatalog.STONE)
-			KEY_3:
-				_select_block(BlockCatalog.WOOD)
+			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6:
+				items.select(k.physical_keycode - KEY_1)
+			KEY_I, KEY_TAB:
+				_on_button(&"bag")
 			KEY_N:
 				_on_button(&"dev_seed")
 			KEY_J:
@@ -551,8 +617,6 @@ func _unhandled_input(event: InputEvent) -> void:
 				_on_button(&"dev_pause")
 			KEY_L, KEY_SHIFT:
 				combat.press_dodge()
-			KEY_R:
-				_on_button(&"weapon")
 			KEY_Y:
 				_on_button(&"spell")
 			KEY_H:
@@ -563,21 +627,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		_mouse_pos = (event as InputEventMouseMotion).position
 	elif event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
-		# Clic destro: azione opposta (costruisci <-> scava), come nel prototipo.
-		if mb.pressed and mb.button_index == MOUSE_BUTTON_RIGHT and action_mode != ActionMode.EXPLORE:
-			var keep := action_mode
-			action_mode = ActionMode.DIG_DEBUG if action_mode == ActionMode.BUILD else ActionMode.BUILD
-			_on_world_tap(mb.position)
-			action_mode = keep
+		# Clic destro: usa/apri l'oggetto sotto il cursore (forziere, banco, fornace, falò).
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_RIGHT:
+			var ray := _screen_ray(mb.position)
+			var o := _objects.pick(ray[0], ray[1])
+			if o != null:
+				_open_object(o)
 		if mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_UP:
 			_camera_rig.set_zoom(_camera_rig.get_zoom() * 1.1)
 		elif mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			_camera_rig.set_zoom(_camera_rig.get_zoom() / 1.1)
-
-
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
-		_jump_key = false
 
 
 func _on_button(id: StringName) -> void:
@@ -599,10 +658,22 @@ func _on_button(id: StringName) -> void:
 			if key == "edges":
 				Settings.save_value("view", "edges", toggles[key])
 			_apply_toggles()
-		&"mode":
-			action_mode = ((action_mode + 1) % ActionMode.size()) as ActionMode
-		&"block":
-			block_index = (block_index + 1) % PLACEABLE.size()
+		&"hot0", &"hot1", &"hot2", &"hot3", &"hot4", &"hot5":
+			items.select(int(String(id).substr(3)))
+		&"dev_digdebug":
+			dig_debug = not dig_debug
+		&"dev_kit":
+			give_test_kit()
+		&"bag":
+			open_bag()
+		&"dev_save":
+			save_game()
+		&"dev_load":
+			load_game()
+		&"dev_home":
+			if checkpoint != Vector3.INF:
+				motor.place_at(checkpoint)
+				_avatar.position = motor.position
 		&"camera":
 			_camera_rig.toggle_mode()
 			Settings.save_value("camera", "mode", _camera_rig.mode)
@@ -640,8 +711,6 @@ func _on_button(id: StringName) -> void:
 			combat.press_light()
 		&"dodge":
 			combat.press_dodge()
-		&"weapon":
-			select_weapon((weapon_index + 1) % WEAPONS.size())
 		&"spell":
 			magic.select(magic.spell_index + 1)
 			Settings.save_value("magic", "spell", magic.spell_index)
@@ -662,14 +731,252 @@ func _on_button(id: StringName) -> void:
 	_refresh_labels()
 
 
+## Mette in mano un'arma di ferro di prova (strumenti e prove e2e): ultimo slot
+## della barra rapida.
 func select_weapon(i: int) -> void:
 	weapon_index = i
-	combat.set_weapon(WeaponLibrary.by_id(WEAPONS[i]))
-	combat.draw_t = PlayerAvatar.SWAP_TIME * 0.6
-	_avatar.swap_weapon(combat.weapon)
-	Settings.save_value("combat", "weapon", String(WEAPONS[i]))
-	last_edit = "arma: %s" % combat.weapon.display_name
+	var w: StringName = WEAPONS[i]
+	var slot := PlayerItems.HOTBAR - 1
+	if w == &"fists":
+		items.inv.set_slot(slot, null)
+	else:
+		items.inv.set_slot(slot, Loot.make_equipment(StringName("%s_iron" % w), 0, items.rng))
+	items.select(slot)
 	_refresh_labels()
+
+
+## L'oggetto in mano cambia: arma dei colpi, mesh in mano (con animazione) e barra.
+func _refresh_held() -> void:
+	_refresh_armor()
+	var h := items.held()
+	var key := "%s:%s" % [items.weapon_id(), (h.id if h != null else &"")]
+	_refresh_hotbar()
+	if key == _held_key:
+		return
+	_held_key = key
+	var wd := WeaponLibrary.by_id(items.weapon_id())
+	var mesh: ArrayMesh = null
+	var d := items.held_def()
+	if d != null and d.kind == ItemDefinition.Kind.WEAPON:
+		mesh = WeaponMeshes.build(wd.kind, ItemLibrary.TIERS[d.tier - 1]["color"])
+	elif d != null and d.kind == ItemDefinition.Kind.TOOL:
+		mesh = WeaponMeshes.build_tool(d.tool_type, ItemLibrary.TIERS[d.tier - 1]["color"])
+	if combat.weapon != wd or mesh != null or _avatar.rig.held_mesh != null:
+		combat.set_weapon(wd)
+		combat.draw_t = PlayerAvatar.SWAP_TIME * 0.6
+		_avatar.swap_weapon(wd, mesh)
+
+
+## Armatura indossata visibile sull'eroe.
+var _armor_key := ""
+
+
+func _refresh_armor() -> void:
+	var key := JSON.stringify(items.equipment.to_dict())
+	if key == _armor_key:
+		return
+	_armor_key = key
+	for slot in Equipment.SLOTS:
+		var st := items.equipment.get_slot(slot)
+		var col := Color(0, 0, 0, 0)
+		if st != null:
+			col = ItemLibrary.TIERS[st.def().tier - 1]["color"]
+		_avatar.rig.set_armor(slot, col)
+
+
+func _refresh_hotbar() -> void:
+	for i in PlayerItems.HOTBAR:
+		var s := items.inv.get_slot(i)
+		var bid := StringName("hot%d" % i)
+		if s == null:
+			_touch.icons.erase(bid)
+			continue
+		var d := s.def()
+		var ic := {"color": d.color, "glyph": d.glyph, "count": s.count, "wear": -1.0}
+		if s.data.has("wear"):
+			ic["wear"] = float(s.data["wear"]) / maxf(1.0, float(s.data.get("max_wear", d.durability)))
+		if s.rarity() > 0:
+			ic["rarity_color"] = Loot.RARITY_COLORS[s.rarity()]
+		_touch.icons[bid] = ic
+	_touch.hot_selected = items.selected
+	_touch.queue_redraw()
+
+
+## Statistiche dell'equipaggiamento applicate a colpi, magia e movimento.
+func _apply_stats() -> void:
+	_stats = items.stats()
+	combat.damage_mult = _stats.melee
+	combat.crit_chance = _stats.crit
+	magic.mana_bonus = _stats.mana_max
+	magic.regen_bonus = _stats.mana_regen
+	magic.power = _stats.arcane
+
+
+## Raggio dallo schermo (origine, direzione) nella vista del mondo.
+func _screen_ray(screen_pos: Vector2) -> Array:
+	var cam := _camera_rig.camera
+	var sub := screen_to_view(screen_pos)
+	return [cam.project_ray_origin(sub), cam.project_ray_normal(sub)]
+
+
+## Tenere premuto sul mondo: raccolta con l'oggetto in mano.
+func _step_mining(dt: float) -> void:
+	var busy := combat.is_busy() or magic.is_casting() or motor.swimming or dig_debug
+	if not _hold_active or busy:
+		if _avatar.mining >= 0.0:
+			_avatar.mining = -1.0
+			sandbox.harvester.reset()
+		return
+	var ray := _screen_ray(_hold_pos)
+	var t := sandbox.mine(dt, ray[0], ray[1], _stats.dig)
+	for e in sandbox.handle_events():
+		if e["type"] == "felled":
+			var ts: Vegetation.TreeSpot = e["tree"]
+			RenderingServer.global_shader_parameter_set(&"tree_hit", Vector3(ts.seed_value, _day.clock, 1.0))
+	if t == null:
+		_avatar.mining = -1.0
+		return
+	var before := _avatar.mining
+	_avatar.mining = maxf(0.0, _avatar.mining) + dt * 2.2
+	var v := Vector2(t.point.x - motor.position.x, t.point.z - motor.position.z)
+	if v.length() > 0.1:
+		_avatar.turn_to(atan2(-v.x, -v.y), dt, PlayerAvatar.ATTACK_TURN)
+	# Un colpo a ogni ciclo dell'animazione: schegge e albero scosso.
+	if before >= 0.0 and floorf(before + 0.65) != floorf(_avatar.mining + 0.65):
+		var col := Color(0.55, 0.38, 0.2) if t.kind != "block" else catalog.get_def(t.id).top_color
+		sandbox.chips(t.point, col)
+		if t.kind == "tree":
+			var d := Vector2(t.point.x - motor.position.x, t.point.z - motor.position.z).normalized()
+			RenderingServer.global_shader_parameter_set(&"tree_hit", Vector3(t.tree.seed_value, _day.clock, 0.6))
+			RenderingServer.global_shader_parameter_set(&"tree_hit_dir", d)
+
+
+# ---------------------------------------------------------------- salvataggio
+
+const AUTOSAVE_S := 60.0
+var _autosave_t := 0.0
+var _pending_dead_trees: Array = []
+
+
+## Mondo di un salvataggio: rigenerato dal seme (la fixture per il 1931), poi
+## blocchi e acqua salvati sopra, luce ricalcolata.
+func _world_from_save(st: Dictionary) -> WorldData:
+	var ws: Dictionary = st.get("world", {})
+	var seed_value := int(ws.get("seed", 1931))
+	var w := WorldFactory.from_fixture(catalog) if seed_value == 1931 else WorldFactory.generate(seed_value, catalog)
+	if w == null or not SaveService.apply_world_state(w, ws, catalog):
+		return null
+	return w
+
+
+func make_save_state() -> Dictionary:
+	return {"v": 1, "world": SaveService.world_state(world),
+		"player": {"pos": motor.position, "facing": _avatar.facing}, "items": items.to_dict(),
+		"objects": _objects.to_array(), "dead_trees": _vegetation.dead_indices() if _pending_dead_trees.is_empty() else _pending_dead_trees,
+		"checkpoint": checkpoint, "time": _day.time, "mana": magic.mana}
+
+
+func save_game() -> bool:
+	var ok := SaveService.save(make_save_state())
+	_autosave_t = 0.0
+	last_edit = "partita salvata" if ok else "salvataggio NON riuscito"
+	return ok
+
+
+## Ripristina giocatore, oggetti, alberi e ora da un salvataggio (mondo gia' in uso).
+func _restore(st: Dictionary) -> void:
+	var pl: Dictionary = st.get("player", {})
+	var pos: Vector3 = pl.get("pos", world.spawn_point())
+	motor.place_at(pos)
+	_avatar.position = motor.position
+	_avatar.facing = float(pl.get("facing", 0.0))
+	_avatar.rotation.y = _avatar.facing
+	items.load_dict(st.get("items", {}))
+	_objects.load_array(st.get("objects", []))
+	checkpoint = st.get("checkpoint", Vector3.INF)
+	_day.time = float(st.get("time", _day.time))
+	magic.mana = float(st.get("mana", magic.mana))
+	_dummies.place_around(motor.position, _avatar.facing)
+	# Gli alberi si costruiscono su un thread: si abbattono appena pronti.
+	_pending_dead_trees = st.get("dead_trees", [])
+	if not _vegetation.spots.is_empty():
+		_apply_dead_trees()
+	_held_key = ""
+	_armor_key = ""
+
+
+func _apply_dead_trees() -> void:
+	if _pending_dead_trees.is_empty():
+		return
+	_vegetation.kill_indices(_pending_dead_trees)
+	_pending_dead_trees = []
+
+
+## Ricarica l'ultimo salvataggio (pannello ⚙ "Carica").
+func load_game() -> bool:
+	var st := SaveService.load_state()
+	if st.is_empty():
+		last_edit = "nessun salvataggio"
+		return false
+	var w := _world_from_save(st)
+	if w == null:
+		last_edit = "salvataggio non valido"
+		return false
+	_swap_world(w)
+	_restore(st)
+	last_edit = "partita caricata"
+	return true
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
+		_jump_key = false
+	if (what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED) and world != null and not _args.has("screenshot"):
+		save_game()
+
+
+## Oggetti di prova per strumenti ed e2e (pannello ⚙ "Kit di prova").
+func give_test_kit() -> void:
+	for pair in [[&"wood", 32], [&"stone", 32], [&"stick", 16], [&"copper_ingot", 12], [&"iron_ingot", 12], [&"gold_ingot", 6], [&"dirt", 16], [&"torch", 8]]:
+		items.inv.add_item(pair[0], pair[1])
+	for id in [&"pick_iron", &"axe_iron", &"workbench", &"furnace", &"chest", &"campfire"]:
+		var d := ItemLibrary.get_item(id)
+		items.inv.add(Loot.make_equipment(id, 1, items.rng) if d.is_equipment() else ItemStack.new(id))
+	last_edit = "kit di prova nello zaino"
+
+
+## Apre l'interfaccia dell'oggetto toccato.
+func _open_object(o: WorldObjects.Obj) -> void:
+	match o.type:
+		"chest", "treasure":
+			open_bag(o, "chest")
+		"workbench", "furnace":
+			open_bag(null, "craft")
+		"campfire":
+			set_checkpoint(o)
+
+
+## Zaino (o forziere, o craft) a tutto schermo: il mondo si ferma.
+func open_bag(chest: WorldObjects.Obj = null, tab: String = "bag") -> void:
+	if _bag.is_open():
+		_bag.close()
+		return
+	_touch.reset()
+	_touch.blocked = true
+	_hold_active = false
+	get_tree().paused = true
+	_bag.open(items, _objects.stations_near(motor.position, 3.2), chest, tab)
+
+
+## Falò: punto di ritorno (checkpoint). Il salvataggio arriva con SaveService.
+var checkpoint := Vector3.INF
+
+
+func set_checkpoint(o: WorldObjects.Obj) -> void:
+	checkpoint = Vector3(o.cell) + Vector3(0.5, 0, 1.5)
+	save_game()
+	last_edit = "falò: punto di ritorno fissato e partita salvata"
+	_texts.spawn(Vector3(o.cell) + Vector3(0.5, 1.4, 0.5), "RIPOSO")
 
 
 ## Editor dell'eroe: pulsanti della ricetta e camera ravvicinata.
@@ -697,11 +1004,6 @@ static func _dev_label(key: String) -> String:
 		if d[0] == StringName("dev_" + key):
 			return d[1]
 	return key
-
-
-func _select_block(id: int) -> void:
-	block_index = maxi(0, PLACEABLE.find(id))
-	_refresh_labels()
 
 
 func _apply_toggles() -> void:
@@ -788,14 +1090,12 @@ func _poll_generation() -> void:
 
 
 func _refresh_labels() -> void:
-	_touch.labels[&"mode"] = MODE_BUTTON[action_mode]
-	_touch.labels[&"block"] = catalog.get_def(PLACEABLE[block_index]).display_name.capitalize()
 	_touch.labels[&"camera"] = "Iso" if _camera_rig.mode == CameraRig.Mode.ISO else "3ª p."
 	_touch.labels[&"dev_res"] = "Righe %d" % rt_height
 	for key: String in toggles:
 		_touch.labels[StringName("dev_" + key)] = "%s %s" % [_dev_label(key), "ON" if toggles[key] else "OFF"]
 	_touch.labels[&"tps_auto"] = "Auto ON" if _camera_rig.tps_auto else "Auto OFF"
-	_touch.labels[&"weapon"] = combat.weapon.display_name if combat != null else "Arma"
+	_touch.labels[&"dev_digdebug"] = "Scava debug %s" % ("ON" if dig_debug else "OFF")
 	_touch.labels[&"spell"] = ["Fuoco", "Acqua", "Terra", "Aria"][magic.spell_index]
 	for d: Array in HERO_BUTTONS:
 		_touch.labels[d[0]] = recipe.label(d[1]) if d[1] != "" else HERO_LABELS[d[0]]
@@ -805,46 +1105,34 @@ func _refresh_labels() -> void:
 
 
 func _on_world_tap(screen_pos: Vector2) -> void:
-	if action_mode == ActionMode.EXPLORE:
-		# In esplorazione un tocco sul mondo e' un colpo.
-		combat.press_light()
+	var ray := _screen_ray(screen_pos)
+	if dig_debug:
+		var hit := VoxelQuery.raycast(world, catalog.opaque_table(), ray[0], ray[1], 400.0)
+		if hit != null:
+			debug_dig(hit)
 		return
-	var cam := _camera_rig.camera
-	var sub := screen_to_view(screen_pos)
-	var origin := cam.project_ray_origin(sub)
-	var dir := cam.project_ray_normal(sub)
-	var hit := VoxelQuery.raycast(world, catalog.opaque_table(), origin, dir, 400.0)
-	if hit == null:
-		return
-	apply_action(hit)
+	match sandbox.tap(ray[0], ray[1]):
+		"attack":
+			combat.press_light()
+		"open":
+			_open_object(sandbox.opened)
 
 
-## Azione su un blocco colpito; separata dall'input per i test.
+## Posa l'oggetto in mano sulla faccia colpita; separata dall'input per i test.
 func apply_action(hit: VoxelQuery.VoxelHit) -> bool:
-	var eye := motor.eye_position()
-	if action_mode == ActionMode.BUILD:
-		var cell := hit.cell + hit.normal
-		var id := PLACEABLE[block_index]
-		if Axes.cell_center(hit.cell).distance_to(eye) > REACH:
-			last_edit = "troppo lontano"
-			return false
-		if catalog.is_solid(id) and motor.overlaps_cell(cell):
-			last_edit = "occupato dal giocatore"
-			return false
-		if not edits.can_place(cell, id):
-			last_edit = "non posabile"
-			return false
-		var r := edits.set_block(cell, id, &"build")
-		last_edit = "posato %s in %s" % [catalog.get_def(id).display_name, cell] if r.ok() else "rifiutato"
-		return r.ok()
-	if action_mode == ActionMode.DIG_DEBUG:
-		if Axes.cell_center(hit.cell).distance_to(eye) > REACH or hit.cell.y == 0:
-			last_edit = "fuori portata"
-			return false
-		var r2 := edits.set_block(hit.cell, BlockCatalog.AIR, &"debug_dig")
-		last_edit = "rimosso %s in %s" % [catalog.get_def(hit.id).display_name, hit.cell] if r2.ok() else "rifiutato"
-		return r2.ok()
-	return false
+	var ok := sandbox.place(hit)
+	last_edit = sandbox.message
+	return ok
+
+
+## Scavo di debug: toglie il blocco senza attrezzi ne' bottino.
+func debug_dig(hit: VoxelQuery.VoxelHit) -> bool:
+	if Axes.cell_center(hit.cell).distance_to(motor.eye_position()) > REACH or hit.cell.y == 0:
+		last_edit = "fuori portata"
+		return false
+	var r2 := edits.set_block(hit.cell, BlockCatalog.AIR, &"debug_dig")
+	last_edit = "rimosso %s in %s" % [catalog.get_def(hit.id).display_name, hit.cell] if r2.ok() else "rifiutato"
+	return r2.ok()
 
 
 ## Altezza del render target a bassa risoluzione (RT_H del prototipo: 270/360/450).
@@ -939,6 +1227,13 @@ func _update_xray(dt: float, p: Vector3) -> void:
 func _on_initial_build(ms: int) -> void:
 	_build_ms = ms
 	print("Mondo costruito: %d chunk in %d ms (%s)" % [world.chunk_count(), ms, _runtime.stats])
+	if _args.has("kit"):
+		give_test_kit()
+		_refresh_hotbar()
+	if _args.has("armor"):
+		for slot in Equipment.SLOTS:
+			items.equipment.equip(Loot.make_equipment(StringName("%s_%s" % [slot, _args["armor"]]), 2, items.rng))
+		_refresh_held()
 	if _args.has("screenshot"):
 		_frames_after_build = 0
 

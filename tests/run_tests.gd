@@ -17,6 +17,8 @@ func _process(_delta: float) -> bool:
 		# Impostazioni separate da quelle del gioco e vuote a ogni esecuzione.
 		Settings.path = "user://test_settings.cfg"
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(Settings.path))
+		SaveService.path = "user://test_saves/world.save"
+		SaveService.delete_all()
 		_run_all()
 	return false
 

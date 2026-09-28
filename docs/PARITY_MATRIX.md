@@ -28,9 +28,9 @@ verificato) · `verificato` (verificato anche su dispositivo).
 | Combo spada L, LL, LLL, LLLL, H, LH, LLH | 7543–7550, 7616–7620 | attivo | catene in `WeaponLibrary` | M4 | sostituito (D-022) | Nuove catene per ogni arma (anche L-forte, L L-forte, dopo capriola, in aria); test su catena e ramo forte |
 | Magia: fuoco, acqua, terra, aria | 7977–8322 | attivo | `SpellDefinition`, `MagicSystem`, `MagicFx`, `MagicAudio`, `FloatingText` | M4/R | fatto (D-024) | Numeri del prototipo; lancio con la sinistra; audio sintetizzato con le voci del prototipo, luci puntiformi, vento sull'erba, alberi scossi (gate R); 11 test + e2e con tocchi |
 | Reazioni elementali | 8171–8255 | attivo | `MagicSystem.status_react` + fuoco/bagnato/cratere/vento | M4 | fatto (D-024) | Vapore, shock termico, spinta ×1,8, erba bruciata → terra, spegnimento, cratere, rimbalzo: test ed e2e (BAGNATO → VAPORE, BRUCIA, LENTO, CRATERE, SPINTO) |
-| Costruzione (terra, pietra, sabbia, legno, torcia) | 4885, 7098–7102, 7858–7860 | attivo, gratuita | `WorldEditService`, `GameRoot.apply_action` | M1/R | fatto (gratuita) | Portata 7,5; rifiuto se sovrapposta al player; cubo del cursore sotto il mouse e clic destro per l'azione opposta (gate R) |
-| Inventario (contatore) | 7109–7110 | parziale | `GameRoot.inventory` (contatore); slot in M5 | R | fatto (contatore) | Si riempie solo dai crateri, come il prototipo; mostrato nella riga di stato |
-| Persistenza impostazioni/avatar/camera | 8 chiavi `isoterra.*` | parziale | `Settings` (`user://settings.cfg`) | M4/R | fatto | Righe (rtH), spigoli, terza persona, Auto, inclinazione e zoom TPS, ricetta dell'eroe; in più arma ed elemento. `isoterra.char` è legacy. Test di salvataggio e ripresa |
+| Costruzione (terra, pietra, sabbia, legno, torcia) | 4885, 7098–7102, 7858–7860 | attivo, gratuita | `SandboxController.place`, `WorldEditService` | M1/R/M5 | fatto, con costo (D-026) | Portata 7,5; rifiuto se sovrapposta al player o a un oggetto; consuma il blocco in mano; cubo del cursore |
+| Inventario (contatore) | 7109–7110 | parziale | `Inventory`, `PlayerItems` (M5) | R/M5 | superato (D-026) | Il contatore del prototipo diventa uno zaino da 30 slot con barra rapida; i crateri riempiono lo zaino |
+| Persistenza impostazioni/avatar/camera | 8 chiavi `isoterra.*` | parziale | `Settings` + `SaveService` (M5) | M4/R/M5 | fatto e ampliato | Chiavi del prototipo nelle impostazioni; in più il mondo intero (blocchi, acqua, oggetti, zaino, armatura, alberi, falò) con backup (test di crash e ripresa) |
 | UI touch (stick flottante, drag, pinch, pulsanti) | 7835–7870 | attivo | `TouchControls` con ownership delle dita (D-012) | M1/R | fatto | 6 test + e2e con tocchi iniettati. Interruttori grafici e comandi tecnici del prototipo nel pannello ⚙ (ruota, zoom, Hitbox, pausa); pausa anche con P. Mappa dei tasti diversa dove i tasti servivano a funzioni rinviate o nuove (D-025) |
 
 | Manichini d'allenamento | — (nuovo) | — | `TrainingDummy`, `TrainingGround` | M4 | fatto (D-023) | Bersagli finché i nemici sono rinviati |
@@ -47,10 +47,10 @@ verificato) · `verificato` (verificato anche su dispositivo).
 
 | Elemento | Fonte v0_64 | Stato | Decisione |
 |---|---|---|---|
-| Grotte (e quindi lava nel mondo) | 4593–4596; `caves:false` a 5731 | dormiente | Riattivare in M5 con collisioni volumetriche; la reazione acqua→lava diventa raggiungibile solo allora |
+| Grotte (e quindi lava nel mondo) | 4593–4596; `caves:false` a 5731 | dormiente | Restano spente per scelta del proprietario (D-026); il generatore le sa già fare (test) |
 | Terreno smussato (surface nets, `meshChunkSmooth`) | 4739–4882, 5422–5476 | dormiente (densità ancora calcolata) | Non portare; conservato come riferimento |
 | Classi di pendenza | 4788–4796 | dormiente (`fieldNormal` restituisce sempre "su") | Non portare |
-| Scavo/raccolta (`breakTarget`, crepe, `killTree`) | 7757–7775, 6747, 7832 | dormiente (unico attrezzo `fist` con `hitsBlocks:false`) | Implementare attrezzi in M5; in M1 solo edit di debug |
+| Scavo/raccolta (`breakTarget`, crepe, `killTree`) | 7757–7775, 6747, 7832 | dormiente (unico attrezzo `fist` con `hitsBlocks:false`) | **Attivato in M5** (`Harvest`, `Harvester`, `VegetationRuntime.kill_tree`): stessi tempi, livelli dei minerali aggiunti (D-026) |
 | Manichini `Dummy`, predoni `Humanoid`/`ISOCHAR` | 7434–7441 | dormiente (asset da 1,09 MB decodificato e mai usato) | Non portare |
 | Compositore vecchio (`#composer`, tasti C/H/O) | 7875–7924 | legacy | Non portare; l'editor valido è CHARGEN |
 | `moveAABB`, `reliefAhead`, `CLIMB`, `View.rotate`, `meleeHit`, `CharacterRigV2` | vedi inventario §2 | dormiente | Non portare |

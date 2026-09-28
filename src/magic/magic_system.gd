@@ -98,6 +98,10 @@ var events: Array[Dictionary] = []
 ## Hitstop chiesto dai colpi dei dardi (lo consuma il GameRoot).
 var hitstop := 0.0
 var daylight := 1.0
+## Bonus dell'equipaggiamento (M5): mana massimo, rigenerazione, danno delle magie.
+var mana_bonus := 0.0
+var regen_bonus := 0.0
+var power := 1.0
 var rng := RandomNumberGenerator.new()
 
 var _tap := false
@@ -108,6 +112,10 @@ var _flush_t := 0.0
 
 func _init(seed_value: int = 1) -> void:
 	rng.seed = seed_value
+
+
+func mana_max() -> float:
+	return MANA_MAX + mana_bonus
 
 
 func spell() -> SpellDefinition:
@@ -141,7 +149,7 @@ func reset() -> void:
 	wet.clear()
 	wind = {}
 	_fire_edits.clear()
-	mana = MANA_MAX
+	mana = mana_max()
 
 
 static func _fwd(f: float) -> Vector3:
@@ -154,7 +162,7 @@ func step(dt: float, motor: PlayerMotor, targets: Array, facing: float, hand: Ve
 	var s := spell()
 	_targets_cache = targets
 	_player_pos = motor.position
-	mana = minf(MANA_MAX, mana + REGEN * dt * (1.0 if phase == Phase.NONE else 0.3))
+	mana = minf(mana_max(), mana + (REGEN + regen_bonus) * dt * (1.0 if phase == Phase.NONE else 0.3))
 	var tap := _tap
 	_tap = false
 	match phase:
@@ -187,7 +195,7 @@ func step(dt: float, motor: PlayerMotor, targets: Array, facing: float, hand: Ve
 					auto_fire = true
 				else:
 					phase = Phase.NONE
-					mana = minf(MANA_MAX, mana + s.cost * 0.6)
+					mana = minf(mana_max(), mana + s.cost * 0.6)
 					events.append({"type": "cancel"})
 			elif w >= 1.0 and (not held or auto_fire or t > s.cast_dur + HOLD_EXTRA):
 				_release(s, hand, motor)
@@ -372,7 +380,7 @@ func _hit_target(P: Dart, tg: CombatTarget) -> void:
 	var S := P.spell
 	var mul := status_react(tg, S.el)
 	var crit := rng.randf() < 0.10
-	var amount := S.dmg * rng.randf_range(0.9, 1.1) * (1.5 if crit else 1.0) * mul
+	var amount := S.dmg * rng.randf_range(0.9, 1.1) * (1.5 if crit else 1.0) * mul * power
 	var hv := Vector2(P.v.x, P.v.z)
 	var d := hv.normalized() if hv.length() > 1e-4 else Vector2(0, -1)
 	var knock := S.knock * (1.8 if S.el == "air" and has_status(tg, "wet") else 1.0)
@@ -400,7 +408,7 @@ func _impact(P: Dart, p: Vector3, n: Vector3, info: Dictionary) -> void:
 		P.hits[tg] = true
 		var mul := status_react(tg, el)
 		var dn := dd.normalized() if dd.length() > 1e-4 else Vector2.ZERO
-		tg.take_hit(Vector3(dn.x, 0.4, dn.y) * S.knock * 0.6, maxf(1.0, S.dmg * 0.35 * mul))
+		tg.take_hit(Vector3(dn.x, 0.4, dn.y) * S.knock * 0.6, maxf(1.0, S.dmg * 0.35 * mul * power))
 		if mul > 0.0 and S.status != "":
 			apply_status(tg, S.status)
 	if world == null:

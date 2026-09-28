@@ -37,6 +37,8 @@ class State:
 	var relax := 0.0
 	## Cambio d'arma: la destra va dietro la spalla (0..1..0).
 	var reach := 0.0
+	## Scavo/abbattimento: fase del colpo ripetuto (in cicli), -1 se fermo.
+	var mine := -1.0
 
 
 var stride_phase := 0.0
@@ -198,6 +200,22 @@ func target_pose(dt: float, s: State) -> Dictionary:
 	# Colpo.
 	if s.attack != null:
 		_apply_attack(p, s)
+
+	# Scavo: colpi ripetuti dall'alto (carica lenta, colpo secco, piccolo rimbalzo).
+	if s.mine >= 0.0:
+		var mp := fposmod(s.mine, 1.0)
+		var mk := _smooth(mp / 0.65) if mp < 0.65 else 1.0 - pow((mp - 0.65) / 0.35, 0.5)
+		mk = 1.0 - mk
+		p[&"arm_r"] = d(lerpf(55.0, 150.0, mk), -8, 10)
+		p[&"fore_r"] = d(lerpf(10.0, 55.0, mk))
+		p[&"hand_r"] = d(lerpf(-100.0, -40.0, mk))
+		p[&"chest"] += d(lerpf(-22.0, 8.0, mk), -10)
+		p[&"spine"] += d(-8.0 * (1.0 - mk))
+		p[&"arm_l"] = d(35, 10, -12)
+		p[&"fore_l"] = d(60)
+		p[&"leg_l"] += d(18)
+		p[&"leg_r"] += d(-12)
+		p[&"shin_r"] += d(-14)
 
 	# Magia con la mano sinistra: il palmo si carica davanti al viso, poi
 	# spinge in avanti a braccio teso; l'arma resta nella destra.
