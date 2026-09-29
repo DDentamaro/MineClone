@@ -28,6 +28,11 @@ const HEIGHT := 1.4
 ## Quota degli occhi sopra i piedi (portata di costruzione, riga 7099).
 const EYE := 0.7
 const EPS := 0.001
+const COYOTE_TIME := 0.10
+const JUMP_BUFFER := 0.12
+var _coyote := 0.0
+var _jump_buffer := 0.0
+var _jump_held := false
 
 var world: WorldData
 ## Griglia 8x8 degli alberi (Vector2i -> Array[Vegetation.TreeSpot]), condivisa
@@ -82,7 +87,14 @@ func place_at(p: Vector3) -> void:
 	land_t = 0.0
 	down_v = 0.0
 	fall_from = 0.0
+	reset_jump_input()
 	reset_water()
+
+
+func reset_jump_input() -> void:
+	_coyote = 0.0
+	_jump_buffer = 0.0
+	_jump_held = false
 
 
 func reset_water() -> void:
@@ -214,6 +226,8 @@ func ceiling_limit(x: float, z: float, y: float) -> float:
 
 
 func start_jump() -> void:
+	_coyote = 0.0
+	_jump_buffer = 0.0
 	velocity.y = sqrt(2.0 * GRAVITY * JUMP_H)
 	on_ground = false
 	ramp_on = false
@@ -223,7 +237,13 @@ func start_jump() -> void:
 
 ## `move` e' la direzione voluta nel piano XZ (x -> X, y -> Z), lunghezza 0..1.
 func step(dt: float, move: Vector2, jump: bool) -> void:
-	if step_water(dt, move, jump):
+	var jump_pressed := jump and not _jump_held
+	_jump_held = jump
+	_jump_buffer = JUMP_BUFFER if jump_pressed else maxf(0.0, _jump_buffer - dt)
+	_coyote = COYOTE_TIME if on_ground else maxf(0.0, _coyote - dt)
+	if step_water(dt, move, jump_pressed):
+		_coyote = 0.0
+		_jump_buffer = 0.0
 		return
 	var speed := SPEED
 	blocked = false
@@ -322,7 +342,7 @@ func step(dt: float, move: Vector2, jump: bool) -> void:
 	_push_out_of_trees()
 
 	# Verticale.
-	if jump and on_ground:
+	if _jump_buffer > 0.0 and (on_ground or _coyote > 0.0):
 		start_jump()
 	var g := ground(position.x, position.z)
 	if on_ground and velocity.y <= 0.0:

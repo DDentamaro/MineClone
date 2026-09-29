@@ -1,5 +1,6 @@
 class_name SandboxController
 extends RefCounted
+signal placed(id: StringName)
 ## Collante del sandbox (M5): cosa fa l'oggetto in mano quando si tocca o si
 ## tiene premuto sul mondo, effetti della raccolta. Il GameRoot lo chiama con i
 ## raggi gia' calcolati dallo schermo.
@@ -41,11 +42,32 @@ func setup(w: WorldData, e: WorldEditService, cat: BlockCatalog, m: PlayerMotor,
 var opened: WorldObjects.Obj
 
 
+func can_use(o: WorldObjects.Obj) -> bool:
+	if o == null or not objects.list.has(o):
+		return false
+	var origin := motor.eye_position()
+	var delta := objects.center_of(o) - origin
+	if delta.length() > USE_REACH:
+		return false
+	return VoxelQuery.raycast(world, catalog.opaque_table(), origin, delta.normalized(), maxf(0.0, delta.length() - 0.15)) == null
+
+
+func nearest_usable() -> WorldObjects.Obj:
+	var nearest: WorldObjects.Obj
+	var distance := USE_REACH
+	for o in objects.list:
+		var d := objects.center_of(o).distance_to(motor.eye_position())
+		if d <= distance and can_use(o):
+			nearest = o
+			distance = d
+	return nearest
+
+
 func tap(origin: Vector3, dir: Vector3) -> String:
 	opened = null
 	var d := items.held_def()
 	var o := objects.pick(origin, dir)
-	if o != null and objects.center_of(o).distance_to(motor.eye_position()) <= USE_REACH and (d == null or d.kind != ItemDefinition.Kind.BLOCK):
+	if can_use(o) and (d == null or d.kind != ItemDefinition.Kind.BLOCK):
 		opened = o
 		return "open"
 	if d != null and (d.kind == ItemDefinition.Kind.BLOCK or d.kind == ItemDefinition.Kind.STATION):
@@ -92,6 +114,7 @@ func place(hit: VoxelQuery.VoxelHit) -> bool:
 	items.inv.take(items.selected, 1)
 	items.held_changed.emit()
 	message = "posato %s" % d.display_name
+	placed.emit(d.id)
 	return true
 
 

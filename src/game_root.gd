@@ -56,6 +56,10 @@ var _hold_pos := Vector2.ZERO
 var _mine_cycle := -1.0
 var _stats := Equipment.Stats.new()
 var _bag: BagPanel
+var journal := ExpeditionJournal.new()
+var _session: SessionOverlay
+var _last_notice := ""
+var _hud_tick := 0.0
 ## Oggetti gettati a terra (D-028).
 var ground := GroundItems.new()
 var last_edit := ""
@@ -171,13 +175,31 @@ func _ready() -> void:
 	_bag.name = "Bag"
 	$HUD.add_child(_bag)
 	_bag.closed.connect(func() -> void:
-		_touch.blocked = false
+		_touch.blocked = paused
 		get_tree().paused = paused
 		_refresh_held()
 		_refresh_spellbar())
 	_bag.message.connect(func(t: String) -> void: last_edit = t)
 	_bag.dropped.connect(func(st: ItemStack) -> void:
 		ground.drop(st, motor.position, Vector3(-sin(_avatar.facing), 0, -cos(_avatar.facing))))
+	_bag.crafted.connect(func(id: StringName) -> void:
+		if id == &"workbench":
+			journal.record("craft"))
+	sandbox.placed.connect(func(id: StringName) -> void:
+		if id == &"workbench":
+			journal.record("build"))
+	_session = SessionOverlay.new()
+	_session.name = "SessionOverlay"
+	_session.journal = journal
+	$HUD.add_child(_session)
+	_session.action.connect(_session_action)
+	journal.completed.connect(func(title: String) -> void:
+		_session.notify("Obiettivo completato: " + title))
+	_session.reduced_motion = bool(Settings.load_value("accessibility", "reduced_motion", false))
+	_session.hints = bool(Settings.load_value("accessibility", "hints", true))
+	_session.volume = clampi(int(Settings.load_value("audio", "volume", 80)), 0, 100)
+	_apply_session_settings()
+	_touch.hidden_ids[&"dev"] = not _args.has("dev")
 	ground.name = "GroundItems"
 	_view.add_child(ground)
 	_audio = MagicAudio.new()
@@ -212,6 +234,7 @@ func _ready() -> void:
 		_camera_rig.yaw_target += deg_to_rad(float(_args["yaw"]))
 		_camera_rig.yaw = _camera_rig.yaw_target
 	_touch.left_handed = bool(Settings.load_value("input", "left_handed", false))
+	_session.left_handed = _touch.left_handed
 	if _args.has("dev"):
 		_touch.dev_open = true
 	if _args.has("lake"):
@@ -251,6 +274,9 @@ func _ready() -> void:
 	_refresh_held()
 	_refresh_spellbar()
 	_camera_rig.update_camera(1.0, motor.position)
+	_update_session_hud()
+	if saved.is_empty() and not _args.has("screenshot"):
+		_session.notify("Benvenuto a IsoTerra. Menu > Diario per cominciare.")
 
 
 ## Sostituisce il mondo corrente (avvio o nuovo seme): nuova sessione per
@@ -364,7 +390,9 @@ func _physics_process(dt: float) -> void:
 		motor.move_scale *= magic.player_speed()
 		if locked and not combat.is_busy():
 			motor.move_scale *= STRAFE_SPEED
+		var before_move := motor.position
 		motor.step(dt, _move_world, (_jump_key or _touch.is_held(&"jump")) and not combat.is_busy())
+		journal.record("walk", Vector2(motor.position.x - before_move.x, motor.position.z - before_move.z).length())
 		_avatar.position = motor.position
 		_push_out_of_dummies()
 		motor.position = _objects.push_out(motor.position, PlayerMotor.RADIUS)
@@ -579,6 +607,7 @@ func _handle_combat_events() -> void:
 	for e in combat.events:
 		match String(e["type"]):
 			"hit":
+				journal.record("hit")
 				fx.hit(e)
 				_camera_rig.shake(float(e["shake"]))
 				if bool(e.get("crit", false)):
@@ -589,6 +618,7 @@ func _handle_combat_events() -> void:
 				fx.impact(e)
 				_camera_rig.shake((e["attack"] as AttackDefinition).shake)
 			"dodge":
+				journal.record("dodge")
 				fx.dodge(motor.position, combat.dodge_dir)
 	combat.events.clear()
 
@@ -596,9 +626,11 @@ func _handle_combat_events() -> void:
 func _process(dt: float) -> void:
 	if motor == null:
 		return
+	_hud_tick += dt
+	if _hud_tick >= 0.1:
+		_hud_tick = 0.0
+		_update_session_hud()
 	if paused or _bag.is_open():
-		if paused:
-			_status.text = "PAUSA (P o ⚙ Pausa per riprendere)"
 		_bag.queue_redraw()
 		_screenshot_tick()
 		return
@@ -699,6 +731,132 @@ func _screenshot_tick() -> void:
 			_take_screenshot()
 
 
+func _reset_gameplay_input() -> void:
+	_touch.reset()
+	_jump_key = false
+	_light_key = false
+	_heavy_key = false
+	_magic_key = false
+	_hold_active = false
+	_move_world = Vector2.ZERO
+	motor.reset_jump_input()
+	combat.buffer = &""
+	combat.release_heavy()
+	magic.clear_input()
+	sandbox.harvester.reset()
+	_avatar.mining = -1.0
+
+
+func set_paused(value: bool) -> void:
+	if _session == null:
+		return
+	if _bag.is_open():
+		_bag.close()
+	_reset_gameplay_input()
+	paused = value
+	_touch.dev_open = false
+	if _touch.hero_open:
+		set_hero_editor(false)
+	_touch.blocked = value
+	_touch.visible = not value
+	get_tree().paused = value
+	_session.open("pause" if value else "")
+	_refresh_labels()
+
+
+func _apply_session_settings() -> void:
+	_camera_rig.reduced_motion = _session.reduced_motion
+	if _session.reduced_motion:
+		_camera_rig.shake_amt = 0.0
+		_camera_rig._ss.clear()
+		_camera_rig._sh_y = 0.0
+		_camera_rig._sh_p = 0.0
+		_camera_rig._fov_kick = 0.0
+	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(0.001, _session.volume / 100.0)))
+	AudioServer.set_bus_mute(0, _session.volume == 0)
+
+
+func _session_action(id: StringName) -> void:
+	match id:
+		&"resume":
+			set_paused(false)
+		&"pause", &"journal", &"settings", &"help":
+			if not paused:
+				set_paused(true)
+			_session.open(String(id))
+		&"save":
+			save_game()
+		&"quality":
+			_on_button(&"dev_res")
+		&"motion":
+			_session.reduced_motion = not _session.reduced_motion
+			Settings.save_value("accessibility", "reduced_motion", _session.reduced_motion)
+			_apply_session_settings()
+		&"hints":
+			_session.hints = not _session.hints
+			Settings.save_value("accessibility", "hints", _session.hints)
+		&"volume":
+			_session.volume = (_session.volume + 20) % 120
+			Settings.save_value("audio", "volume", _session.volume)
+			_apply_session_settings()
+		&"handed":
+			_touch.left_handed = not _touch.left_handed
+			_session.left_handed = _touch.left_handed
+			_touch._layout()
+			Settings.save_value("input", "left_handed", _touch.left_handed)
+		&"developer":
+			set_paused(false)
+			_touch.hidden_ids[&"dev"] = false
+			_touch.dev_open = true
+		&"return_home":
+			var base := checkpoint if checkpoint != Vector3.INF else world.spawn_point()
+			var destination := Vector3.INF
+			# Search a clear column near the saved fire: a later build may occupy it.
+			for offset in [Vector2.ZERO, Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]:
+				var x: float = base.x + offset.x
+				var z: float = base.z + offset.y
+				var y := motor.ground(x, z, base.y + 2.0)
+				if world.inside(floori(x), floori(y), floori(z)) and motor.space_free(x, z, y) and _objects.at(Vector3i(floori(x), floori(y), floori(z))) == null:
+					destination = Vector3(x, y, z)
+					break
+			if destination != Vector3.INF:
+				motor.place_at(destination)
+				_avatar.position = motor.position
+				lock.clear()
+				combat.cancel()
+				set_paused(false)
+				last_edit = "Ritorno al campo."
+			else:
+				_session.save_text = "Punto di ritorno occupato: libera lo spazio vicino al falò."
+		&"interact":
+			if not paused and not _bag.is_open():
+				var nearby := sandbox.nearest_usable()
+				if nearby != null:
+					_open_object(nearby)
+	_update_session_hud()
+
+
+func _update_session_hud() -> void:
+	if _session == null:
+		return
+	_status.visible = _touch.dev_open and not paused and not _bag.is_open()
+	_session.hud_visible = not _bag.is_open() and not _touch.dev_open and not _touch.hero_open
+	_session.quality = rt_height
+	_session.ui_density = _touch.dp(1.0)
+	var held := items.held()
+	_session.held_name = Loot.full_name(held) if held != null else "Mani libere"
+	var minutes := int(fposmod(_day.time, 1.0) * 1440.0)
+	_session.clock_text = "%02d:%02d" % [minutes / 60, minutes % 60]
+	_session.mining = sandbox.harvester.progress if _hold_active and sandbox.harvester.target != null else -1.0
+	var nearby := sandbox.nearest_usable() if not paused and not _bag.is_open() else null
+	var names := {"chest": "Apri forziere", "treasure": "Apri tesoro", "armory": "Apri armeria", "workbench": "Crea al banco", "furnace": "Usa fornace", "campfire": "Riposa al falò"}
+	_session.context_text = ("F / " + String(names.get(nearby.type, "Interagisci"))) if nearby != null else ""
+	if last_edit != "" and last_edit != _last_notice:
+		_last_notice = last_edit
+		_session.notify(last_edit)
+	_session.queue_redraw()
+
+
 ## Stick touch o tastiera (WASD/frecce), con zona morta e minimo del prototipo (riga 7073).
 func _read_stick() -> Vector2:
 	var ax := 0.0
@@ -727,9 +885,15 @@ func _read_stick() -> Vector2:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if motor == null:
+		return
 	if event is InputEventKey:
 		var k := event as InputEventKey
-		if k.physical_keycode == KEY_ESCAPE and k.pressed and not k.echo and close_top_panel():
+		if k.physical_keycode == KEY_ESCAPE and k.pressed and not k.echo:
+			if not close_top_panel():
+				set_paused(not paused)
+			return
+		if paused or _bag.is_open():
 			return
 		if k.physical_keycode == KEY_SPACE:
 			_jump_key = k.pressed
@@ -748,6 +912,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		if not k.pressed or k.echo:
 			return
 		match k.physical_keycode:
+			KEY_F:
+				_session_action(&"interact")
 			KEY_V:
 				_on_button(&"camera")
 			KEY_R:
@@ -773,6 +939,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion:
 		_mouse_pos = (event as InputEventMouseMotion).position
 	elif event is InputEventMouseButton:
+		if paused or _bag.is_open():
+			return
 		var mb := event as InputEventMouseButton
 		# Clic destro: usa/apri l'oggetto sotto il cursore (forziere, banco, fornace, falò).
 		if mb.pressed and mb.button_index == MOUSE_BUTTON_MIDDLE:
@@ -816,6 +984,8 @@ func toggle_lock() -> void:
 
 func _on_button(id: StringName) -> void:
 	match id:
+		&"menu":
+			set_paused(not paused)
 		&"lock":
 			toggle_lock()
 		&"dev_close":
@@ -865,11 +1035,7 @@ func _on_button(id: StringName) -> void:
 		&"dev_hitbox":
 			show_hitboxes = not show_hitboxes
 		&"dev_pause":
-			paused = not paused
-			get_tree().paused = paused
-			_touch.reset()
-			_jump_key = false
-			_light_key = false
+			set_paused(not paused)
 		&"hero_preset":
 			recipe = AvatarRecipe.preset(_preset_i)
 			_preset_i += 1
@@ -971,7 +1137,7 @@ func _refresh_hotbar() -> void:
 			_touch.icons.erase(bid)
 			continue
 		var d := s.def()
-		var ic := {"color": d.color, "glyph": d.glyph, "count": s.count, "wear": -1.0}
+		var ic := {"id": d.id, "color": d.color, "glyph": d.glyph, "count": s.count, "wear": -1.0}
 		if s.data.has("wear"):
 			ic["wear"] = float(s.data["wear"]) / maxf(1.0, float(s.data.get("max_wear", d.durability)))
 		if s.rarity() > 0:
@@ -1027,6 +1193,9 @@ func _step_mining(dt: float) -> void:
 	var ray := _screen_ray(_hold_pos)
 	var t := sandbox.mine(dt, ray[0], ray[1], _stats.dig)
 	for e in sandbox.handle_events():
+		if e["type"] in ["broken", "felled", "picked"]:
+			if e["type"] != "broken" or e.get("drop", &"") != &"":
+				journal.record("harvest", float(e.get("n", 1)))
 		if e["type"] == "felled":
 			var ts: Vegetation.TreeSpot = e["tree"]
 			RenderingServer.global_shader_parameter_set(&"tree_hit", Vector3(ts.seed_value, _day.clock, 1.0))
@@ -1070,18 +1239,21 @@ func make_save_state() -> Dictionary:
 	return {"v": 1, "world": SaveService.world_state(world, magic.runtime.struct_cells()),
 		"player": {"pos": motor.position, "facing": _avatar.facing}, "items": items.to_dict(),
 		"objects": _objects.to_array(), "ground": ground.to_array(), "dead_trees": _vegetation.dead_indices() if _pending_dead_trees.is_empty() else _pending_dead_trees,
-		"checkpoint": checkpoint, "time": _day.time, "magic": magic.to_dict()}
+		"checkpoint": checkpoint, "time": _day.time, "magic": magic.to_dict(), "journal": journal.to_dict()}
 
 
 func save_game() -> bool:
 	var ok := SaveService.save(make_save_state())
 	_autosave_t = 0.0
 	last_edit = "partita salvata" if ok else "salvataggio NON riuscito"
+	if _session != null:
+		_session.save_text = "Partita salvata" if ok else "Salvataggio fallito: riprova prima di chiudere."
 	return ok
 
 
 ## Ripristina giocatore, oggetti, alberi e ora da un salvataggio (mondo gia' in uso).
 func _restore(st: Dictionary) -> void:
+	journal.load_dict(st.get("journal", {}))
 	var pl: Dictionary = st.get("player", {})
 	var pos: Vector3 = pl.get("pos", world.spawn_point())
 	motor.place_at(pos)
@@ -1133,6 +1305,11 @@ func load_game() -> bool:
 func close_top_panel() -> bool:
 	if _bag.is_open():
 		_bag.close()
+	elif paused:
+		if _session.page != "pause":
+			_session.open("pause")
+		else:
+			set_paused(false)
 	elif _touch.dev_open:
 		_touch.dev_open = false
 	elif _touch.hero_open:
@@ -1145,9 +1322,14 @@ func close_top_panel() -> bool:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
-		close_top_panel()
+		if not close_top_panel():
+			set_paused(true)
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
-		_jump_key = false
+		if motor != null and _session != null and not _args.has("screenshot"):
+			if _bag.is_open():
+				_reset_gameplay_input()
+			else:
+				set_paused(true)
 	if (what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED) and world != null and not _args.has("screenshot"):
 		save_game()
 
@@ -1164,6 +1346,11 @@ func give_test_kit() -> void:
 
 ## Apre l'interfaccia dell'oggetto toccato.
 func _open_object(o: WorldObjects.Obj) -> void:
+	if not sandbox.can_use(o):
+		last_edit = "Avvicinati all'oggetto: deve essere raggiungibile."
+		return
+	if o.type == "treasure":
+		journal.record("treasure")
 	match o.type:
 		"chest", "treasure", "armory":
 			open_bag(o, "chest")
@@ -1178,7 +1365,7 @@ func open_bag(chest: WorldObjects.Obj = null, tab: String = "bag") -> void:
 	if _bag.is_open():
 		_bag.close()
 		return
-	_touch.reset()
+	_reset_gameplay_input()
 	_touch.blocked = true
 	_hold_active = false
 	get_tree().paused = true
@@ -1192,8 +1379,9 @@ var checkpoint := Vector3.INF
 
 func set_checkpoint(o: WorldObjects.Obj) -> void:
 	checkpoint = Vector3(o.cell) + Vector3(0.5, 0, 1.5)
-	save_game()
-	last_edit = "falò: punto di ritorno fissato e partita salvata"
+	journal.record("camp")
+	var saved := save_game()
+	last_edit = "falò: punto di ritorno fissato e partita salvata" if saved else "Punto di ritorno fissato, ma salvataggio fallito: riprova dal menu."
 	_texts.spawn(Vector3(o.cell) + Vector3(0.5, 1.4, 0.5), "RIPOSO")
 
 
@@ -1302,6 +1490,8 @@ func _poll_generation() -> void:
 	WorkerThreadPool.wait_for_task_completion(_gen_task)
 	_gen_task = -1
 	if _gen_result != null:
+		journal.load_dict({})
+		checkpoint = Vector3.INF
 		_swap_world(_gen_result)
 		last_edit = "mondo del seme %d" % _gen_seed
 	_gen_result = null
@@ -1360,6 +1550,8 @@ func _refresh_labels() -> void:
 
 
 func _on_world_tap(screen_pos: Vector2) -> void:
+	if paused or _bag.is_open():
+		return
 	# Pannello delle opzioni aperto: un tocco sul mondo lo chiude e basta.
 	if _touch.dev_open:
 		_touch.dev_open = false

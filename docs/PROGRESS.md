@@ -1,5 +1,34 @@
 # Avanzamento
 
+## 29/09/2026 — D-036: prima revisione dell'esperienza del giocatore
+
+- HUD con identità visiva comune a menu, zaino e barra rapida; telemetria visibile solo
+  negli strumenti sviluppatore. Indicazioni di interazione, raccolta e notifiche brevi.
+- Icone vettoriali per oggetti e azioni, con etichette, quantità, rarità e usura conservate;
+  layout di pausa compatto per schermi ad alta densità.
+- Pausa con diario, comandi, impostazioni persistenti, salvataggio e ritorno al campo.
+  Input pendenti azzerati quando si entra nei pannelli o si perde il focus.
+- Otto obiettivi introduttivi basati su azioni riuscite, salvati con il mondo e compatibili
+  con le partite precedenti; nessuna ricompensa duplicabile e nessun blocco dell'esplorazione.
+- Interazioni con verifica centralizzata di portata e linea libera. Salto con buffer di
+  120 ms, tolleranza al bordo di 100 ms e una sola attivazione per pressione.
+- Movimento ridotto disattiva scosse e impulsi di campo visivo; impostazioni audio,
+  dettaglio, suggerimenti e disposizione mancina accessibili senza aprire i comandi tecnici.
+
+Verifiche: Godot 4.7.2, **229 test unitari/integrati, 0 falliti**; import senza errori
+di script; `tools/e2e_session.gd` verifica tocchi attraverso il viewport, pausa effettiva,
+contenimento dei pulsanti, impostazioni, annullamento del tocco, salvataggio e ritorno
+al gioco. Verificati anche i quattro menu a scala telefono 1,83 (pulsanti di almeno
+48 dp, senza sovrapposizioni) e il disegno di tutte le categorie di icone del catalogo.
+Il runtime headless emette un avviso di ambiente su `/proc/self/exe`;
+nessun errore GDScript. Non è stato usato `tools/run_tests.sh` come gate pulito, perché
+quel wrapper considera fallimento anche questo avviso di ambiente.
+
+Limiti: nessuna ispezione visiva renderizzata, export Android o prova su telefono in questa
+sessione. Prima del rilascio servono una prova visiva delle pagine a densità mobile,
+playtest del movimento e del percorso iniziale, profiling e bilanciamento. Combattimento
+contro nemici, progressione lunga e qualità degli asset restano lavoro successivo.
+
 ## Stato corrente: M5 — Sandbox persistente, equipaggiamento RPG, magia ampliata (come RMNDWN), eroe del prototipo · completata (senza prova su telefono)
 
 Sessione del 28/09/2026 (seguito). Richieste del proprietario dopo la prova: oggetti gettati che

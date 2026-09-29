@@ -55,6 +55,7 @@ var subpixel := Vector2.ZERO
 var pixel_snap := true
 ## Scossa dei colpi (unita' di mondo circa), smorzata in pochi decimi di secondo.
 var shake_amt := 0.0
+var reduced_motion := false
 var _shake_t := 0.0
 ## Scossa direzionale delle magie (RMNDWN cameraState L36278–L36315): angoli
 ## sull'orbita lungo l'asse del colpo e calcio del campo visivo in gradi.
@@ -123,6 +124,8 @@ func drag(delta_px: Vector2) -> void:
 
 
 func shake(amount: float) -> void:
+	if reduced_motion:
+		return
 	shake_amt = maxf(shake_amt, amount)
 
 
@@ -130,7 +133,7 @@ func shake(amount: float) -> void:
 ## nel mondo (spinta o direzione del colpo), `down` = asse verso il basso (terra).
 ## Una nuova scossa sostituisce la corrente solo se piu' forte.
 func spell_shake(amp: float, axis: Vector3, dur: float, freq: float, fov_deg: float, down: bool = false) -> void:
-	if amp <= 0.0:
+	if reduced_motion or amp <= 0.0:
 		return
 	if not _ss.is_empty() and float(_ss["amp"]) * _ss_k(float(_ss["t"]), float(_ss["dur"])) > amp:
 		return

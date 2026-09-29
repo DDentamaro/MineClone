@@ -134,6 +134,7 @@ func _init() -> void:
 	add_button(&"block", "Blocco", false)
 	add_button(&"camera", "Camera", false)
 	add_button(&"dev", "⚙", false)
+	add_button(&"menu", "Menu", false)
 
 
 func _ready() -> void:
@@ -225,7 +226,7 @@ func _layout() -> void:
 	var m := dp(20.0)
 	var med := big * 0.78
 	# Riga in alto dal bordo verso il centro: camera, blocco, modo, arma, eroe.
-	var row: Array[StringName] = [&"camera", &"tps_auto", &"bag", &"hero", &"dev"]
+	var row: Array[StringName] = [&"menu", &"bag", &"camera", &"hero", &"tps_auto", &"dev"]
 	var dw := dp(DEV_BUTTON_W_DP)
 	var dh := dp(DEV_BUTTON_H_DP)
 	var cursor := {}
@@ -589,10 +590,17 @@ func _draw() -> void:
 		elif b.id == &"lock" and lock_on:
 			draw_circle(c, r, Color(0.55, 0.06, 0.05, 0.8))
 			draw_arc(c, r, 0.0, TAU, 40, Color(1.0, 0.3, 0.25, 1.0), dp(3.0), true)
+		elif b.id in [&"menu", &"bag", &"camera", &"hero"]:
+			GamePalette.box(self, b.rect, b.held, 9)
 		else:
-			draw_circle(c, r, Color(0.08, 0.1, 0.12, 0.55 if not b.held else 0.8))
-			draw_arc(c, r, 0.0, TAU, 40, Color(0.63, 0.89, 0.78, 0.8), dp(2.0), true)
+			draw_circle(c, r, GamePalette.SURFACE if b.held else GamePalette.PANEL)
+			draw_arc(c, r, 0.0, TAU, 40, GamePalette.ACCENT if b.id == &"attack" or b.held else GamePalette.EDGE, dp(2.0), true)
 		var text: String = labels.get(b.id, b.label)
+		if b.group == &"main" and b.id in [&"attack", &"heavy", &"jump", &"dodge", &"lock", &"menu", &"bag", &"camera", &"hero"]:
+			var edge := b.rect.size.x * 0.42
+			GameIcons.action(self, Rect2(c - Vector2(edge * .5, edge * .78), Vector2.ONE * edge), b.id)
+			_outlined(c + Vector2(0, b.rect.size.y * .33), text, 11.0, GamePalette.INK)
+			continue
 		# Riduce il corpo del testo finche' l'etichetta sta dentro il cerchio.
 		var size_px := fs
 		var ts := _font.get_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, -1, size_px)
@@ -606,21 +614,17 @@ func _draw() -> void:
 func _draw_hot_slot(b: VButton) -> void:
 	var i := int(String(b.id).substr(3))
 	var sel := i == hot_selected
-	draw_rect(b.rect, Color(0.08, 0.1, 0.12, 0.8 if sel else 0.55))
-	draw_rect(b.rect, Color(1, 0.9, 0.5, 1) if sel else Color(0.63, 0.89, 0.78, 0.6), false, dp(3.0 if sel else 1.5))
+	GamePalette.box(self, b.rect, sel, 7)
+	_outlined(b.rect.position + Vector2(dp(7.0), dp(11.0)), str(i + 1), 9.0, GamePalette.MUTED)
 	var ic: Dictionary = icons.get(b.id, {})
 	if ic.is_empty():
 		return
 	var inner := b.rect.grow(-b.rect.size.x * 0.2)
-	draw_rect(inner, ic["color"])
+	GameIcons.item(self, inner, ItemLibrary.get_item(ic.get("id", &"")))
 	var rc: Color = ic.get("rarity_color", Color(0, 0, 0, 0))
 	if rc.a > 0.0:
 		draw_rect(inner.grow(dp(2.0)), rc, false, dp(2.0))
-	var g: String = ic.get("glyph", "")
 	var fs := int(dp(13.0))
-	var ts := _font.get_string_size(g, HORIZONTAL_ALIGNMENT_CENTER, -1, fs)
-	draw_string_outline(_font, inner.get_center() + Vector2(-ts.x * 0.5, ts.y * 0.3), g, HORIZONTAL_ALIGNMENT_CENTER, -1, fs, int(dp(3.0)), Color(0, 0, 0, 0.8))
-	draw_string(_font, inner.get_center() + Vector2(-ts.x * 0.5, ts.y * 0.3), g, HORIZONTAL_ALIGNMENT_CENTER, -1, fs, Color.WHITE)
 	var n: int = ic.get("count", 1)
 	if n > 1:
 		var t := str(n)
@@ -715,9 +719,10 @@ func _outlined(p: Vector2, text: String, size_dp: float, col: Color, center: boo
 func _draw_magic_button(b: VButton) -> void:
 	var c := b.rect.get_center()
 	var r := b.rect.size.x * 0.5
-	draw_circle(c, r, Color(0.08, 0.1, 0.12, 0.55 if not b.held else 0.8))
-	var q := r * 1.05
-	SpellIcons.draw(self, Rect2(c - Vector2(q, q) * 0.5, Vector2(q, q)), magic_spell, magic_blocked != "")
+	draw_circle(c, r, GamePalette.SURFACE if b.held else GamePalette.PANEL)
+	var q := r * .92
+	SpellIcons.draw(self, Rect2(c - Vector2(q * .5, q * .72), Vector2(q, q)), magic_spell, magic_blocked != "")
+	_outlined(c + Vector2(0, b.rect.size.y * .33), "Magia", 11.0, GamePalette.INK)
 	draw_arc(c, r, 0.0, TAU, 40, magic_spell.color().lightened(0.3), dp(2.5), true)
 	# Raccolta in corso: arco azzurro dentro il cerchio (il nome e' sopra la barra).
 	if cast_phase == 1:

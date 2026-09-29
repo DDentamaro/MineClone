@@ -9,6 +9,7 @@ signal closed
 signal message(text: String)
 ## Oggetto gettato dallo zaino: lo posa a terra il gioco (GroundItems).
 signal dropped(stack: ItemStack)
+signal crafted(id: StringName)
 
 const TABS := [["bag", "Inventario"], ["magic", "Magie"], ["craft", "Craft"], ["chest", "Forziere"]]
 const EQ_NAMES := {"head": "Testa", "chest": "Busto", "legs": "Gambe", "feet": "Piedi"}
@@ -166,8 +167,7 @@ func _hit_at(p: Vector2) -> int:
 
 
 func _button(r: Rect2, text: String, action: Callable, on: bool = true, accent: bool = false) -> void:
-	draw_rect(r, Color(0.16, 0.22, 0.2, 0.95) if on else Color(0.12, 0.12, 0.13, 0.8))
-	draw_rect(r, Color(1, 0.85, 0.45) if accent else Color(0.63, 0.89, 0.78, 0.9 if on else 0.3), false, dp(1.5))
+	GamePalette.box(self, r, accent and on, 6)
 	_text_center(r, text, 15, Color.WHITE if on else Color(0.6, 0.6, 0.6))
 	if on:
 		_hits.append([r, action])
@@ -220,8 +220,7 @@ func _draw() -> void:
 	_hits.append([Rect2(Vector2.ZERO, s), func() -> void: pass])
 	var m := dp(16.0)
 	var panel := Rect2(m, m, s.x - 2.0 * m, s.y - 2.0 * m)
-	draw_rect(panel, Color(0.07, 0.09, 0.1, 0.94))
-	draw_rect(panel, Color(0.63, 0.89, 0.78, 0.7), false, dp(2.0))
+	GamePalette.box(self, panel, false, 12)
 	# Schede e chiusura.
 	var th := dp(40.0)
 	var x := panel.position.x + m
@@ -261,15 +260,15 @@ func _slot_size(body: Rect2, cols: int, rows: int, frac: float) -> float:
 
 ## Disegna uno slot; `on_tap` lo rende toccabile.
 func _slot(r: Rect2, st: ItemStack, selected: bool, on_tap: Callable, hotbar: bool = false) -> void:
-	draw_rect(r, Color(0.13, 0.16, 0.17, 0.95) if not hotbar else Color(0.16, 0.19, 0.14, 0.95))
-	draw_rect(r, Color(1, 0.9, 0.5) if selected else Color(0.4, 0.5, 0.46, 0.8), false, dp(2.5 if selected else 1.0))
+	GamePalette.box(self, r, selected, 6)
+	if hotbar:
+		draw_line(r.position + Vector2(dp(8), 0), r.position + Vector2(r.size.x - dp(8), 0), GamePalette.ACCENT, dp(2))
 	if st != null:
 		var d := st.def()
 		var inner := r.grow(-r.size.x * 0.18)
-		draw_rect(inner, d.color)
+		GameIcons.item(self, inner, d)
 		if st.rarity() > 0:
 			draw_rect(inner.grow(dp(2.0)), Loot.RARITY_COLORS[st.rarity()], false, dp(2.0))
-		_text_center(inner, d.glyph, 13, Color.WHITE)
 		if st.count > 1:
 			_text(r.position + Vector2(r.size.x - dp(22.0), r.size.y - dp(5.0)), str(st.count), 13, Color.WHITE)
 		if st.data.has("wear"):
@@ -721,6 +720,7 @@ func _draw_craft(body: Rect2) -> void:
 			_button(br, "Crea", func() -> void:
 				var made := Recipes.craft(rec, items.inv, stations, rng)
 				if made != null:
+					crafted.emit(made.id)
 					message.emit("creato: %s%s" % [Loot.full_name(made), (" (%s)" % Loot.RARITY_NAMES[made.rarity()]) if made.rarity() > 0 else ""])
 					items.held_changed.emit()
 				else:

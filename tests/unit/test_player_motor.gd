@@ -4,6 +4,48 @@ extends TestCase
 const DT := 1.0 / 60.0
 
 
+func test_held_jump_does_not_bunny_hop() -> void:
+	var m := _motor(TestWorlds.flat(4), Vector3(8.5, 4, 8.5))
+	_run(m, 2.0, Vector2.ZERO, 120)
+	check(m.on_ground, "holding jump does not start a second jump")
+	check_eq(m.position.y, 4.0, "landed and stays grounded")
+
+
+func test_jump_buffer_before_landing() -> void:
+	var m := _motor(TestWorlds.flat(4), Vector3(8.5, 4, 8.5))
+	m.position.y = 4.1
+	m.on_ground = false
+	m.velocity.y = -3.0
+	m.step(DT, Vector2.ZERO, true)
+	for i in 5:
+		m.step(DT, Vector2.ZERO, false)
+	check(m.velocity.y > 0.0, "a press just before landing is remembered")
+
+
+func test_coyote_jump_after_leaving_edge() -> void:
+	var m := _motor(TestWorlds.flat(4), Vector3(8.5, 4, 8.5))
+	m.step(DT, Vector2.ZERO, false)
+	m.on_ground = false
+	m.position.y = 5.0
+	m.step(DT, Vector2.ZERO, true)
+	check(m.velocity.y > 0.0, "short grace window after leaving ground")
+	m.step(DT, Vector2.ZERO, false)
+	var before := m.velocity.y
+	m.step(DT, Vector2.ZERO, true)
+	check(m.velocity.y < before, "no double jump in the grace window")
+
+
+func test_coyote_expires() -> void:
+	var m := _motor(TestWorlds.flat(4), Vector3(8.5, 4, 8.5))
+	m.step(DT, Vector2.ZERO, false)
+	m.on_ground = false
+	m.position.y = 10.0
+	for i in 12:
+		m.step(DT, Vector2.ZERO, false)
+	m.step(DT, Vector2.ZERO, true)
+	check(m.velocity.y < 0.0, "cannot jump long after leaving an edge")
+
+
 func _run(m: PlayerMotor, seconds: float, move: Vector2, jump_frames: int = 0) -> Dictionary:
 	var max_y := m.position.y
 	var min_y := m.position.y

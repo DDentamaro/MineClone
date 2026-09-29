@@ -269,6 +269,13 @@ func release() -> void:
 	held = false
 
 
+## Menu/focus loss: forget pending input without cancelling live spell effects.
+func clear_input() -> void:
+	held = false
+	_tap = false
+	queued = false
+
+
 func is_casting() -> bool:
 	return phase != Phase.NONE or not _pending.is_empty()
 

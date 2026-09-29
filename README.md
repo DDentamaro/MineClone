@@ -4,6 +4,23 @@ Ricostruzione in **Godot 4.7.2** del prototipo HTML *IsoTerra* e sua evoluzione 
 piccolo sandbox voxel action per telefono (orizzontale). Il piano di lavoro è diviso in
 milestone M0–M8 (traguardo **R** = parità col prototipo, traguardo **G** = gioco).
 
+### Esperienza del giocatore — D-036
+
+Il gioco ora presenta un HUD compatto con oggetto impugnato, ora, obiettivo attivo e
+avanzamento della raccolta. **Menu**, **Esc** o **P** aprono una pausa completa con diario,
+comandi, salvataggio, ritorno al campo e impostazioni persistenti: dettaglio, volume,
+movimento ridotto, controlli mancini e suggerimenti. Gli strumenti di sviluppo sono nel menu.
+
+Il diario propone otto traguardi introduttivi, completabili anche fuori ordine: esplorare,
+raccogliere, creare e posare un banco, colpire, schivare, fissare il ritorno al falò e trovare
+un tesoro. Il progresso resta nella partita; i vecchi salvataggi rimangono leggibili.
+**F** o il suggerimento sullo schermo usa l'oggetto vicino. Anche il clic destro richiede
+portata e linea libera. Il salto ricorda una pressione nei 120 ms prima dell'atterraggio e
+consente 100 ms di tolleranza dopo un bordo; tenerlo premuto non provoca salti ripetuti.
+
+È un primo passaggio sull'esperienza, non una release finale: restano da verificare resa
+visiva e usabilità su dispositivi reali, prestazioni mobile e bilanciamento complessivo.
+
 Stato attuale: **M5 — sandbox persistente con equipaggiamento RPG** (D-026), dopo il gate R e **M4 — action** (vedi `docs/PROGRESS.md`): generatore, luce,
 mesh, vegetazione e acqua identici al prototipo; resa dipinta con contorni, cielo, giorno/notte
 e acqua fusa come nella reference; nuoto e guado, schizzi; camera isometrica (terza persona
@@ -17,14 +34,16 @@ come il reticolo di granelli di RMNDWN, l'accumulo della sostanza nel palmo e i 
 
 Controlli desktop: WASD/frecce, Spazio salto, trascinamento del mouse per ruotare, rotella
 zoom, clic = tap (posa o colpo secondo l'oggetto in mano), clic tenuto = scava/abbatte, clic
-destro = apri forziere/banco/falò, 1–6 barra rapida, I o Tab zaino, V camera, Q/E rotazione,
-Z/X zoom, N nuovo seme, Esc (o indietro su Android) chiude il pannello aperto.
+destro = apri forziere/banco/falò, F = interagisci con l'oggetto vicino, 1–6 barra rapida,
+I o Tab zaino, V camera, Q/E rotazione, Z/X zoom, N nuovo seme (con conferma),
+Esc (o indietro su Android) chiude il pannello aperto oppure apre la pausa.
 Equipaggiare: nello zaino tocca un oggetto e usa "Impugna" (armi, attrezzi, blocchi: vanno nella
 barra rapida e in mano) o "Indossa" (armature); la scheda Equipaggiamento mostra Mano e i quattro
 pezzi con i confronti. Un'armeria con tutte le armi è accanto al punto di partenza.
 Combattimento: J colpo (o clic sul mondo in esplorazione), K forte (tenuto = carica), L o Maiusc
-capriola, R cambia arma, H editor dell'eroe, M rimette i manichini davanti, U magia (una pressione: la raccolta finisce da sola), Y magia successiva della barra, P pausa; clic destro = azione
-opposta in costruzione/scavo; J tenuto continua la catena.
+capriola, R o clic centrale aggancia/sgancia il bersaglio, H editor dell'eroe, M rimette
+i manichini davanti, U magia (una pressione: la raccolta finisce da sola), Y magia successiva
+della barra, P pausa; J tenuto continua la catena.
 
 ## Struttura
 
@@ -43,6 +62,7 @@ opposta in costruzione/scavo; J tenuto continua la catena.
 ```bash
 tools/setup_env.sh                          # Godot 4.7.2 + template + SDK (Linux)
 tools/run_tests.sh                          # test headless
+godot --headless --path . --script res://tools/e2e_session.gd  # menu, tocchi e salvataggio
 node tools/extract_fixture.mjs 1931         # rigenera la fixture del seme 1931
 node tools/extract_gen_stages.mjs           # fixture di parità generatore/fluidi (gen_v064)
 godot --headless --path . --script res://tools/verify_generator.gd   # parità mondi grandi + tempi

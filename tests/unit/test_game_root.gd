@@ -2,6 +2,46 @@ extends TestCase
 ## Integrazione: scena principale con fixture, costruzione e scavo di debug.
 
 
+func test_pause_and_bag_clear_pending_gameplay_input() -> void:
+	var g := _scene()
+	g._light_key = true
+	g._jump_key = true
+	g._hold_active = true
+	g.combat.press_heavy()
+	g.magic.press()
+	g.set_paused(true)
+	check(g.paused and g._touch.blocked, "pause blocks game and touch")
+	check_eq(g._session.page, "pause", "real pause menu")
+	check(not g._light_key and not g._jump_key and not g._hold_active, "no held gameplay inputs")
+	check(not g.magic.held and not g.magic._tap and not g.magic.queued, "no queued spell")
+	check(not g.combat.heavy_held and g.combat.buffer == &"", "no queued heavy attack")
+	var event := InputEventKey.new()
+	event.physical_keycode = KEY_J
+	event.pressed = true
+	g._unhandled_input(event)
+	check_eq(g.combat.buffer, &"", "pause ignores attack key")
+	g.set_paused(false)
+	g.open_bag()
+	g._unhandled_input(event)
+	check_eq(g.combat.buffer, &"", "inventory ignores attack key")
+	g._bag.close()
+	check(not g.get_tree().paused and not g._touch.blocked, "closing inventory resumes")
+	g.free()
+
+
+func test_journal_persisted_with_world_and_successful_placement() -> void:
+	var g := _scene()
+	g.journal.record("harvest", 2)
+	_hold(g, &"workbench")
+	check(g.apply_action(_hit_down(g, 2.0)), "workbench placed")
+	check_eq(g.journal.counts.get("build", 0), 1.0, "placement records objective")
+	var state := g.make_save_state()
+	check_eq(state["journal"]["harvest"], 2.0, "partial progress part of save")
+	var decoded := SaveService.decode(SaveService.encode(state))
+	check_eq(decoded["journal"], state["journal"], "journal survives save encoding")
+	g.free()
+
+
 func _scene() -> GameRoot:
 	var root: GameRoot = (load("res://scenes/main.tscn") as PackedScene).instantiate()
 	(Engine.get_main_loop() as SceneTree).root.add_child(root)

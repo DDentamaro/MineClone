@@ -2,6 +2,28 @@ extends TestCase
 ## Raccolta, oggetti piazzati e forzieri (M5).
 
 
+func test_interaction_requires_reach_and_clear_line() -> void:
+	var a := _setup()
+	var w: WorldData = a[0]
+	var objs: WorldObjects = a[2]
+	var s := SandboxController.new()
+	s.world = w
+	s.catalog = BlockCatalog.load_default()
+	s.objects = objs
+	s.motor = PlayerMotor.new(w)
+	s.motor.place_at(Vector3(8.5, 4, 8.5))
+	var near := objs.place("chest", Vector3i(10, 4, 8))
+	var far := objs.place("chest", Vector3i(20, 4, 8))
+	check(s.can_use(near), "near chest accessible")
+	check(not s.can_use(far), "remote chest rejected")
+	check_eq(s.nearest_usable(), near, "context prompt picks usable chest")
+	TestWorlds.fill(w, Vector3i(9, 4, 8), Vector3i(9, 6, 8), BlockCatalog.STONE)
+	check(not s.can_use(near), "cannot interact through a wall")
+	check(s.nearest_usable() == null, "no prompt through a wall")
+	check(not s.can_use(null), "missing object is safe")
+	objs.free()
+
+
 func _setup(ground: int = BlockCatalog.STONE) -> Array:
 	var w := TestWorlds.flat(4, 32, 16, 32)
 	TestWorlds.fill(w, Vector3i(0, 3, 0), Vector3i(31, 3, 31), ground)

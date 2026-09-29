@@ -30,6 +30,7 @@ func _initialize() -> void:
 			_phone = true
 	_game = (load("res://scenes/main.tscn") as PackedScene).instantiate()
 	root.add_child(_game)
+	_game._touch.hidden_ids[&"dev"] = false # This diagnostic explicitly opts into developer tools.
 
 
 func _touch(i: int, p: Vector2, pressed: bool) -> void:

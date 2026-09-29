@@ -655,3 +655,18 @@ vedono male.
   prato e sulla terra del gioco si leggeva come sporco scuro. Ora va da un blu medio (.10/.34/.60)
   a un blu acceso (.16/.53/.92), a un celeste (.36/.76/1) e a schiuma bianca; le gocce sono 1,45
   volte più grandi (a 360 righe quelle da 2 cm sparivano). Differenza voluta da RMNDWN.
+
+## D-036 — UI del giocatore e primo percorso di obiettivi
+
+- **Contesto:** richiesta di migliorare professionalmente interfaccia e meccaniche.
+  Un concept generato aiuta a definire palette e gerarchia; non rappresenta la build.
+- **Decisione:** introdurre HUD, pausa, diario e impostazioni con una palette ardesia,
+  salvia e ottone. Icone native vettoriali al posto delle sigle degli oggetti. Layout
+  compatto a due colonne per mantenere le aree touch nella simulazione ad alta densità.
+  La telemetria resta negli strumenti sviluppatore. Nessuna modifica alla reference.
+- **Meccaniche:** obiettivi introduttivi persistenti e non bloccanti, interazione verificata
+  per portata e linea libera, buffer e tolleranza del salto, azzeramento degli input nei
+  pannelli. Il diario è un campo opzionale nel salvataggio versione 1.
+- **Conseguenze:** questa è una base verificata in headless, non una release professionale
+  conclusa. Playtest, ispezione visiva mobile, performance e contenuti di progressione
+  rimangono necessari. Dettagli e limiti in `docs/PLAYER_EXPERIENCE.md` e `docs/PROGRESS.md`.
