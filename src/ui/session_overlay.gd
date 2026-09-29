@@ -19,6 +19,8 @@ var volume := 80
 var hints := true
 var hud_visible := true
 var ui_density := 1.0
+## Rettangoli (schermo) dei comandi touch da non coprire con l'indicazione.
+var avoid: Array[Rect2] = []
 var save_text := "Salvataggio automatico ogni 60 secondi"
 var _toast := ""
 var _toast_time := 0.0
@@ -82,8 +84,8 @@ func _draw() -> void:
 	_scale = minf(_scale, 1.25)
 	var s := size / _scale
 	if page != "":
-		# High-density landscape phones need a shorter, two-column menu so that
-		# the touch targets keep their physical size instead of being shrunk.
+		# Telefoni in orizzontale ad alta densita': menu piu' corto a due colonne,
+		# cosi' i pulsanti tengono la loro misura fisica invece di rimpicciolirsi.
 		var compact_scale := minf(ui_density, minf(size.x / 660.0, size.y / 390.0))
 		if compact_scale > _scale * 1.2:
 			_scale = compact_scale
@@ -93,7 +95,7 @@ func _draw() -> void:
 		return
 	if not hud_visible:
 		return
-	# A compact field card; all debug telemetry is opt-in in the developer panel.
+	# Scheda compatta; la telemetria di debug si vede solo negli strumenti sviluppatore.
 	var x := s.x - 312.0 if left_handed else 20.0
 	_box(Rect2(x, 20, 292, 92))
 	_text(Vector2(x + 16, 45), "ISOTERRA", 21, GamePalette.ACCENT)
@@ -111,9 +113,22 @@ func _draw() -> void:
 		var clues := {"walk": "WASD / stick: esplora 24 metri", "harvest": "Tieni premuto su alberi o blocchi", "craft": "Zaino > Craft: banco da lavoro", "build": "Impugna il banco e tocca il terreno", "hit": "J / Colpo: colpisci i manichini", "dodge": "Maiusc / Schiva: esegui una capriola", "camp": "Crea un falò e interagisci", "treasure": "Cerca i forzieri oltre il campo"}
 		_text(Vector2(x + 16, 210), String(clues.get(goal.get("id", ""), "Menu > Diario per i traguardi")), 12, GamePalette.MUTED, 260)
 	if context_text != "":
-		_button(Rect2(s.x * 0.5 - 148, s.y * 0.53, 296, maxf(48, 48 * ui_density / _scale)), context_text, &"interact", true)
+		# Sotto i piedi dell'eroe (al centro dello schermo) e sopra gli avvisi:
+		# a meta' schermo copriva il personaggio.
+		var ch := maxf(48, 48 * ui_density / _scale)
+		var cr := Rect2(s.x * 0.5 - 148, s.y - 180 - ch, 296, ch)
+		# Si sposta a sinistra finche' non copre piu' i pulsanti (Lock, Magia...).
+		while cr.position.x > 20.0 and _covers(cr):
+			cr.position.x -= 16.0
+		# Schermo stretto: nessun posto a sinistra, allora sale sopra i pulsanti.
+		if _covers(cr):
+			cr.position.x = s.x * 0.5 - 148
+			while cr.position.y > 130.0 and _covers(cr):
+				cr.position.y -= 16.0
+		_button(cr, context_text, &"interact", true)
 	if mining >= 0.0:
-		var r := Rect2(s.x * 0.5 - 110, s.y * 0.64, 220, 34)
+		# In alto al centro: non si sovrappone all'indicazione dell'oggetto vicino.
+		var r := Rect2(s.x * 0.5 - 110, 24, 220, 34)
 		_box(r)
 		_text(r.position + Vector2(12, 23), "Raccolta   %d%%" % roundi(mining * 100), 14)
 		draw_rect(Rect2((r.position + Vector2(1, 30)) * _scale, Vector2(218 * mining, 3) * _scale), GamePalette.ACCENT)
@@ -175,6 +190,14 @@ func _draw_menu(s: Vector2) -> void:
 			_text(p + Vector2(28, 106 + i * 49), lines[i][0], 11, GamePalette.ACCENT)
 			_text(p + Vector2(28, 126 + i * 49), lines[i][1], 14, GamePalette.INK, 544)
 		_button(Rect2(p + Vector2(28, 472), Vector2(544, 48)), "Indietro", &"pause")
+
+
+func _covers(r: Rect2) -> bool:
+	var sr := Rect2(r.position * _scale, r.size * _scale)
+	for a in avoid:
+		if sr.intersects(a):
+			return true
+	return false
 
 
 func _at(pos: Vector2) -> StringName:
@@ -250,6 +273,6 @@ func _input(event: InputEvent) -> void:
 		if page != "" or id != &"" or _finger == event.index:
 			get_viewport().set_input_as_handled()
 	elif page != "" and (event is InputEventMouseButton or event is InputEventScreenDrag):
-		# Desktop clicks already produce native touch through the project setting.
+		# Su desktop i clic arrivano gia' come tocchi (emulazione del progetto).
 		get_viewport().set_input_as_handled()
 	queue_redraw()

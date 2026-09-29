@@ -4,14 +4,14 @@ extends TestCase
 const DT := 1.0 / 60.0
 
 
-func test_held_jump_does_not_bunny_hop() -> void:
+func test_salto_tenuto_non_rimbalza() -> void:
 	var m := _motor(TestWorlds.flat(4), Vector3(8.5, 4, 8.5))
 	_run(m, 2.0, Vector2.ZERO, 120)
-	check(m.on_ground, "holding jump does not start a second jump")
-	check_eq(m.position.y, 4.0, "landed and stays grounded")
+	check(m.on_ground, "tenere il salto non ne fa partire un secondo")
+	check_eq(m.position.y, 4.0, "atterrato e resta a terra")
 
 
-func test_jump_buffer_before_landing() -> void:
+func test_salto_ricordato_prima_di_atterrare() -> void:
 	var m := _motor(TestWorlds.flat(4), Vector3(8.5, 4, 8.5))
 	m.position.y = 4.1
 	m.on_ground = false
@@ -19,23 +19,23 @@ func test_jump_buffer_before_landing() -> void:
 	m.step(DT, Vector2.ZERO, true)
 	for i in 5:
 		m.step(DT, Vector2.ZERO, false)
-	check(m.velocity.y > 0.0, "a press just before landing is remembered")
+	check(m.velocity.y > 0.0, "una pressione poco prima di atterrare e' ricordata")
 
 
-func test_coyote_jump_after_leaving_edge() -> void:
+func test_tolleranza_dopo_il_bordo() -> void:
 	var m := _motor(TestWorlds.flat(4), Vector3(8.5, 4, 8.5))
 	m.step(DT, Vector2.ZERO, false)
 	m.on_ground = false
 	m.position.y = 5.0
 	m.step(DT, Vector2.ZERO, true)
-	check(m.velocity.y > 0.0, "short grace window after leaving ground")
+	check(m.velocity.y > 0.0, "breve tolleranza dopo aver lasciato il suolo")
 	m.step(DT, Vector2.ZERO, false)
 	var before := m.velocity.y
 	m.step(DT, Vector2.ZERO, true)
-	check(m.velocity.y < before, "no double jump in the grace window")
+	check(m.velocity.y < before, "niente doppio salto nella tolleranza")
 
 
-func test_coyote_expires() -> void:
+func test_tolleranza_scade() -> void:
 	var m := _motor(TestWorlds.flat(4), Vector3(8.5, 4, 8.5))
 	m.step(DT, Vector2.ZERO, false)
 	m.on_ground = false
@@ -43,7 +43,7 @@ func test_coyote_expires() -> void:
 	for i in 12:
 		m.step(DT, Vector2.ZERO, false)
 	m.step(DT, Vector2.ZERO, true)
-	check(m.velocity.y < 0.0, "cannot jump long after leaving an edge")
+	check(m.velocity.y < 0.0, "niente salto molto dopo il bordo")
 
 
 func _run(m: PlayerMotor, seconds: float, move: Vector2, jump_frames: int = 0) -> Dictionary:

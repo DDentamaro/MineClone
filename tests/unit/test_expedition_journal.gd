@@ -1,41 +1,42 @@
 extends TestCase
+## Diario della spedizione (D-036): obiettivi introduttivi e salvataggio.
 
 
-func test_progress_is_bounded_and_out_of_order() -> void:
+func test_avanzamento_limitato_e_fuori_ordine() -> void:
 	var j := ExpeditionJournal.new()
 	j.record("craft")
 	j.record("walk", 200.0)
 	j.record("walk", -10.0)
 	j.record("unknown", 1.0)
 	j.record("harvest", NAN)
-	check_eq(j.completed_count(), 2, "goals can be completed out of order")
-	check_eq(j.counts["walk"], 24.0, "bounded distance")
-	check_eq(j.current()["id"], "harvest", "next incomplete goal")
-	check(not j.counts.has("unknown"), "ignore unknown events")
-	check(not j.counts.has("harvest"), "reject invalid numbers")
+	check_eq(j.completed_count(), 2, "obiettivi completabili fuori ordine")
+	check_eq(j.counts["walk"], 24.0, "distanza limitata al traguardo")
+	check_eq(j.current()["id"], "harvest", "prossimo obiettivo incompleto")
+	check(not j.counts.has("unknown"), "eventi sconosciuti ignorati")
+	check(not j.counts.has("harvest"), "numeri non validi rifiutati")
 
 
-func test_save_roundtrip_and_legacy() -> void:
+func test_salvataggio_e_partite_vecchie() -> void:
 	var j := ExpeditionJournal.new()
 	j.record("harvest", 2.0)
 	j.record("camp")
 	var restored := ExpeditionJournal.new()
 	restored.load_dict(j.to_dict())
-	check_eq(restored.counts["harvest"], 2.0, "partial progress restored")
-	check_eq(restored.completed_count(), 1, "completed goal restored")
+	check_eq(restored.counts["harvest"], 2.0, "avanzamento parziale ripristinato")
+	check_eq(restored.completed_count(), 1, "obiettivo completato ripristinato")
 	restored.load_dict({})
-	check_eq(restored.completed_count(), 0, "old saves start with an empty journal")
+	check_eq(restored.completed_count(), 0, "le partite vecchie partono col diario vuoto")
 
 
-func test_completion_only_emitted_once() -> void:
+func test_completamento_notificato_una_volta() -> void:
 	var j := ExpeditionJournal.new()
 	var notifications: Array[String] = []
 	j.completed.connect(func(title: String) -> void: notifications.append(title))
 	j.record("hit", 2.0)
 	j.record("hit")
 	j.record("hit", 20.0)
-	check_eq(notifications.size(), 1, "one notification per milestone")
+	check_eq(notifications.size(), 1, "una notifica per traguardo")
 	j.load_dict({"hit": 9999, "walk": "invalid", "camp": -3})
-	check_eq(notifications.size(), 1, "loading is silent")
-	check_eq(j.counts["hit"], 3.0, "clamped save input")
-	check_eq(j.counts["camp"], 0.0, "negative save input")
+	check_eq(notifications.size(), 1, "il caricamento non notifica")
+	check_eq(j.counts["hit"], 3.0, "valore salvato limitato")
+	check_eq(j.counts["camp"], 0.0, "valore salvato negativo")

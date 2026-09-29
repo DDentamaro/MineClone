@@ -670,3 +670,11 @@ vedono male.
 - **Conseguenze:** questa è una base verificata in headless, non una release professionale
   conclusa. Playtest, ispezione visiva mobile, performance e contenuti di progressione
   rimangono necessari. Dettagli e limiti in `docs/PLAYER_EXPERIENCE.md` e `docs/PROGRESS.md`.
+- **Integrazione (29/09/2026):** la patch è stata scritta da un altro agente (Codex) sopra D-035
+  e integrata su richiesta del proprietario con l'autore originale nel commit. Correzioni fatte
+  all'integrazione: l'indicazione dell'oggetto vicino ("F / Apri armeria") stava a metà schermo
+  sopra l'eroe e sul telefono copriva il pulsante Lock: ora sta sotto i piedi dell'eroe, si sposta
+  finché non copre i comandi touch, e su schermi touch non mostra "F /"; la barra di raccolta va
+  in alto al centro. Le prove `e2e_options` e `e2e_armory` fallivano perché il pulsante ⚙ è
+  nascosto (la riga aggiunta alla prova delle opzioni girava prima che il gioco fosse pronto):
+  ora lo riattivano a mondo pronto. Commenti e test tradotti in italiano come il resto del codice.

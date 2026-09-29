@@ -269,7 +269,7 @@ func release() -> void:
 	held = false
 
 
-## Menu/focus loss: forget pending input without cancelling live spell effects.
+## Menu o perdita del focus: dimentica l'input in sospeso senza annullare le magie gia' in corso.
 func clear_input() -> void:
 	held = false
 	_tap = false

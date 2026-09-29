@@ -811,7 +811,7 @@ func _session_action(id: StringName) -> void:
 		&"return_home":
 			var base := checkpoint if checkpoint != Vector3.INF else world.spawn_point()
 			var destination := Vector3.INF
-			# Search a clear column near the saved fire: a later build may occupy it.
+			# Cerca una colonna libera accanto al falo': una costruzione successiva puo' occuparla.
 			for offset in [Vector2.ZERO, Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]:
 				var x: float = base.x + offset.x
 				var z: float = base.z + offset.y
@@ -850,7 +850,14 @@ func _update_session_hud() -> void:
 	_session.mining = sandbox.harvester.progress if _hold_active and sandbox.harvester.target != null else -1.0
 	var nearby := sandbox.nearest_usable() if not paused and not _bag.is_open() else null
 	var names := {"chest": "Apri forziere", "treasure": "Apri tesoro", "armory": "Apri armeria", "workbench": "Crea al banco", "furnace": "Usa fornace", "campfire": "Riposa al falò"}
-	_session.context_text = ("F / " + String(names.get(nearby.type, "Interagisci"))) if nearby != null else ""
+	# Il tasto F ha senso solo con la tastiera; su telefono resta l'azione.
+	var key := "" if DisplayServer.is_touchscreen_available() else "F / "
+	_session.context_text = (key + String(names.get(nearby.type, "Interagisci"))) if nearby != null else ""
+	_session.avoid.clear()
+	for id: StringName in [&"lock", &"magic", &"attack", &"heavy", &"dodge", &"jump"]:
+		_session.avoid.append(_touch.button_rect(id))
+	for i in TouchControls.SPELLBAR:
+		_session.avoid.append(_touch.button_rect(StringName("sp%d" % i)))
 	if last_edit != "" and last_edit != _last_notice:
 		_last_notice = last_edit
 		_session.notify(last_edit)

@@ -64,6 +64,9 @@ func _process(_dt: float) -> bool:
 	match _phase:
 		0:
 			if _game._runtime.is_idle() and _game._build_ms > 0 and _game._vegetation.is_idle() and _game._water.is_idle():
+				# D-036: ⚙ e' nascosto (strumenti dal Menu o con --dev); questa prova
+				# li chiede esplicitamente (in _initialize GameRoot non e' ancora pronto).
+				_game._touch.hidden_ids[&"dev"] = false
 				_game._day.time = 0.4
 				_game._day.paused = true
 				for o in _game._objects.list:

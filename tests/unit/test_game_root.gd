@@ -2,7 +2,7 @@ extends TestCase
 ## Integrazione: scena principale con fixture, costruzione e scavo di debug.
 
 
-func test_pause_and_bag_clear_pending_gameplay_input() -> void:
+func test_pausa_e_zaino_azzerano_gli_input() -> void:
 	var g := _scene()
 	g._light_key = true
 	g._jump_key = true
@@ -10,35 +10,35 @@ func test_pause_and_bag_clear_pending_gameplay_input() -> void:
 	g.combat.press_heavy()
 	g.magic.press()
 	g.set_paused(true)
-	check(g.paused and g._touch.blocked, "pause blocks game and touch")
-	check_eq(g._session.page, "pause", "real pause menu")
-	check(not g._light_key and not g._jump_key and not g._hold_active, "no held gameplay inputs")
-	check(not g.magic.held and not g.magic._tap and not g.magic.queued, "no queued spell")
-	check(not g.combat.heavy_held and g.combat.buffer == &"", "no queued heavy attack")
+	check(g.paused and g._touch.blocked, "la pausa ferma gioco e tocchi")
+	check_eq(g._session.page, "pause", "menu di pausa vero")
+	check(not g._light_key and not g._jump_key and not g._hold_active, "nessun input di gioco tenuto")
+	check(not g.magic.held and not g.magic._tap and not g.magic.queued, "nessuna magia in coda")
+	check(not g.combat.heavy_held and g.combat.buffer == &"", "nessun colpo forte in coda")
 	var event := InputEventKey.new()
 	event.physical_keycode = KEY_J
 	event.pressed = true
 	g._unhandled_input(event)
-	check_eq(g.combat.buffer, &"", "pause ignores attack key")
+	check_eq(g.combat.buffer, &"", "in pausa il tasto colpo e' ignorato")
 	g.set_paused(false)
 	g.open_bag()
 	g._unhandled_input(event)
-	check_eq(g.combat.buffer, &"", "inventory ignores attack key")
+	check_eq(g.combat.buffer, &"", "nello zaino il tasto colpo e' ignorato")
 	g._bag.close()
-	check(not g.get_tree().paused and not g._touch.blocked, "closing inventory resumes")
+	check(not g.get_tree().paused and not g._touch.blocked, "chiudere lo zaino riprende il gioco")
 	g.free()
 
 
-func test_journal_persisted_with_world_and_successful_placement() -> void:
+func test_diario_salvato_col_mondo_e_banco_posato() -> void:
 	var g := _scene()
 	g.journal.record("harvest", 2)
 	_hold(g, &"workbench")
-	check(g.apply_action(_hit_down(g, 2.0)), "workbench placed")
-	check_eq(g.journal.counts.get("build", 0), 1.0, "placement records objective")
+	check(g.apply_action(_hit_down(g, 2.0)), "banco posato")
+	check_eq(g.journal.counts.get("build", 0), 1.0, "la posa conta per l'obiettivo")
 	var state := g.make_save_state()
-	check_eq(state["journal"]["harvest"], 2.0, "partial progress part of save")
+	check_eq(state["journal"]["harvest"], 2.0, "avanzamento parziale nel salvataggio")
 	var decoded := SaveService.decode(SaveService.encode(state))
-	check_eq(decoded["journal"], state["journal"], "journal survives save encoding")
+	check_eq(decoded["journal"], state["journal"], "il diario sopravvive alla codifica")
 	g.free()
 
 

@@ -2,7 +2,7 @@ extends TestCase
 ## Raccolta, oggetti piazzati e forzieri (M5).
 
 
-func test_interaction_requires_reach_and_clear_line() -> void:
+func test_interazione_con_portata_e_linea_libera() -> void:
 	var a := _setup()
 	var w: WorldData = a[0]
 	var objs: WorldObjects = a[2]
@@ -14,13 +14,13 @@ func test_interaction_requires_reach_and_clear_line() -> void:
 	s.motor.place_at(Vector3(8.5, 4, 8.5))
 	var near := objs.place("chest", Vector3i(10, 4, 8))
 	var far := objs.place("chest", Vector3i(20, 4, 8))
-	check(s.can_use(near), "near chest accessible")
-	check(not s.can_use(far), "remote chest rejected")
-	check_eq(s.nearest_usable(), near, "context prompt picks usable chest")
+	check(s.can_use(near), "forziere vicino raggiungibile")
+	check(not s.can_use(far), "forziere lontano rifiutato")
+	check_eq(s.nearest_usable(), near, "l'indicazione sceglie il forziere usabile")
 	TestWorlds.fill(w, Vector3i(9, 4, 8), Vector3i(9, 6, 8), BlockCatalog.STONE)
-	check(not s.can_use(near), "cannot interact through a wall")
-	check(s.nearest_usable() == null, "no prompt through a wall")
-	check(not s.can_use(null), "missing object is safe")
+	check(not s.can_use(near), "niente interazione attraverso un muro")
+	check(s.nearest_usable() == null, "nessuna indicazione attraverso un muro")
+	check(not s.can_use(null), "oggetto mancante gestito")
 	objs.free()
 
 

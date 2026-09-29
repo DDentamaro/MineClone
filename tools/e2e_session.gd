@@ -1,6 +1,6 @@
 extends SceneTree
-## Headless-compatible session-flow regression. Optional --out=/path captures
-## the pause menu when run with a real display/rendering driver.
+## Prova del flusso di sessione (D-036), anche headless: menu, tocchi, impostazioni,
+## salvataggio, ripresa. Con --out=/percorso e un display vero salva la pausa.
 
 var _game: GameRoot
 var _failures := 0
@@ -39,7 +39,7 @@ func _touch(point: Vector2, down: bool, canceled: bool = false) -> void:
 	event.position = point
 	event.pressed = down
 	event.canceled = canceled
-	# Coordinates are in the stretched viewport, not physical window pixels.
+	# Coordinate del viewport scalato, non pixel fisici della finestra.
 	root.push_input(event, true)
 
 
@@ -50,7 +50,7 @@ func _tap(id: StringName) -> void:
 			_touch(point, true)
 			_touch(point, false)
 			return
-	_check(false, "button exists: " + String(id))
+	_check(false, "pulsante presente: " + String(id))
 
 
 func _run() -> void:
@@ -65,49 +65,49 @@ func _run() -> void:
 	_touch(menu, true)
 	_touch(menu, false)
 	await _frames()
-	_check(_game.paused and paused, "touch opens and pauses the game")
-	_check(_game._session._buttons.size() == 7, "pause menu has seven actions")
+	_check(_game.paused and paused, "il tocco su Menu apre la pausa")
+	_check(_game._session._buttons.size() == 7, "la pausa ha sette azioni")
 	var before := _game.motor.position
 	await _frames()
-	_check(_game.motor.position == before, "world is frozen in menu")
+	_check(_game.motor.position == before, "il mondo e' fermo nel menu")
 	for page in ["pause", "journal", "settings", "help"]:
 		_game._session.open(page)
 		await _frames()
 		var bounds := Rect2(Vector2.ZERO, _game._session.size)
 		for button: Dictionary in _game._session._buttons:
-			_check(bounds.encloses(button["rect"]), "%s / %s inside viewport" % [page, button["id"]])
+			_check(bounds.encloses(button["rect"]), "%s / %s dentro lo schermo" % [page, button["id"]])
 	_game._session.open("settings")
 	await _frames()
 	_tap(&"motion")
-	_check(_game._camera_rig.reduced_motion, "motion setting applied")
-	_check(Settings.load_value("accessibility", "reduced_motion", false), "motion setting persisted")
+	_check(_game._camera_rig.reduced_motion, "movimento ridotto applicato")
+	_check(Settings.load_value("accessibility", "reduced_motion", false), "movimento ridotto salvato")
 	_tap(&"handed")
-	_check(_game._touch.left_handed, "left-handed controls applied")
-	# Canceled contacts must never activate a button.
+	_check(_game._touch.left_handed, "comandi mancini applicati")
+	# Un tocco annullato non deve mai attivare un pulsante.
 	for button: Dictionary in _game._session._buttons:
 		if button["id"] == &"hints":
 			var point: Vector2 = (button["rect"] as Rect2).get_center()
 			_touch(point, true)
 			_touch(point, false, true)
-	_check(_game._session.hints, "canceled touch does not toggle settings")
+	_check(_game._session.hints, "un tocco annullato non cambia le impostazioni")
 	_game._session.open("pause")
 	await _frames()
 	_tap(&"save")
-	_check(SaveService.exists(), "save from pause menu")
+	_check(SaveService.exists(), "salvataggio dalla pausa")
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--out=") and DisplayServer.get_name() != "headless":
 			await RenderingServer.frame_post_draw
 			root.get_texture().get_image().save_png(arg.substr(6))
 	_tap(&"resume")
 	await _frames()
-	_check(not paused and not _game._touch.blocked, "resume releases input gate")
-	_check(_game._session.page == "", "overlay returns to HUD")
+	_check(not paused and not _game._touch.blocked, "Riprendi riattiva i comandi")
+	_check(_game._session.page == "", "si torna all'HUD")
 	_game.open_bag()
 	await _frames()
-	_check(paused and not _game._session.hud_visible, "inventory owns the screen")
+	_check(paused and not _game._session.hud_visible, "lo zaino occupa lo schermo")
 	_game._bag.close()
-	_check(not paused, "inventory resumes the world")
-	# Simulate the same density used by the existing phone touch-control tests.
+	_check(not paused, "chiuso lo zaino il mondo riparte")
+	# Stessa densita' dei test dei comandi touch sul telefono.
 	_game._touch.dp_scale = 1.83
 	_game._touch._layout()
 	_game.set_paused(true)
@@ -119,17 +119,30 @@ func _run() -> void:
 		var rects: Array[Rect2] = []
 		for button: Dictionary in _game._session._buttons:
 			var rect: Rect2 = button["rect"]
-			_check(bounds.encloses(rect), "phone / %s / %s inside screen" % [page, button["id"]])
-			_check(rect.size.y >= 48 * 1.83 - .1, "phone / %s touch height >= 48 dp" % button["id"])
+			_check(bounds.encloses(rect), "telefono / %s / %s dentro lo schermo" % [page, button["id"]])
+			_check(rect.size.y >= 48 * 1.83 - .1, "telefono / %s alto almeno 48 dp" % button["id"])
 			for other in rects:
-				_check(not other.intersects(rect), "phone buttons do not overlap")
+				_check(not other.intersects(rect), "pulsanti del telefono separati")
 			rects.append(rect)
 	_game.set_paused(false)
+	# L'indicazione dell'oggetto vicino non copre i comandi touch del telefono.
+	_game._session.context_text = "Apri armeria"
+	_game._update_session_hud()
+	_game._session.context_text = "Apri armeria"
+	_game._session.queue_redraw()
+	await _frames()
+	var shown := false
+	for button: Dictionary in _game._session._buttons:
+		if button["id"] == &"interact":
+			shown = true
+			for id: StringName in [&"lock", &"magic", &"attack", &"heavy", &"dodge", &"jump", &"sp0", &"sp1", &"sp2", &"sp3", &"sp4"]:
+				_check(not (button["rect"] as Rect2).intersects(_game._touch.button_rect(id)), "telefono / indicazione non copre %s" % id)
+	_check(shown, "telefono / indicazione dell'oggetto vicino visibile")
 	var atlas := IconAtlas.new()
 	root.add_child(atlas)
 	await _frames()
-	_check(atlas.drawn, "all inventory icon categories draw")
+	_check(atlas.drawn, "tutte le categorie di icone si disegnano")
 	atlas.free()
 	_game.free()
-	print("Session flow: %d failures" % _failures)
+	print("e2e sessione %s (%d errori)" % ["OK" if _failures == 0 else "FALLITO", _failures])
 	quit(1 if _failures > 0 else 0)

@@ -29,6 +29,17 @@ sessione. Prima del rilascio servono una prova visiva delle pagine a densità mo
 playtest del movimento e del percorso iniziale, profiling e bilanciamento. Combattimento
 contro nemici, progressione lunga e qualità degli asset restano lavoro successivo.
 
+### Verifica all'integrazione (D-036, 29/09/2026)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 229/229 PASS, log pulito (l'avviso `/proc/self/exe` citato sopra qui non compare) |
+| `tools/e2e_session.gd` con rendering vero (xvfb) | OK: pausa, pagine, impostazioni, tocco annullato, salvataggio, ripresa, scala telefono 1,83; nuovo controllo: l'indicazione dell'oggetto vicino non copre i comandi touch |
+| Suite e2e completa (sessione, aggancio, magia, combattimento, touch, sandbox, passo, oggetti a terra, armeria, nuoto, opzioni, movimenti, magia e opzioni sul telefono) | OK, nessun errore di script. Prima delle correzioni `e2e_armory`, `e2e_options` e `e2e_options --phone` fallivano (pulsante ⚙ nascosto) |
+| Export Android debug 0.15.0-m5 (versionCode 17) + `apksigner verify` + `aapt2 dump badging` | OK; mai installato su un telefono |
+
+Non verificato: pausa per perdita del focus e tasto indietro su un telefono vero; leggibilità
+dell'HUD alla densità reale di un telefono (solo la scala dp simulata).
+
 ## Stato corrente: M5 — Sandbox persistente, equipaggiamento RPG, magia ampliata (come RMNDWN), eroe del prototipo · completata (senza prova su telefono)
 
 Sessione del 28/09/2026 (seguito). Richieste del proprietario dopo la prova: oggetti gettati che
