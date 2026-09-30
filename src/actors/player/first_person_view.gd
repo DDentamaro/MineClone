@@ -15,15 +15,17 @@ extends Node3D
 
 const FOREARM := AvatarRig.FOREARM
 const UPPER_ARM := AvatarRig.UPPER_ARM
-## D-040: piu' piccolo (era 0,46) e spostato a destra, ingombra meno lo schermo.
-const SCALE := 0.36
+## D-040: piu' piccolo (era 0,46) e spostato a destra, ingombra meno lo schermo;
+## D-043 0,36 -> 0,30 per le braccia piu' lunghe dell'eroe alto due blocchi.
+const SCALE := 0.30
 ## Spostamento di tutto il braccio (spazio camera): a destra e un filo in basso;
 ## coi pugni il braccio sinistro si sposta a sinistra (specchio).
 const SHIFT := Vector3(0.1, -0.03, 0.0)
 ## Braccio dritto: l'omero continua l'avambraccio fino alla spalla, fuori dallo schermo.
 const ELBOW_FLEX := 0.0
-## L'oggetto in mano appare un po' piu' grande che sull'eroe (D-039; D-040 1,35 -> 1,1).
-const HELD_GROW := 1.1
+## L'oggetto in mano appare un po' piu' grande che sull'eroe (D-039; D-040 1,35 -> 1,1;
+## D-043 1,32: stessa misura sullo schermo con la scala del braccio piu' piccola).
+const HELD_GROW := 1.32
 
 class Pose:
 	extends RefCounted

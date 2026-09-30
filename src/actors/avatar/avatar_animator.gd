@@ -150,7 +150,7 @@ func target_pose(dt: float, s: State) -> Dictionary:
 	p[&"body"] += d(-9.0 * r, 0, -rad_to_deg(_lean) * r)
 	p[&"head"] += d(5.0 * r)
 	if not gait:
-		p[&"body_pos"] += Vector3(0, (0.045 * (1.0 - absf(sn)) - 0.03) * r, 0)
+		p[&"body_pos"] += Vector3(0, (0.09 * (1.0 - absf(sn)) - 0.06) * r, 0)
 
 	# Aria: gambe raccolte in salita, distese e braccia aperte in caduta.
 	var a := _w_air
@@ -173,7 +173,7 @@ func target_pose(dt: float, s: State) -> Dictionary:
 		p[&"shin_l"] += d(-62.0 * l)
 		p[&"shin_r"] += d(-56.0 * l)
 		p[&"body"] += d(-10.0 * l)
-		p[&"body_pos"] += Vector3(0, -0.13 * l, 0)
+		p[&"body_pos"] += Vector3(0, -0.26 * l, 0)
 	# Guado: braccia sollevate sopra l'acqua.
 	if _w_wade > 0.01 and _w_swim < 0.5:
 		p[&"arm_l"] += d(10.0 * _w_wade, 0, -28.0 * _w_wade)
@@ -185,7 +185,7 @@ func target_pose(dt: float, s: State) -> Dictionary:
 		var sp := s.swim_phase
 		var swim := {}
 		swim[&"body"] = d(-72.0)
-		swim[&"body_pos"] = Vector3(0, 0.5, 0.45)
+		swim[&"body_pos"] = Vector3(0, 0.95, 0.85)
 		swim[&"head"] = d(52.0)
 		swim[&"chest"] = d(0, sin(sp) * 14.0)
 		swim[&"arm_l"] = d(rad_to_deg(fposmod(sp, TAU)), 0, -18.0)
@@ -228,10 +228,10 @@ func target_pose(dt: float, s: State) -> Dictionary:
 		var ang := -TAU * e
 		# Perno all'altezza del bacino raccolto; il corpo si arrotola (schiena e
 		# testa piegate) e sale un poco, cosi' da capovolto non entra nel suolo.
-		var c := Vector3(0, 0.55, 0)
+		var c := Vector3(0, 0.95, 0)
 		var rot := Basis(Vector3.RIGHT, ang)
 		p[&"body"] = Vector3(ang, p[&"body"].y, 0)
-		p[&"body_pos"] = c - rot * c + Vector3(0, 0.1 * tuck, 0)
+		p[&"body_pos"] = c - rot * c + Vector3(0, 0.2 * tuck, 0)
 		p[&"spine"] = p[&"spine"].lerp(d(-28.0), tuck)
 		for key: StringName in [&"leg_l", &"leg_r"]:
 			p[key] = p[key].lerp(d(85.0), tuck)

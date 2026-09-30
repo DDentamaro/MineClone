@@ -37,6 +37,8 @@ static func all() -> Array[WeaponDefinition]:
 				_pace(w, 0.4 if w.id in [&"hammer", &"greatsword"] else 1.0)
 			if w.id in [&"hammer", &"greatsword"]:
 				_weight(w)
+			if w.kind != WeaponDefinition.Kind.FISTS:
+				_reach(w)
 	return _cache
 
 
@@ -76,9 +78,9 @@ static func _atk(w: WeaponDefinition, id: String, props: Dictionary, wind: Dicti
 
 # Pose ricorrenti delle gambe.
 const STANCE := {"leg_l": [22, 0, 0], "shin_l": [-14, 0, 0], "leg_r": [-16, 0, 0], "shin_r": [-20, 0, 0]}
-const LUNGE := {"leg_l": [48, 0, 0], "shin_l": [-40, 0, 0], "leg_r": [-34, 0, 0], "shin_r": [-8, 0, 0], "body_pos": [0, -0.1, 0]}
+const LUNGE := {"leg_l": [48, 0, 0], "shin_l": [-40, 0, 0], "leg_r": [-34, 0, 0], "shin_r": [-8, 0, 0], "body_pos": [0, -0.2, 0]}
 const TUCK := {"leg_l": [70, 0, 0], "shin_l": [-100, 0, 0], "leg_r": [55, 0, 0], "shin_r": [-95, 0, 0]}
-const SQUAT := {"leg_l": [55, 0, -6], "shin_l": [-70, 0, 0], "leg_r": [40, 0, 6], "shin_r": [-60, 0, 0], "body_pos": [0, -0.16, 0], "hips": [-10, 0, 0]}
+const SQUAT := {"leg_l": [55, 0, -6], "shin_l": [-70, 0, 0], "leg_r": [40, 0, 6], "shin_r": [-60, 0, 0], "body_pos": [0, -0.32, 0], "hips": [-10, 0, 0]}
 
 
 ## Armi pesanti (D-034): carica e rientro piu' lunghi di `k`, arresto sul
@@ -143,6 +145,18 @@ static func _weight(w: WeaponDefinition) -> void:
 		a.knockback *= WEIGHT_KNOCKBACK
 		a.launch *= 1.15
 		a.shake *= WEIGHT_SHAKE
+
+
+## Braccia lunghe dell'eroe alto due blocchi (D-043): le armi arrivano ~1,35
+## volte piu' lontano (punte misurate con tools/spear_probe.gd), l'affondo si
+## ferma prima. I pugni restano come sono (pose corte, gia' a segno).
+const REACH_K := 1.35
+
+static func _reach(w: WeaponDefinition) -> void:
+	w.strike_dist *= REACH_K
+	for a: AttackDefinition in w.attacks.values():
+		if a.strike > 0.0:
+			a.strike *= REACH_K
 
 
 static func _with(a: Dictionary, b: Dictionary) -> Dictionary:
@@ -395,10 +409,10 @@ static func _hammer() -> WeaponDefinition:
 		_with(STANCE, {"arm_r": [70, -100, 0], "fore_r": [18, 0, 0], "hand_r": [-100, 0, 0], "chest": [0, -62, 0], "spine": [0, -12, 0], "head": [0, 40, 0]}),
 		_with(STANCE, {"arm_r": [70, 74, 0], "fore_r": [6, 0, 0], "hand_r": [-88, 0, 0], "chest": [0, 56, 0], "spine": [0, 14, 0], "head": [0, -35, 0]}),
 		_with(STANCE, {"arm_r": [40, 70, 0], "fore_r": [30, 0, 0], "hand_r": [-80, 0, 0], "chest": [0, 45, 0]}))
-	_atk(w, "upswing", _with(sw, {"shape": AttackDefinition.Shape.THRUST, "reach": 1.95, "width": 0.7, "launch": 5.0, "strike": 0.8,
+	_atk(w, "upswing", _with(sw, {"shape": AttackDefinition.Shape.THRUST, "reach": 1.95, "width": 0.7, "launch": 5.0, "strike": 1.1,
 		"knockback": 3.0, "next_light": "slam", "next_heavy": "quake"}),
-		_with(SQUAT, {"arm_r": [8, -30, 12], "fore_r": [10, 0, 0], "hand_r": [-120, 0, 0], "chest": [-15, -30, 0]}),
-		{"arm_r": [132, -12, 0], "fore_r": [12, 0, 0], "hand_r": [-86, 0, 0], "chest": [6, 34, 0], "head": [0, -25, 0], "body_pos": [0, 0.04, -0.08]},
+		_with(SQUAT, {"arm_r": [30, -30, 12], "fore_r": [10, 0, 0], "hand_r": [-150, 0, 0], "chest": [-15, -30, 0]}),
+		{"arm_r": [100, -12, 0], "fore_r": [12, 0, 0], "hand_r": [-86, 0, 0], "chest": [6, 34, 0], "head": [0, -25, 0], "body_pos": [0, 0.04, -0.08]},
 		{"arm_r": [140, 0, 5], "fore_r": [40, 0, 0], "hand_r": [-60, 0, 0], "chest": [8, 5, 0]})
 	_atk(w, "slam", {"windup": 0.3, "active": 0.06, "recovery": 0.46, "shape": AttackDefinition.Shape.RADIAL,
 		"radial_ahead": 1.4, "radial": 2.4, "damage": 20.0, "knockback": 9.0, "launch": 6.0, "hitstop": 0.14, "shake": 0.55,

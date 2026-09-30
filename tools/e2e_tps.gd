@@ -68,7 +68,7 @@ func _next() -> void:
 
 
 func _dist() -> float:
-	return _game._camera_rig.camera.global_position.distance_to(_game.motor.position + Vector3(0, 1.15, 0))
+	return _game._camera_rig.camera.global_position.distance_to(_game.motor.position + CameraRig.LOOK_OFFSET + Vector3(0, 0.45, 0))
 
 
 func _process(dt: float) -> bool:

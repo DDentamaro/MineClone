@@ -794,3 +794,26 @@ Richiesta del proprietario:
   l'orizzonte), distanza 6,5 divisa per lo zoom (due dita, Zoom ±, Z/X), rotazione con Q/E, i
   pulsanti ⟲/⟳ o trascinando. Quello che copre l'eroe si apre con la trasparenza a raggi X già
   usata in isometrica; la camera resta solo sopra il suolo. Nuova prova `tools/e2e_tps.gd`.
+
+## D-043 — Eroe snello e slanciato alto due blocchi
+Richiesta del proprietario: personaggio più snello e slanciato, alto due blocchi. Scostamento
+voluto dal prototipo (l'eroe chibi di CHARGEN, testa grande, alto ~1,5 m coi capelli).
+- **Proporzioni** (mesh generate dagli stessi pezzi del prototipo, cambiano solo le scale in
+  `HeroChargen.slots()`): alto 1,99 m coi capelli (testa senza capelli a 1,92); testa 0,30 m
+  (scala 0,278, prima 0,54), collo a 1,62, anca a 0,95 (gambe 0,45 + 0,465 + piede), omero 0,34,
+  avambraccio 0,30 (mano fino a 0,44), busto largo 0,40 (scala 0,38), braccia e gambe sottili
+  (scale di larghezza 0,27 e 0,30). Le armature seguono da sole (stesse scale).
+- **Scheletro e movimento:** `AvatarRig` (anca, spalle a ±0,265, petto, collo), `GaitLegs`
+  (lunghezze delle gambe dal rig; cadenza più bassa, arco del passo, assestamento, abbassamento
+  del bacino e distanze dei piedi nei colpi circa raddoppiati), pose con spostamento del corpo
+  (atterraggio, nuoto, capriola, affondo e accosciata) in scala.
+- **Collisione e camere:** altezza del corpo 1,4 → 1,9 (passa in un varco di due blocchi), occhi
+  0,7 → 1,6 per la portata; prima persona dagli occhi a 1,74; isometrica e terza persona guardano
+  a 1,0 m (prima 0,7); punti del corpo dei raggi X fino a 1,85; anteprima dello zaino più alta.
+  Prima persona: scala del braccio 0,36 → 0,30, oggetto ×1,32 (stessa misura sullo schermo).
+- **Colpi:** con le braccia lunghe le punte delle armi arrivano ~1,35 volte più lontano
+  (misurate con `tools/spear_probe.gd`): le distanze a cui l'affondo si ferma (`strike_dist` e
+  `strike` dei colpi) sono ×1,35 per tutte le armi tranne i pugni. Il montante del martello
+  finiva sopra la testa e mancava il manichino: carica più bassa e colpo che si ferma davanti al
+  petto. La prova dei movimenti accetta piedi fino a 1,0 m di distanza nel colpo (prima 0,55 per
+  gambe da 0,3 m).

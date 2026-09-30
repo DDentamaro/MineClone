@@ -1,10 +1,9 @@
 class_name AvatarRig
 extends Node3D
 ## Scheletro a pezzi rigidi dell'eroe. Ogni osso e' un Node3D; l'animazione
-## imposta solo le rotazioni (e lo spostamento di `body`). Da D-028 le misure e
-## le mesh sono quelle dell'eroe del prototipo (CHARGEN, `HeroChargen`): anca
-## .32, collo .80, omero .21, avambraccio+mano .28, coscia .15, stinco+piede
-## .185, testa grande. Le gambe le muove `GaitLegs` (piedi piantati, IK).
+## imposta solo le rotazioni (e lo spostamento di `body`). Da D-028 le mesh sono
+## quelle dell'eroe del prototipo (CHARGEN, `HeroChargen`); da D-043 con le
+## proporzioni di un eroe snello alto due blocchi (prima chibi, testa grande). Le gambe le muove `GaitLegs` (piedi piantati, IK).
 ##
 ## Assi (il personaggio guarda -Z, la sua destra e' +X):
 ## - braccia e gambe pendono lungo -Y; X positivo le porta in avanti/in alto;
@@ -20,16 +19,21 @@ const BONES: Array[StringName] = [&"body", &"hips", &"spine", &"chest", &"head",
 const PARENT := {&"hips": &"body", &"spine": &"hips", &"chest": &"spine", &"head": &"chest",
 	&"arm_l": &"chest", &"fore_l": &"arm_l", &"hand_l": &"fore_l", &"arm_r": &"chest", &"fore_r": &"arm_r",
 	&"hand_r": &"fore_r", &"leg_l": &"hips", &"shin_l": &"leg_l", &"leg_r": &"hips", &"shin_r": &"leg_r"}
-const HIP_Y := 0.32
-const HIP_W := 0.10
-const THIGH := 0.15
-const SHIN := 0.15
-const UPPER_ARM := 0.21
-const FOREARM := 0.19
-const HAND := 0.04
-const SHOULDER := Vector3(0.40, 0.19, 0.0)
-## Altezza della testa senza capelli (collo .80 + testa .58).
-const HEIGHT := 1.38
+# D-043: eroe snello alto due blocchi (misure in `HeroChargen`): anca .95,
+# gambe .45 + .465 (+ piede .035), omero .34, avambraccio .30, spalla a
+# ±.265 (mezzo busto .20 + mezzo braccio .06), petto 1,27, collo 1,62.
+const HIP_Y := 0.95
+const HIP_W := 0.085
+const THIGH := 0.45
+const SHIN := 0.465
+const UPPER_ARM := 0.34
+const FOREARM := 0.30
+const HAND := 0.06
+const SHOULDER := Vector3(0.265, 0.24, 0.0)
+const SPINE := 0.08
+const CHEST := 0.24
+## Altezza della testa senza capelli (collo 1,62 + testa .30).
+const HEIGHT := 1.92
 ## Armi a voxel (D-039): cubetti di pixel come i blocchi del mondo, a questa
 ## scala la spada e' lunga ~1,3 m nella mano dell'eroe (si legge anche dal telefono).
 const WEAPON_SCALE := 1.2
@@ -52,7 +56,7 @@ func _init() -> void:
 
 
 static func chest_offset() -> Vector3:
-	return Vector3(0, -(0.06 + 0.16), 0)
+	return Vector3(0, -(SPINE + CHEST), 0)
 
 
 ## Pezzi del corpo per ricetta e armatura indossata (D-030): con l'elmo i
@@ -141,8 +145,8 @@ func build(r: AvatarRecipe) -> void:
 	rest.clear()
 	_instances.clear()
 	_weapon_nodes.clear()
-	var pos := {&"body": Vector3.ZERO, &"hips": Vector3(0, HIP_Y, 0), &"spine": Vector3(0, 0.06, 0), &"chest": Vector3(0, 0.16, 0),
-		&"head": Vector3(0, 0.26, 0), &"arm_r": SHOULDER, &"arm_l": SHOULDER * Vector3(-1, 1, 1),
+	var pos := {&"body": Vector3.ZERO, &"hips": Vector3(0, HIP_Y, 0), &"spine": Vector3(0, SPINE, 0), &"chest": Vector3(0, CHEST, 0),
+		&"head": Vector3(0, HeroChargen.NECK_Y - HIP_Y - SPINE - CHEST, 0), &"arm_r": SHOULDER, &"arm_l": SHOULDER * Vector3(-1, 1, 1),
 		&"fore_r": Vector3(0, -UPPER_ARM, 0), &"fore_l": Vector3(0, -UPPER_ARM, 0), &"hand_r": Vector3(0, -FOREARM, 0),
 		&"hand_l": Vector3(0, -FOREARM, 0), &"leg_r": Vector3(HIP_W, 0, 0), &"leg_l": Vector3(-HIP_W, 0, 0),
 		&"shin_r": Vector3(0, -THIGH, 0), &"shin_l": Vector3(0, -THIGH, 0)}

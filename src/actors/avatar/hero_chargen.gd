@@ -57,15 +57,22 @@ const BOOTS := ["#4b3623", "#2a2f24", "#5e4636", "#1f1a17"]
 const ACCENTS := ["#d9a441", "#b3321f", "#2f8f8a", "#d8d2bd", "#4a3a6b", "#6b7a2a"]
 const EYE_COLS := ["#297e7b", "#343434", "#3b5fa8", "#6b4a1f", "#5d8a3a", "#9a2d2d"]
 
-## Misure del rig (CHARGEN.rig): anca .32, collo .80, omero .21,
-## avambraccio+mano .28, coscia .15, stinco+piede .185; testa ×.54.
-const S := 0.54
-const HIP_Y := 0.32
-const NECK_Y := 0.80
-const UPPER := 0.21
-const FORE_HAND := 0.28
-const THIGH := 0.15
-const SHIN_FOOT := 0.185
+## Misure del rig. D-043: eroe snello e slanciato alto due blocchi (prima il
+## chibi del prototipo, CHARGEN.rig: anca .32, collo .80, testa ×.54, alto ~1,5):
+## anca .95, collo 1,62, testa ×.278 (0,30 m, cima ~1,92, coi capelli ~2),
+## omero .34, avambraccio+mano .44, coscia .45, stinco+piede .50; busto largo
+## 0,40, braccia e gambe sottili (scale di larghezza separate).
+const S := 0.38
+const HEAD_S := 0.278
+const ARM_S := 0.27
+const LEG_SX := 0.30
+const LEG_SZ := 0.32
+const HIP_Y := 0.95
+const NECK_Y := 1.62
+const UPPER := 0.34
+const FORE_HAND := 0.44
+const THIGH := 0.45
+const SHIN_FOOT := 0.50
 
 
 static func preset(i: int) -> Dictionary:
@@ -994,17 +1001,17 @@ static func slots() -> Dictionary:
 	var L: Dictionary = BODY["leg"]
 	var neck: float = BODY["neck"]
 	var d := {
-		"head": {"bone": &"head", "o": Vector3(0, neck, 0), "s": Vector3(S, S, S), "arm": 0},
+		"head": {"bone": &"head", "o": Vector3(0, neck, 0), "s": Vector3(HEAD_S, HEAD_S, HEAD_S), "arm": 0},
 		"torso": {"bone": &"chest", "o": Vector3(0, .74, 0), "s": Vector3(S, (NECK_Y - HIP_Y) / (neck - .74), S), "arm": 0},
 	}
 	for sg in [1, -1]:
 		var m := "L" if sg > 0 else "R"
 		# +X del modello e' la sinistra anatomica: nel rig (guarda -Z) e' il lato _l.
 		var side := "l" if sg > 0 else "r"
-		d["arm" + m + "U"] = {"bone": StringName("arm_" + side), "o": Vector3(sg * .54, 1.34, -.01), "s": Vector3(S, UPPER / (A["elbow"] - .54), S), "arm": sg}
-		d["arm" + m + "F"] = {"bone": StringName("fore_" + side), "o": Vector3(sg * A["elbow"], 1.34, -.03), "s": Vector3(S, FORE_HAND / (A["x1"] - A["elbow"]), S), "arm": sg}
-		d["leg" + m + "U"] = {"bone": StringName("leg_" + side), "o": Vector3(sg * .2545, L["y"][1], 0), "s": Vector3(.42, THIGH / (L["y"][1] - L["knee"]), S * .9), "arm": 0}
-		d["leg" + m + "F"] = {"bone": StringName("shin_" + side), "o": Vector3(sg * .2545, L["knee"], 0), "s": Vector3(.42, SHIN_FOOT / L["knee"], S * .9), "arm": 0}
+		d["arm" + m + "U"] = {"bone": StringName("arm_" + side), "o": Vector3(sg * .54, 1.34, -.01), "s": Vector3(ARM_S, UPPER / (A["elbow"] - .54), ARM_S), "arm": sg}
+		d["arm" + m + "F"] = {"bone": StringName("fore_" + side), "o": Vector3(sg * A["elbow"], 1.34, -.03), "s": Vector3(ARM_S, FORE_HAND / (A["x1"] - A["elbow"]), ARM_S), "arm": sg}
+		d["leg" + m + "U"] = {"bone": StringName("leg_" + side), "o": Vector3(sg * .2545, L["y"][1], 0), "s": Vector3(LEG_SX, THIGH / (L["y"][1] - L["knee"]), LEG_SZ), "arm": 0}
+		d["leg" + m + "F"] = {"bone": StringName("shin_" + side), "o": Vector3(sg * .2545, L["knee"], 0), "s": Vector3(LEG_SX, SHIN_FOOT / L["knee"], LEG_SZ), "arm": 0}
 	return d
 
 

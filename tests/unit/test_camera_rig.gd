@@ -51,7 +51,7 @@ func test_terza_persona_fissa() -> void:
 	var feet := Vector3(8.5, 4, 10.5)
 	for i in 60:
 		rig.update_camera(1.0 / 60.0, feet)
-	var d0 := rig.camera.global_position.distance_to(feet + Vector3(0, 1.15, 0))
+	var d0 := rig.camera.global_position.distance_to(feet + CameraRig.LOOK_OFFSET + Vector3(0, 0.45, 0))
 	check(absf(d0 - CameraRig.TPS_DIST) < 0.05, "distanza fissa anche col muro dietro (%.2f)" % d0)
 	check(rig.camera.global_position.z > 12.0, "resta oltre il muro (z=%.2f)" % rig.camera.global_position.z)
 	check(absf(rig.tps_pitch - CameraRig.TPS_PITCH) < 0.01, "inclinazione fissa")
@@ -66,7 +66,7 @@ func test_terza_persona_fissa() -> void:
 	rig.rotate_step(1)
 	for i in 120:
 		rig.update_camera(1.0 / 60.0, feet)
-	var d1 := rig.camera.global_position.distance_to(feet + Vector3(0, 1.15, 0))
+	var d1 := rig.camera.global_position.distance_to(feet + CameraRig.LOOK_OFFSET + Vector3(0, 0.45, 0))
 	check(absf(d1 - CameraRig.TPS_DIST / 2.0) < 0.1, "zoom avvicina (%.2f)" % d1)
 	check(absf(rig.yaw - PI / 4.0) < 0.01, "ruota di 45° (%.2f)" % rig.yaw)
 	rig.spin(0.0, -5.0)

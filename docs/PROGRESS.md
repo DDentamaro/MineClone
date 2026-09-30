@@ -1,5 +1,21 @@
 # Avanzamento
 
+## 30/09/2026 — D-043: eroe snello e slanciato alto due blocchi
+
+L'eroe è alto 1,99 m coi capelli: testa piccola, gambe e braccia lunghe e sottili, busto stretto.
+Scheletro, passo, collisione (1,9 m), occhi, camere, prima persona e distanze dei colpi adeguati.
+
+### Test realmente eseguiti (D-043)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 190/190 PASS, log pulito. Il test dello scheletro controlla ora altezza ≤ 2,02 (misurata 1,99), collo a 1,62, testa < 20% dell'altezza, anca oltre il 45%, sagoma entro 0,75 × 0,5 m |
+| Suite e2e completa, terza corsa pulita (movimenti, passo, nuoto, terza persona, prima persona, combattimento, aggancio, sessione, touch, sandbox, oggetti a terra, armeria, opzioni e opzioni sul telefono) | OK, nessun errore di script. Le prime due corse hanno trovato: piedi "troppo larghi" col limite pensato per gambe da 0,3 m, montante del martello che mancava il manichino, affondi che si fermavano alla distanza dell'eroe chibi; corretti |
+| Screenshot controllati | tavola delle pose (proporzioni), terza persona, prima persona (spada, pugni), nuoto, anteprima dello zaino con armatura |
+| Export Android debug 0.22.0-m5 (versionCode 24) + `apksigner verify` + `aapt2 dump badging` | OK; mai installato su un telefono |
+
+Non verificato: il passo delle gambe lunghe a occhio in movimento su un telefono (solo prove e
+screenshot fermi); i manichini (1,55 m) ora sono più bassi dell'eroe.
+
 ## 30/09/2026 — D-042: spadone e martello più pesanti, terza persona fissa come l'isometrica
 
 Spadone e martello: carica più lunga, colpo più secco, arresto sul colpo, spinta e scossa più

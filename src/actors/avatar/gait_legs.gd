@@ -12,27 +12,29 @@ extends RefCounted
 ##
 ## Spazio locale = spazio del rig (piedi all'origine, davanti -Z, destra +X).
 
-const HIP_W := 0.10
-const HIP_Y := 0.32
-const L1 := 0.15
-const L2 := 0.15
+# D-043: gambe lunghe dell'eroe alto due blocchi (prima .15 + .15): cadenza
+# piu' bassa e passi, arco, assestamento e distanze dei colpi piu' ampi.
+const HIP_W := AvatarRig.HIP_W
+const HIP_Y := AvatarRig.HIP_Y
+const L1 := AvatarRig.THIGH
+const L2 := AvatarRig.SHIN
 const FOOT_H := 0.035
-const CAD_MIN := 1.7
-const CAD_K := 0.38
-const CAD_MAX := 3.9
+const CAD_MIN := 1.0
+const CAD_K := 0.2
+const CAD_MAX := 2.4
 const DUTY_MAX := 0.60
 const DUTY_K := 0.058
 const DUTY_MIN := 0.30
-const ARC_H := 0.085
-const SETTLE_DIST := 0.11
-const SETTLE_DUR := 0.22
+const ARC_H := 0.17
+const SETTLE_DIST := 0.2
+const SETTLE_DUR := 0.26
 const MOVE_SPEED := 0.45
-const DROP_MAX := 0.13
+const DROP_MAX := 0.3
 ## Colpi (D-034): il piede del passo va oltre l'arrivo del corpo di LEAD, quello
 ## dietro resta piantato finche' non resta piu' indietro di LEASH, poi segue.
-const LEAD := 0.12
-const REAR := 0.08
-const LEASH := 0.24
+const LEAD := 0.22
+const REAR := 0.15
+const LEASH := 0.45
 
 
 class Leg:
@@ -133,7 +135,7 @@ func update(dt: float, xf: Transform3D, vel: Vector3, on_ground: bool, max_speed
 	var landed := on_ground and not _was_ground
 	_was_ground = on_ground
 	if landed:
-		crouch = 0.07
+		crouch = 0.14
 	crouch *= exp(-dt * 7.0)
 	var gc: float = ground.call(P.x, P.z)
 	var base_t := clampf(gc - P.y + 0.01, -0.30, 0.0) if on_ground else 0.0
@@ -148,7 +150,7 @@ func update(dt: float, xf: Transform3D, vel: Vector3, on_ground: bool, max_speed
 			l.planted = false
 			l.swing = {}
 			l.tuck = minf(1.0, l.tuck + dt * 7.0)
-			var tgt := Vector3(hip_l.x + l.side * 0.01, hip_l.y - L1 - L2 * 0.55 + (0.06 if vel.y > 0.0 else 0.0), -0.10)
+			var tgt := Vector3(hip_l.x + l.side * 0.01, hip_l.y - L1 - L2 * 0.55 + (0.12 if vel.y > 0.0 else 0.0), -0.2)
 			l.ankle = l.ankle.lerp(tgt, 1.0 - exp(-dt * 14.0))
 			continue
 		l.tuck = 0.0
@@ -186,7 +188,7 @@ func update(dt: float, xf: Transform3D, vel: Vector3, on_ground: bool, max_speed
 			sw["to"] = to
 			var e := u * u * (3.0 - 2.0 * u)
 			var arc := 9.481481 * pow(1.0 - u, 3.0) * u
-			var h := ARC_H * (0.7 + 0.3 * move_target) if sw["kind"] == "gait" else (0.06 if sw["kind"] == "attack" else 0.05)
+			var h := ARC_H * (0.7 + 0.3 * move_target) if sw["kind"] == "gait" else (0.12 if sw["kind"] == "attack" else 0.1)
 			var from: Vector3 = sw["from"]
 			l.foot = from.lerp(to, e) + Vector3(0, arc * h, 0)
 			if u >= 1.0:
@@ -212,10 +214,10 @@ func update(dt: float, xf: Transform3D, vel: Vector3, on_ground: bool, max_speed
 	# Bob a doppia frequenza, ondeggio, inclinazione.
 	var gait_s := sin(phase * TAU)
 	var gait_c := cos(phase * TAU * 2.0)
-	var bob_walk := (0.012 + 0.010 * move_target) * maxf(0.0, -gait_c) * move_k
-	var idle_bob := sin(idle_t * 1.8) * 0.006 * (1.0 - move_k) * (1.0 - jump_lift)
-	var air_bob := maxf(0.0, sin(minf(PI, maxf(0.0, 1.2 + vel.y * 0.18)))) * 0.012 if not on_ground else 0.0
-	var sway_t := gait_s * 0.022 * move_k if moving else 0.0
+	var bob_walk := (0.024 + 0.02 * move_target) * maxf(0.0, -gait_c) * move_k
+	var idle_bob := sin(idle_t * 1.8) * 0.01 * (1.0 - move_k) * (1.0 - jump_lift)
+	var air_bob := maxf(0.0, sin(minf(PI, maxf(0.0, 1.2 + vel.y * 0.18)))) * 0.024 if not on_ground else 0.0
+	var sway_t := gait_s * 0.035 * move_k if moving else 0.0
 	sway += (sway_t - sway) * (1.0 - exp(-dt * 12.0))
 	var lean_t := clampf(acc * 0.006 + 0.045 * move_target, -0.14, 0.14)
 	lean += (lean_t - lean) * (1.0 - exp(-dt * 7.0))
