@@ -342,6 +342,12 @@ func test_ritmi_per_arma() -> void:
 	check(gs.total() > sw.total() * 1.4 and hm.total() > sw.total() * 1.4, "spadone e martello lenti (%.2f, %.2f)" % [gs.total(), hm.total()])
 	check(gs.windup >= 0.25 and hm.windup >= 0.3, "carica lunga")
 	check(hm.move_scale < sw.move_scale, "quasi fermi mentre colpiscono")
+	# D-042: colpi pesanti: arresto sul colpo e spinta ben piu' forti della spada,
+	# e il colpo vero (fase attiva) non piu' lento della carica lo farebbe pensare.
+	for h in [gs, hm]:
+		check(h.hitstop > sw.hitstop * 1.8, "%s: arresto sul colpo pesante (%.2f contro %.2f)" % [h.id, h.hitstop, sw.hitstop])
+		check(h.knockback > sw.knockback * 1.6, "%s: spinta pesante" % h.id)
+		check(h.active < h.windup * 0.6, "%s: carica lunga, colpo secco" % h.id)
 
 
 func test_attrezzo_ripete_lo_stesso_colpo() -> void:

@@ -37,59 +37,40 @@ func test_isometrica_ortografica_e_limiti() -> void:
 	rig.free()
 
 
-func test_terza_persona_arretra_davanti_al_muro() -> void:
+## D-042: terza persona fissa come l'isometrica: davanti a un muro non si
+## avvicina (il muro lo apre la trasparenza a raggi X), non gira da sola,
+## zoom e rotazione restano all'utente.
+func test_terza_persona_fissa() -> void:
 	var rig := _rig()
 	var w := TestWorlds.flat(4)
 	TestWorlds.fill(w, Vector3i(0, 4, 12), Vector3i(31, 12, 12), BlockCatalog.STONE)
 	rig.world = w
-	rig.opaque = BlockCatalog.load_default().opaque_table()
 	rig.set_mode(CameraRig.Mode.TPS)
 	rig.yaw = 0.0
 	rig.yaw_target = 0.0
+	var feet := Vector3(8.5, 4, 10.5)
 	for i in 60:
-		rig.update_camera(1.0 / 60.0, Vector3(8.5, 4, 10.5))
-	check(rig.camera.global_position.z < 12.0, "camera davanti al muro (z=%f)" % rig.camera.global_position.z)
-	rig.free()
-
-
-func _tps_dist_after(ctx: Dictionary, secs: float = 2.0) -> float:
-	var rig := _rig()
-	rig.world = TestWorlds.flat(4, 64, 32, 64)
-	rig.set_mode(CameraRig.Mode.TPS)
-	rig.tps_auto = false
-	rig.tps_ctx = ctx
-	for i in int(secs * 60.0):
-		rig.update_camera(1.0 / 60.0, Vector3(32.5, 4, 32.5))
-	var d := rig.tps_dist
-	rig.free()
-	return d
-
-
-func test_terza_persona_adattiva() -> void:
-	var still := _tps_dist_after({"speed": 0.0})
-	var run := _tps_dist_after({"speed": 5.5})
-	var cov := _tps_dist_after({"speed": 0.0, "covered": true})
-	check(absf(still - 6.5) < 0.1, "esplorazione 6,5 (%f)" % still)
-	check(run > still + 0.2, "in corsa si allontana (%f)" % run)
-	check(cov < still - 0.8, "sotto un soffitto si avvicina (%f)" % cov)
-
-
-func test_terza_persona_segue_le_spalle() -> void:
-	var rig := _rig()
-	rig.world = TestWorlds.flat(4, 64, 32, 64)
-	rig.set_mode(CameraRig.Mode.TPS)
-	rig.yaw = 0.0
-	rig.yaw_target = 0.0
-	rig._last_spin = -99.0
-	rig.tps_ctx = {"speed": 5.0, "heading": 1.2}
-	for i in 240:
-		rig.update_camera(1.0 / 60.0, Vector3(32.5, 4, 32.5))
-	check(absf(rig.yaw_target - 1.2) < 0.2, "camera alle spalle (yaw %f)" % rig.yaw_target)
-	rig.tps_auto = false
-	rig.yaw_target = 0.0
-	for i in 240:
-		rig.update_camera(1.0 / 60.0, Vector3(32.5, 4, 32.5))
-	check(absf(rig.yaw_target) < 0.01, "senza auto non gira")
+		rig.update_camera(1.0 / 60.0, feet)
+	var d0 := rig.camera.global_position.distance_to(feet + Vector3(0, 1.15, 0))
+	check(absf(d0 - CameraRig.TPS_DIST) < 0.05, "distanza fissa anche col muro dietro (%.2f)" % d0)
+	check(rig.camera.global_position.z > 12.0, "resta oltre il muro (z=%.2f)" % rig.camera.global_position.z)
+	check(absf(rig.tps_pitch - CameraRig.TPS_PITCH) < 0.01, "inclinazione fissa")
+	# Camminando la camera non gira dietro all'eroe.
+	for i in 120:
+		feet += Vector3(0.05, 0, 0)
+		rig.update_camera(1.0 / 60.0, feet)
+	check_eq(rig.yaw_target, 0.0, "non gira da sola")
+	# Zoom e rotazione dell'utente (su terreno libero, lontano dal muro).
+	feet = Vector3(8.5, 4, 4.5)
+	rig.set_zoom(2.0)
+	rig.rotate_step(1)
+	for i in 120:
+		rig.update_camera(1.0 / 60.0, feet)
+	var d1 := rig.camera.global_position.distance_to(feet + Vector3(0, 1.15, 0))
+	check(absf(d1 - CameraRig.TPS_DIST / 2.0) < 0.1, "zoom avvicina (%.2f)" % d1)
+	check(absf(rig.yaw - PI / 4.0) < 0.01, "ruota di 45° (%.2f)" % rig.yaw)
+	rig.spin(0.0, -5.0)
+	check_eq(rig.tps_user_pitch, CameraRig.TPS_PITCH_MIN, "mai sotto il minimo")
 	rig.free()
 
 

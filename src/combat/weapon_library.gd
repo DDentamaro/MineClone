@@ -35,6 +35,8 @@ static func all() -> Array[WeaponDefinition]:
 			if w.id != &"tool":
 				# Spadone e martello erano gia' lenti (D-034): meta' dell'effetto.
 				_pace(w, 0.4 if w.id in [&"hammer", &"greatsword"] else 1.0)
+			if w.id in [&"hammer", &"greatsword"]:
+				_weight(w)
 	return _cache
 
 
@@ -117,6 +119,30 @@ static func _pace(w: WeaponDefinition, s: float) -> void:
 			a.active *= lerpf(1.0, PACE_ACTIVE, s)
 		a.recovery *= lerpf(1.0, PACE_RECOVERY, s)
 		a.chain_at = maxf(a.chain_at, PACE_CHAIN_MIN * s)
+
+
+## Peso di spadone e martello (D-042): carica piu' lunga, colpo piu' secco
+## (la massa arriva tutta insieme), arresto sul colpo, spinta e scossa piu'
+## forti, rientro un po' piu' faticoso. Giri e picchiate: solo l'impatto.
+const WEIGHT_WINDUP := 1.15
+const WEIGHT_ACTIVE := 0.8
+const WEIGHT_RECOVERY := 1.05
+const WEIGHT_HITSTOP := 1.5
+const WEIGHT_KNOCKBACK := 1.25
+const WEIGHT_SHAKE := 1.6
+
+static func _weight(w: WeaponDefinition) -> void:
+	for a: AttackDefinition in w.attacks.values():
+		if not a.plunge and a.spin == 0.0:
+			if not String(a.id).begins_with("dash_"):
+				a.windup *= WEIGHT_WINDUP
+			a.active *= WEIGHT_ACTIVE
+			a.recovery *= WEIGHT_RECOVERY
+		if a.rehit <= 0.0:
+			a.hitstop *= WEIGHT_HITSTOP
+		a.knockback *= WEIGHT_KNOCKBACK
+		a.launch *= 1.15
+		a.shake *= WEIGHT_SHAKE
 
 
 static func _with(a: Dictionary, b: Dictionary) -> Dictionary:

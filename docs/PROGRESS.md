@@ -1,5 +1,21 @@
 # Avanzamento
 
+## 30/09/2026 — D-042: spadone e martello più pesanti, terza persona fissa come l'isometrica
+
+Spadone e martello: carica più lunga, colpo più secco, arresto sul colpo, spinta e scossa più
+forti. Terza persona senza adattamento né "zoom dietro al player": inclinazione e distanza fisse,
+ruota e zooma solo l'utente, i muri fra camera ed eroe si aprono coi raggi X; tolto il pulsante Auto.
+
+### Test realmente eseguiti (D-042)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 190/190 PASS, log pulito. Tolti i tre test della terza persona adattiva (rientro davanti al muro, distanza per corsa/soffitto, camera alle spalle); nuovo: terza persona fissa (distanza 6,5 anche col muro dietro, non gira camminando, zoom ×2 → 3,25 m, rotazione di 45°, inclinazione mai sotto il minimo). Il test dei ritmi controlla anche il peso di spadone e martello |
+| `tools/e2e_tps.gd` (nuova, tocchi veri) | OK: un tocco → terza persona, nessun pulsante Auto; camminando di lato 2 s la camera gira di 0,0° e la distanza resta 6,50 → 6,59 m; due dita → zoom 2,5, camera a 2,60 m; muro di pietra fra camera ed eroe → camera a 6,47 m (non si avvicina), raggi X al 100% |
+| Suite e2e completa (terza persona, movimenti, prima persona, combattimento, aggancio, sessione, touch, sandbox, passo, oggetti a terra, armeria, nuoto, opzioni e opzioni sul telefono) | OK, nessun errore di script. Martello `swing, upswing, slam` e spadone `sweep, return, cleave` tutti a segno, forti a segno |
+| Export Android debug 0.21.0-m5 (versionCode 23) + `apksigner verify` + `aapt2 dump badging` | OK; mai installato su un telefono |
+
+Non verificato: la sensazione di peso dei colpi e la terza persona fissa su un telefono vero.
+
 ## 30/09/2026 — D-041: via i riquadri in alto, lancia dritta anche in terza persona, danno solo di punta
 
 Tolti dal gioco i riquadri in alto a sinistra (titolo con l'oggetto in mano e Diario). In terza

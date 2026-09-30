@@ -779,3 +779,18 @@ Richiesta del proprietario:
 - **Danno solo di punta:** le sfere che feriscono della lancia coprono solo la testa di ferro
   (da 1,2 a 1,62 lungo l'arma), non più l'asta (prima da 0,95). Test: lancia dritta per ogni
   colpo di punta, punta che avanza, sfere tutte sulla testa.
+
+## D-042 — Spadone e martello più pesanti, terza persona fissa come l'isometrica
+Richiesta del proprietario:
+- **Colpi pesanti** (spadone e martello, sopra il ritmo di D-034/D-040): carica ×1,15, colpo
+  ×0,8 (la massa arriva tutta insieme, carica lunga e colpo secco), rientro ×1,05, arresto sul
+  colpo ×1,5, spinta ×1,25, lancio in aria ×1,15, scossa della camera ×1,6 (la scossa generale
+  resta dimezzata da D-040: le armi pesanti tornano a farsi sentire). Giri e picchiate cambiano
+  solo nell'impatto. Test: arresto e spinta ben oltre la spada, colpo breve rispetto alla carica.
+- **Terza persona fissa:** tolta la terza persona adattiva (distanza e campo che cambiavano in
+  corsa, sotto un soffitto e con l'aggancio; camera che girava da sola alle spalle, pulsante
+  Auto; rientro davanti ai muri e alle chiome, cioè lo "zoom dietro al player"). Ora è come
+  l'isometrica ma in prospettiva: inclinazione 34° (trascinando 0,15..1,3 rad, mai sotto
+  l'orizzonte), distanza 6,5 divisa per lo zoom (due dita, Zoom ±, Z/X), rotazione con Q/E, i
+  pulsanti ⟲/⟳ o trascinando. Quello che copre l'eroe si apre con la trasparenza a raggi X già
+  usata in isometrica; la camera resta solo sopra il suolo. Nuova prova `tools/e2e_tps.gd`.

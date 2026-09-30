@@ -207,12 +207,10 @@ func _ready() -> void:
 	elif _args.get("cam", "") == "fps":
 		cam_mode = CameraRig.Mode.FPS
 	_camera_rig.set_mode(cam_mode as CameraRig.Mode)
-	_camera_rig.tps_auto = bool(Settings.load_value("camera", "tps_auto", true))
 	_camera_rig.tps_zoom = clampf(float(Settings.load_value("camera", "tps_zoom", 1.0)), CameraRig.TPS_ZOOM_MIN, CameraRig.TPS_ZOOM_MAX)
 	var up := float(Settings.load_value("camera", "tps_pitch", NAN))
 	if not is_nan(up):
 		_camera_rig.tps_user_pitch = clampf(float(up), CameraRig.TPS_PITCH_MIN, CameraRig.TPS_PITCH_MAX)
-	_touch.add_button(&"tps_auto", "Auto", false)
 	_apply_toggles()
 	if _args.has("zoom"):
 		_camera_rig.set_zoom(float(_args["zoom"]))
@@ -290,7 +288,6 @@ func _swap_world(w: WorldData) -> void:
 	_water_fx.reset()
 	motor.tree_grid = _vegetation.tree_grid
 	_camera_rig.world = world
-	_camera_rig.tree_grid = _vegetation.tree_grid
 	fx.world = world
 	combat.world = world
 	combat.opaque = catalog.opaque_table()
@@ -456,7 +453,6 @@ var _prefs_t := 0.0
 
 
 func _update_camera_context(dt: float) -> void:
-	var tps := _camera_rig.mode == CameraRig.Mode.TPS
 	var fps := _camera_rig.mode == CameraRig.Mode.FPS
 	_day.tps_sky = _camera_rig.is_persp()
 	# Prima persona: il corpo sparisce (resta l'ombra), si vede solo la mano
@@ -465,13 +461,6 @@ func _update_camera_context(dt: float) -> void:
 	_avatar.trail.visible = not fps
 	_touch.crosshair = fps
 	_camera_rig.sun_dir = _day.state.get("dir", Vector3(-0.3, 0.93, 0.22))
-	if _touch.hidden_ids.get(&"tps_auto", false) != (not tps):
-		_touch.hidden_ids[&"tps_auto"] = not tps
-		_touch.queue_redraw()
-	if tps:
-		_camera_rig.tps_ctx = {"speed": Vector2(motor.velocity.x, motor.velocity.z).length(), "heading": _avatar.facing,
-			"covered": is_covered(motor.position, 4), "lock": null,
-			"attacking": combat.state == CombatController.State.ATTACK}
 	if _camera_rig.prefs_dirty:
 		_prefs_t += dt
 		if _prefs_t > 1.0:
@@ -930,9 +919,6 @@ func _on_button(id: StringName) -> void:
 				recipe = r
 				_apply_recipe()
 				last_edit = "ricetta incollata"
-		&"tps_auto":
-			_camera_rig.tps_auto = not _camera_rig.tps_auto
-			Settings.save_value("camera", "tps_auto", _camera_rig.tps_auto)
 		&"attack":
 			combat.press_light()
 		&"dodge":
@@ -1358,7 +1344,6 @@ func _refresh_labels() -> void:
 	_touch.labels[&"dev_res"] = "Righe %d" % rt_height
 	for key: String in toggles:
 		_touch.labels[StringName("dev_" + key)] = "%s %s" % [_dev_label(key), "ON" if toggles[key] else "OFF"]
-	_touch.labels[&"tps_auto"] = "Auto ON" if _camera_rig.tps_auto else "Auto OFF"
 	_touch.labels[&"dev_digdebug"] = "Scava debug %s" % ("ON" if dig_debug else "OFF")
 	for d: Array in HERO_BUTTONS:
 		_touch.labels[d[0]] = recipe.label(d[1]) if d[1] != "" else HERO_LABELS[d[0]]

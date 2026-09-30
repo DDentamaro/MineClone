@@ -214,7 +214,7 @@ func _layout() -> void:
 	var m := dp(20.0)
 	var med := big * 0.78
 	# Riga in alto dal bordo verso il centro: camera, blocco, modo, arma, eroe.
-	var row: Array[StringName] = [&"menu", &"bag", &"camera", &"hero", &"tps_auto", &"dev"]
+	var row: Array[StringName] = [&"menu", &"bag", &"camera", &"hero", &"dev"]
 	var dw := dp(DEV_BUTTON_W_DP)
 	var dh := dp(DEV_BUTTON_H_DP)
 	var cursor := {}
