@@ -122,3 +122,22 @@ func test_prima_persona() -> void:
 	rig.toggle_mode()
 	check_eq(rig.mode, CameraRig.Mode.ISO, "e di nuovo isometrica")
 	rig.free()
+
+
+func test_segue_morbida_negli_affondi() -> void:
+	# D-040: un affondo di mezzo metro non strattona la camera; un salto lontano si.
+	var rig := _rig()
+	rig.pixel_snap = false
+	rig.update_camera(1.0, Vector3(10, 5, 10))
+	var c0 := rig.camera.global_position
+	rig.update_camera(1.0 / 60.0, Vector3(10.5, 5, 10))
+	var moved := rig.camera.global_position.distance_to(c0)
+	check(moved > 0.01 and moved < 0.15, "un fotogramma dopo l'affondo si e' mossa poco (%.3f)" % moved)
+	for i in 60:
+		rig.update_camera(1.0 / 60.0, Vector3(10.5, 5, 10))
+	check(rig.camera.global_position.distance_to(c0 + Vector3(0.5, 0, 0)) < 0.01, "poi raggiunge l'eroe")
+	rig.update_camera(1.0 / 60.0, Vector3(40, 5, 40))
+	check(rig.camera.global_position.distance_to(c0 + Vector3(30, 0, 30)) < 0.01, "teletrasporto: salta subito")
+	rig.shake(0.4)
+	check_eq(rig.shake_amt, 0.4 * CameraRig.SHAKE_SCALE, "scossa ridotta")
+	rig.free()

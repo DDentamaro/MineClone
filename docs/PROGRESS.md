@@ -1,5 +1,23 @@
 # Avanzamento
 
+## 30/09/2026 — D-040: lancia solo di punta, prima persona più piccola a destra, camera più calma, colpi meno frenetici
+
+La lancia non taglia più: stoccata, stoccata col passo, stoccata alta, infilzata; ramo forte
+affondo in avanzata. Braccio e oggetto in prima persona più piccoli e a destra. Scossa della
+camera dimezzata, camera che segue morbida negli affondi e non gira da sola mentre si colpisce.
+Tutti i colpi più lenti (carica, rientro, catena).
+
+### Test realmente eseguiti (D-040)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 191/191 PASS, log pulito. Nuovo: la camera segue morbida un affondo, raggiunge l'eroe, salta subito su un teletrasporto, scossa dimezzata. Il test della lancia ora controlla che ogni colpo sia di punta e perforante; la catena della lancia è premuta a 0,4 s (il ritmo nuovo) |
+| Suite e2e completa (prima persona, movimenti, combattimento, aggancio, sessione, touch, sandbox, passo, oggetti a terra, armeria, nuoto, opzioni e opzioni sul telefono) | OK, nessun errore di script. Movimenti: tutti i colpi del primo giro di ogni catena a segno anche col ritmo più lento; lancia `thrust, thrust2, rise, impale`; infilzata su due in fila [1, 1] |
+| Screenshot controllati | prima persona (spada, pugni, piccone) più piccola e a destra; lancia: stoccata e stoccata alta di punta |
+| Export Android debug 0.19.0-m5 (versionCode 21) + `apksigner verify` + `aapt2 dump badging` | OK; mai installato su un telefono |
+
+Non verificato: la sensazione del ritmo nuovo e della camera su un telefono vero; l'affondo in
+avanzata (`drive`) non ha uno screenshot (solo il test che è di punta e perforante).
+
 ## 30/09/2026 — D-039: pugni con la forma della presa, zoom a due dita, armi a voxel più grandi, attrezzi senza combo
 
 In prima persona a mani nude le braccia hanno la forma della presa e fanno i colpi dei pugni;

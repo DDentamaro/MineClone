@@ -318,12 +318,17 @@ func test_lancia_perforante() -> void:
 	var b := r.dummy(Vector2(0, -3.6))
 	for i in 4:
 		r.combat.press_light()
-		r.step(int(0.26 / DT))
+		r.step(int(0.4 / DT))
 	r.settle()
-	check_eq(r.started, [&"thrust", &"thrust2", &"sweep", &"impale"] as Array[StringName], "catena della lancia")
+	check_eq(r.started, [&"thrust", &"thrust2", &"rise", &"impale"] as Array[StringName], "catena della lancia")
 	check(a.hits >= 1 and b.hits >= 1, "entrambi in fila colpiti (%d, %d)" % [a.hits, b.hits])
 	var imp := WeaponLibrary.by_id(&"spear").attack(&"impale")
 	check(imp.pierce >= 1.5, "infilzata perforante")
+	# D-040: la lancia colpisce solo di punta (niente archi o giri di taglio).
+	for at: AttackDefinition in WeaponLibrary.by_id(&"spear").attacks.values():
+		check(at.shape != AttackDefinition.Shape.ARC and at.spin == 0.0, "%s di punta" % at.id)
+		if not at.plunge:
+			check(at.pierce > 0.0, "%s perforante" % at.id)
 
 
 ## D-034: ritmi diversi, spadone e martello piu' lenti della spada.

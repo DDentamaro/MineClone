@@ -746,3 +746,21 @@ Richiesta del proprietario, in ordine:
 5. **Via la presa a due mani:** tolte l'IK della mano sinistra sull'impugnatura e le proprietà
    `two_handed`/`off_grip` delle armi: le braccia corte non arrivavano all'arma e la mano
    entrava nel corpo. Il braccio sinistro oscilla libero con tutte le armi.
+
+## D-040 — Lancia solo di punta, prima persona più piccola a destra, camera più calma, colpi meno frenetici
+Richiesta del proprietario:
+- **Lancia perforante, non di taglio:** tolte la spazzata ad arco (`sweep`) e il giro a 360°
+  (`twirl`), che erano colpi da spada. Catena leggera: stoccata, stoccata col passo, stoccata alta
+  (`rise`, la punta sale e solleva), infilzata. Ramo forte della catena: affondo in avanzata
+  (`drive`, passo lungo, trapassa la fila). Tutti i colpi della lancia sono di punta e perforanti
+  (test); restano la carica, la stoccata in corsa e la picchiata.
+- **Prima persona:** braccio e oggetto più piccoli (scala 0,46 → 0,36, oggetto in mano ×1,35 →
+  ×1,1) e spostati a destra (e un filo in basso); con i pugni ogni braccio va verso il suo bordo.
+  Il centro dello schermo resta libero.
+- **Camera durante i colpi:** scossa dimezzata; in isometrica e in terza persona la camera segue
+  l'eroe con un filo di morbidezza (gli affondi non la strattonano più, un teletrasporto oltre 4 m
+  salta subito); in terza persona non gira più da sola dietro all'eroe mentre colpisce; in prima
+  persona col Lock la vista segue il bersaglio più piano durante i colpi.
+- **Ritmo:** carica ×1,25, colpo ×1,1, rientro ×1,3 e il colpo seguente della catena parte non
+  prima del 35% del rientro, per tutte le armi. Spadone e martello, già lenti (D-034), prendono metà
+  dell'effetto; giri e picchiate restano come sono. Gli attrezzi non cambiano.

@@ -44,7 +44,8 @@ i manichini davanti, P pausa; J tenuto continua la catena. In prima persona si g
 trascinando (dito o mouse), lo stick cammina dove si guarda, i colpi partono verso il mirino e
 del corpo si vedono solo le braccia dritte e la mano con l'oggetto impugnato (D-038).
 Armi e attrezzi sono a cubetti come i blocchi del mondo; ascia e piccone ripetono sempre lo
-stesso colpo; sul telefono due dita zoomano in isometrica e in terza persona (D-039).
+stesso colpo; sul telefono due dita zoomano in isometrica e in terza persona (D-039). La lancia
+colpisce solo di punta; i colpi hanno un ritmo più calmo e la camera non balla (D-040).
 
 ## Struttura
 

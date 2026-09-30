@@ -68,6 +68,15 @@ var pixel_snap := true
 var shake_amt := 0.0
 var reduced_motion := false
 var _shake_t := 0.0
+## D-040: la scossa dei colpi e' la meta' di prima (la camera ballava a ogni colpo).
+const SHAKE_SCALE := 0.5
+## D-040: in isometrica e in terza persona la camera segue l'eroe con un filo di
+## morbidezza, cosi' gli affondi dei colpi non la strattonano; oltre FOLLOW_SNAP
+## metri (teletrasporto, nuova sessione) salta subito sul punto.
+const FOLLOW_RATE := 9.0
+const FOLLOW_SNAP := 4.0
+var _follow := Vector3.ZERO
+var _follow_ok := false
 
 # --- terza persona adattiva (frameTPS del prototipo, HTML 6859–6888)
 ## Situazione riempita dal gioco: velocita', direzione dell'eroe, "coperto"
@@ -146,7 +155,7 @@ func drag(delta_px: Vector2) -> void:
 func shake(amount: float) -> void:
 	if reduced_motion:
 		return
-	shake_amt = maxf(shake_amt, amount)
+	shake_amt = maxf(shake_amt, amount * SHAKE_SCALE)
 
 
 func get_zoom() -> float:
@@ -196,12 +205,19 @@ func update_camera(dt: float, target: Vector3) -> void:
 	if mode == Mode.FPS:
 		# In prima persona lo sguardo segue il dito senza ritardo.
 		yaw = yaw_target
+		_follow = target
+		_follow_ok = true
 		_frame_fps(target)
 		return
 	yaw += (yaw_target - yaw) * k
 	pitch += (pitch_target - pitch) * k
 	zoom += (zoom_target - zoom) * k
-	var look := target + LOOK_OFFSET
+	if not _follow_ok or _follow.distance_to(target) > FOLLOW_SNAP:
+		_follow = target
+		_follow_ok = true
+	else:
+		_follow += (target - _follow) * (1.0 - exp(-dt * FOLLOW_RATE))
+	var look := _follow + LOOK_OFFSET
 	var dir := view_dir()
 	if shake_amt > 0.002:
 		_shake_t += dt
@@ -305,7 +321,8 @@ func _frame_tps(dt: float, look_feet: Vector3) -> void:
 		if tps_auto and now - _last_spin > 1.5:
 			var df := wrapf(atan2(-dx, -dz) - yaw_target, -PI, PI)
 			yaw_target += df * minf(1.0, dt * 2.2)
-	elif tps_auto and sp > 1.2 and now - _last_spin > 3.0 and c.has("heading"):
+	elif tps_auto and sp > 1.2 and now - _last_spin > 3.0 and c.has("heading") and not bool(c.get("attacking", false)):
+		# (D-040: non mentre si colpisce, se no la camera gira dietro a ogni affondo.)
 		# Alle spalle dell'eroe: la camera sta dalla parte opposta allo sguardo.
 		var df := wrapf(float(c["heading"]) - yaw_target, -PI, PI)
 		if absf(df) < 2.5:

@@ -441,7 +441,9 @@ func _draw_debug() -> void:
 func _fps_track_lock(dt: float) -> void:
 	var eye := motor.position + Vector3(0, CameraRig.FPS_EYE, 0)
 	var c := lock.target.position + Vector3(0, lock.target.height * 0.55, 0)
-	var k := 1.0 - exp(-dt * 10.0)
+	# Durante i colpi la vista segue piu' piano (D-040): l'affondo passa accanto
+	# al bersaglio e la direzione cambia di scatto.
+	var k := 1.0 - exp(-dt * (4.0 if combat.state == CombatController.State.ATTACK else 10.0))
 	_camera_rig.yaw_target = lerp_angle(_camera_rig.yaw_target, lock.heading_from(motor.position), k)
 	var v := c - eye
 	var want := atan2(v.y, Vector2(v.x, v.z).length())
@@ -468,7 +470,8 @@ func _update_camera_context(dt: float) -> void:
 		_touch.queue_redraw()
 	if tps:
 		_camera_rig.tps_ctx = {"speed": Vector2(motor.velocity.x, motor.velocity.z).length(), "heading": _avatar.facing,
-			"covered": is_covered(motor.position, 4), "lock": null}
+			"covered": is_covered(motor.position, 4), "lock": null,
+			"attacking": combat.state == CombatController.State.ATTACK}
 	if _camera_rig.prefs_dirty:
 		_prefs_t += dt
 		if _prefs_t > 1.0:

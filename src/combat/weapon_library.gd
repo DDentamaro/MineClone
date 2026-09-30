@@ -31,6 +31,10 @@ static var _cache: Array[WeaponDefinition] = []
 static func all() -> Array[WeaponDefinition]:
 	if _cache.is_empty():
 		_cache = [_fists(), _sword(), _spear(), _hammer(), _greatsword(), _tool()]
+		for w in _cache:
+			if w.id != &"tool":
+				# Spadone e martello erano gia' lenti (D-034): meta' dell'effetto.
+				_pace(w, 0.4 if w.id in [&"hammer", &"greatsword"] else 1.0)
 	return _cache
 
 
@@ -92,6 +96,27 @@ static func _tempo(w: WeaponDefinition, k: float) -> void:
 		if a.rehit <= 0.0:
 			a.hitstop *= 1.25
 		a.move_scale *= 0.5
+
+
+## Ritmo generale (D-040): i colpi erano troppo frenetici. Carica e rientro
+## piu' lunghi per tutte le armi, e il colpo seguente della catena parte piu'
+## tardi nel rientro, cosi' ogni colpo si legge. Le proporzioni fra le armi
+## (pugni veloci, spadone e martello lenti) restano quelle di D-034.
+const PACE_WINDUP := 1.25
+const PACE_ACTIVE := 1.1
+const PACE_RECOVERY := 1.3
+const PACE_CHAIN_MIN := 0.35
+
+static func _pace(w: WeaponDefinition, s: float) -> void:
+	for a: AttackDefinition in w.attacks.values():
+		# Picchiate (legate all'atterraggio) e giri (gia' lunghi) restano come sono.
+		if a.plunge or a.spin != 0.0:
+			continue
+		a.windup *= lerpf(1.0, PACE_WINDUP, s)
+		if a.rehit <= 0.0:
+			a.active *= lerpf(1.0, PACE_ACTIVE, s)
+		a.recovery *= lerpf(1.0, PACE_RECOVERY, s)
+		a.chain_at = maxf(a.chain_at, PACE_CHAIN_MIN * s)
 
 
 static func _with(a: Dictionary, b: Dictionary) -> Dictionary:
@@ -271,9 +296,9 @@ static func _spear() -> WeaponDefinition:
 	w.move_mult = 1.0
 	w.relaxed = pose({"arm_r": [10, 0, 10], "fore_r": [70, 0, 0], "hand_r": [0, 0, 0], "arm_l": [4, 0, -6], "fore_l": [14, 0, 0]})
 	w.guard = pose({"arm_r": [8, 0, 12], "fore_r": [72, 0, 0], "hand_r": [-62, 0, 0], "chest": [0, -20, 0], "head": [0, 18, 0]})
-	# Ritmo della lancia (D-034): due stoccate secche e ravvicinate che passano
-	# attraverso (perforanti), la spazzata bassa per fare spazio e l'infilzata
-	# finale lenta e lunga che trapassa tutta la fila.
+	# Ritmo della lancia (D-034, D-040): solo colpi di punta perforanti. Due
+	# stoccate secche, la stoccata alta che solleva e l'infilzata finale lenta e
+	# lunga che trapassa tutta la fila; ramo forte: affondo in avanzata.
 	var th := {"windup": 0.08, "active": 0.08, "recovery": 0.18, "chain_at": 0.12, "shape": AttackDefinition.Shape.THRUST,
 		"reach_min": 0.4, "reach": 2.75, "width": 0.35, "damage": 8.0, "knockback": 1.2, "hitstop": 0.05, "shake": 0.1, "lunge": 0.8,
 		"strike": 1.3, "pierce": 0.6}
@@ -282,14 +307,16 @@ static func _spear() -> WeaponDefinition:
 	# altrimenti la lancia usciva di 43° di lato e passava accanto al bersaglio.
 	var strike := _with(LUNGE, {"arm_r": [86, -6, 2], "fore_r": [6, 0, 0], "hand_r": [-86, 0, 0], "chest": [-12, 55, 0], "head": [0, -40, 0]})
 	var follow := _with(STANCE, {"arm_r": [60, 0, 6], "fore_r": [30, 0, 0], "hand_r": [-90, 0, 0], "chest": [0, -20, 0]})
-	_atk(w, "thrust", _with(th, {"next_light": "thrust2", "next_heavy": "twirl"}), wind, strike, follow)
-	_atk(w, "thrust2", _with(th, {"damage": 9.0, "next_light": "sweep", "next_heavy": "twirl", "lunge": 0.9, "step_foot": 1.0}), wind, strike, follow)
-	_atk(w, "sweep", {"windup": 0.16, "active": 0.14, "recovery": 0.3, "chain_at": 0.2, "shape": AttackDefinition.Shape.ARC,
-		"arc_from": -110.0, "arc_to": 100.0, "reach_min": 0.8, "reach": 2.9, "y_max": 1.0, "damage": 11.0, "knockback": 2.0,
-		"launch": 1.5, "hitstop": 0.08, "shake": 0.2, "lunge": 0.4, "next_light": "impale", "next_heavy": "charge"},
-		_with(SQUAT, {"arm_r": [60, -90, 0], "fore_r": [10, 0, 0], "hand_r": [-72, 0, 0], "chest": [-10, -55, 0]}),
-		_with(SQUAT, {"arm_r": [62, 80, 0], "fore_r": [6, 0, 0], "hand_r": [-74, 0, 0], "chest": [-10, 55, 0]}),
-		_with(STANCE, {"arm_r": [50, 60, 0], "fore_r": [30, 0, 0], "hand_r": [-80, 0, 0], "chest": [0, 30, 0]}))
+	_atk(w, "thrust", _with(th, {"next_light": "thrust2", "next_heavy": "drive"}), wind, strike, follow)
+	_atk(w, "thrust2", _with(th, {"damage": 9.0, "next_light": "rise", "next_heavy": "drive", "lunge": 0.9, "step_foot": 1.0}), wind, strike, follow)
+	# Stoccata alta (D-040): la punta sale da sotto e trapassa verso l'alto,
+	# solleva chi prende. Prima era una spazzata di taglio, come una spada.
+	_atk(w, "rise", _with(th, {"windup": 0.12, "active": 0.1, "recovery": 0.24, "chain_at": 0.2, "damage": 11.0,
+		"knockback": 2.0, "launch": 4.0, "hitstop": 0.07, "shake": 0.14, "lunge": 0.9, "pierce": 0.9, "step_foot": 1.0,
+		"next_light": "impale", "next_heavy": "drive"}),
+		_with(SQUAT, {"arm_r": [-12, 0, 14], "fore_r": [80, 0, 0], "hand_r": [-50, 0, 0], "chest": [-6, -45, 0], "head": [0, 38, 0]}),
+		_with(LUNGE, {"arm_r": [104, -6, 2], "fore_r": [4, 0, 0], "hand_r": [-96, 0, 0], "chest": [-16, 55, 0], "head": [0, -40, 0]}),
+		_with(STANCE, {"arm_r": [84, 0, 6], "fore_r": [20, 0, 0], "hand_r": [-94, 0, 0], "chest": [-4, -10, 0]}))
 	# Infilzata: carica lunga all'indietro, affondo col peso del corpo che
 	# trapassa per 1,6 m oltre la punta; chiude la catena e spinge lontano.
 	_atk(w, "impale", _with(th, {"windup": 0.22, "active": 0.13, "recovery": 0.36, "chain_at": 0.3, "reach": 2.9, "width": 0.45,
@@ -297,12 +324,13 @@ static func _spear() -> WeaponDefinition:
 		"next_light": "thrust", "next_heavy": "charge"}),
 		_with(STANCE, {"arm_r": [-30, 0, 14], "fore_r": [96, 0, 0], "hand_r": [-66, 0, 0], "chest": [4, -55, 0], "spine": [0, -12, 0], "head": [0, 45, 0], "body_pos": [0, -0.02, 0.06]}),
 		strike, follow)
-	_atk(w, "twirl", {"windup": 0.12, "active": 0.3, "recovery": 0.32, "shape": AttackDefinition.Shape.ARC,
-		"arc_from": -180.0, "arc_to": 180.0, "reach_min": 0.4, "reach": 2.6, "damage": 12.0, "knockback": 8.0, "launch": 3.0,
-		"hitstop": 0.1, "shake": 0.3, "lunge": 0.3, "spin": 360.0, "step_foot": 0.0},
-		_with(STANCE, {"arm_r": [80, -60, 0], "fore_r": [10, 0, 0], "hand_r": [-90, 0, 0], "chest": [0, -45, 0]}),
-		_with(STANCE, {"arm_r": [84, 20, 0], "fore_r": [4, 0, 0], "hand_r": [-90, 0, 0], "chest": [0, 25, 0]}),
-		_with(STANCE, {"arm_r": [60, 20, 0], "fore_r": [30, 0, 0], "hand_r": [-80, 0, 0], "chest": [0, 10, 0]}))
+	# Affondo in avanzata (D-040, ramo forte della catena): un passo lungo e la
+	# lancia che trapassa la fila; prima era un giro di taglio a 360°.
+	_atk(w, "drive", _with(th, {"windup": 0.18, "active": 0.14, "recovery": 0.34, "chain_at": 0.3, "reach": 2.9, "width": 0.45,
+		"damage": 13.0, "knockback": 6.0, "hitstop": 0.1, "shake": 0.22, "lunge": 1.9, "pierce": 1.3, "move_scale": 0.0,
+		"step_foot": 1.0, "next_light": "thrust", "next_heavy": "charge"}),
+		_with(STANCE, {"arm_r": [-30, 0, 14], "fore_r": [96, 0, 0], "hand_r": [-66, 0, 0], "chest": [4, -55, 0], "spine": [0, -12, 0], "head": [0, 45, 0]}),
+		strike, follow)
 	_atk(w, "charge", _with(th, {"windup": 0.22, "active": 0.24, "recovery": 0.36, "chain_at": 0.0, "reach": 2.9, "width": 0.55,
 		"damage": 16.0, "knockback": 12.0, "launch": 2.0, "hitstop": 0.12, "shake": 0.35, "lunge": 6.0, "move_scale": 0.0,
 		"charge_max": 0.8, "charge_bonus": 1.0, "rehit": 0.0, "pierce": 2.2}), wind, strike, follow)

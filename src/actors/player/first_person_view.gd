@@ -15,11 +15,15 @@ extends Node3D
 
 const FOREARM := AvatarRig.FOREARM
 const UPPER_ARM := AvatarRig.UPPER_ARM
-const SCALE := 0.46
+## D-040: piu' piccolo (era 0,46) e spostato a destra, ingombra meno lo schermo.
+const SCALE := 0.36
+## Spostamento di tutto il braccio (spazio camera): a destra e un filo in basso;
+## coi pugni il braccio sinistro si sposta a sinistra (specchio).
+const SHIFT := Vector3(0.1, -0.03, 0.0)
 ## Braccio dritto: l'omero continua l'avambraccio fino alla spalla, fuori dallo schermo.
 const ELBOW_FLEX := 0.0
-## L'oggetto in mano appare piu' grande che sull'eroe (D-039), come nei giochi a blocchi.
-const HELD_GROW := 1.35
+## L'oggetto in mano appare un po' piu' grande che sull'eroe (D-039; D-040 1,35 -> 1,1).
+const HELD_GROW := 1.1
 
 class Pose:
 	extends RefCounted
@@ -161,9 +165,9 @@ func update(dt: float, combat: CombatController, speed: float, mining: float, sw
 	var k := clampf(speed / PlayerMotor.SPEED, 0.0, 1.0)
 	var bob := Vector3(sin(_t * 8.0) * 0.010, -absf(cos(_t * 8.0)) * 0.012, 0) * k
 	var drop := Vector3(0, -0.45 * clampf(swap, 0.0, 1.0), 0)
-	_place(0, right, bob + drop)
+	_place(0, right, bob + drop + SHIFT)
 	if fists:
-		_place(1, left, bob * Vector3(-1, 1, 1) + drop)
+		_place(1, left, (bob + SHIFT) * Vector3(-1, 1, 1) + drop)
 
 
 ## Posa del colpo per il braccio destro; `left` = colpo del braccio sinistro
