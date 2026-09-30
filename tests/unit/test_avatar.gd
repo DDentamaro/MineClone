@@ -49,11 +49,11 @@ func test_scheletro_e_altezza() -> void:
 		aabb = b if first else aabb.merge(b)
 		first = false
 	check(absf(aabb.position.y) < 0.03, "piedi a terra (%f)" % aabb.position.y)
-	# D-043: alto due blocchi coi capelli, snello: testa piccola (dal collo in su
-	# ~15% dell'altezza), gambe lunghe (anca a meta' altezza), spalle strette.
-	check(aabb.end.y > AvatarRig.HEIGHT - 0.02 and aabb.end.y < 2.02, "altezza col ciuffo %f" % aabb.end.y)
+	# D-043/D-044: snello, ~1,76 m coi capelli (fra il chibi di 1,5 e i due blocchi):
+	# testa piccola, gambe lunghe (anca a meta' altezza), spalle strette.
+	check(aabb.end.y > AvatarRig.HEIGHT - 0.02 and aabb.end.y < 1.82, "altezza col ciuffo %f" % aabb.end.y)
 	check(absf(rig.rig_xf(rig.bones[&"head"]).origin.y - HeroChargen.NECK_Y) < 0.01, "collo a %.2f" % HeroChargen.NECK_Y)
-	check((aabb.end.y - HeroChargen.NECK_Y) / aabb.end.y < 0.2, "testa piccola")
+	check((aabb.end.y - HeroChargen.NECK_Y) / aabb.end.y < 0.22, "testa piccola")
 	check(AvatarRig.HIP_Y / aabb.end.y > 0.45, "gambe lunghe")
 	check(aabb.size.x < 0.75 and aabb.size.z < 0.5, "snello (%.2f x %.2f)" % [aabb.size.x, aabb.size.z])
 	rig.free()

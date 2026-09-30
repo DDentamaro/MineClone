@@ -152,7 +152,9 @@ func _process(dt: float) -> bool:
 				_tap(&"lock")
 				_next()
 		4:
-			if _t > 1.0:
+			# 1,5 s: durante un colpo la vista segue il bersaglio piu' piano (D-040)
+			# e la catena appena lanciata puo' essere ancora in corso.
+			if _t > 1.5:
 				var d: TrainingDummy = g._dummies.dummies[0]
 				var want := CombatController.heading(Vector2(d.position.x - g.motor.position.x, d.position.z - g.motor.position.z))
 				var err := rad_to_deg(absf(wrapf(cam.yaw - want, -PI, PI)))

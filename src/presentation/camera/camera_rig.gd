@@ -33,7 +33,7 @@ const TPS_ZOOM_MAX := 3.4
 # --- prima persona (D-037): occhi dell'eroe, sguardo col trascinamento
 const FPS_FOV := 70.0
 ## Occhi sopra i piedi e un filo davanti alla faccia (la testa e' nascosta).
-const FPS_EYE := 1.74
+const FPS_EYE := 1.53
 const FPS_FRONT := 0.10
 const FPS_PITCH_MIN := -1.35
 const FPS_PITCH_MAX := 1.25
@@ -42,7 +42,7 @@ const FPS_PITCH_MAX := 1.25
 const DRAG_YAW := 0.006
 const DRAG_PITCH := 0.004
 ## Il punto guardato e' sopra i piedi del giocatore.
-const LOOK_OFFSET := Vector3(0, 1.0, 0)
+const LOOK_OFFSET := Vector3(0, 0.9, 0)
 
 var mode: Mode = Mode.ISO
 var yaw := ISO_YAW

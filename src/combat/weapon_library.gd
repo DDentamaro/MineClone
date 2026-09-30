@@ -78,9 +78,9 @@ static func _atk(w: WeaponDefinition, id: String, props: Dictionary, wind: Dicti
 
 # Pose ricorrenti delle gambe.
 const STANCE := {"leg_l": [22, 0, 0], "shin_l": [-14, 0, 0], "leg_r": [-16, 0, 0], "shin_r": [-20, 0, 0]}
-const LUNGE := {"leg_l": [48, 0, 0], "shin_l": [-40, 0, 0], "leg_r": [-34, 0, 0], "shin_r": [-8, 0, 0], "body_pos": [0, -0.2, 0]}
+const LUNGE := {"leg_l": [48, 0, 0], "shin_l": [-40, 0, 0], "leg_r": [-34, 0, 0], "shin_r": [-8, 0, 0], "body_pos": [0, -0.175, 0]}
 const TUCK := {"leg_l": [70, 0, 0], "shin_l": [-100, 0, 0], "leg_r": [55, 0, 0], "shin_r": [-95, 0, 0]}
-const SQUAT := {"leg_l": [55, 0, -6], "shin_l": [-70, 0, 0], "leg_r": [40, 0, 6], "shin_r": [-60, 0, 0], "body_pos": [0, -0.32, 0], "hips": [-10, 0, 0]}
+const SQUAT := {"leg_l": [55, 0, -6], "shin_l": [-70, 0, 0], "leg_r": [40, 0, 6], "shin_r": [-60, 0, 0], "body_pos": [0, -0.28, 0], "hips": [-10, 0, 0]}
 
 
 ## Armi pesanti (D-034): carica e rientro piu' lunghi di `k`, arresto sul
@@ -147,10 +147,10 @@ static func _weight(w: WeaponDefinition) -> void:
 		a.shake *= WEIGHT_SHAKE
 
 
-## Braccia lunghe dell'eroe alto due blocchi (D-043): le armi arrivano ~1,35
-## volte piu' lontano (punte misurate con tools/spear_probe.gd), l'affondo si
-## ferma prima. I pugni restano come sono (pose corte, gia' a segno).
-const REACH_K := 1.35
+## Braccia lunghe dell'eroe snello (D-043, D-044): le armi arrivano ~1,2 volte
+## piu' lontano che col chibi (punte misurate con tools/spear_probe.gd),
+## l'affondo si ferma prima. I pugni restano come sono (pose corte, gia' a segno).
+const REACH_K := 1.2
 
 static func _reach(w: WeaponDefinition) -> void:
 	w.strike_dist *= REACH_K

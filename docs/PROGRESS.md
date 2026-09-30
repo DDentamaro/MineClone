@@ -1,5 +1,17 @@
 # Avanzamento
 
+## 30/09/2026 — D-044: eroe snello a metà strada, ~1,76 m
+
+Con D-043 l'eroe era troppo alto: stesse proporzioni snelle, misure ×0,875, alto ~1,76 m coi
+capelli (fra il chibi di ~1,5 m e i due blocchi).
+
+### Test realmente eseguiti (D-044)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 190/190 PASS, log pulito (altezza col ciuffo fra 1,68 e 1,82 m, testa < 22% dell'altezza, anca oltre il 45%) |
+| Suite e2e completa (movimenti, passo, nuoto, terza persona, prima persona, combattimento, aggancio, sessione, touch, sandbox, oggetti a terra, armeria, opzioni e opzioni sul telefono) | OK, nessun errore di script, tranne una volta la prima persona: "Lock gira la vista a 60°" con errore 10° al limite dopo 1 s (durante un colpo la vista segue più piano, D-040, e i colpi sono più lenti); controllo portato a 1,5 s e prova rifatta: errore 0°, OK. Movimenti: tutti i colpi del primo giro di ogni arma a segno |
+| Export Android debug 0.23.0-m5 (versionCode 25) + `apksigner verify` + `aapt2 dump badging` | OK; mai installato su un telefono |
+
 ## 30/09/2026 — D-043: eroe snello e slanciato alto due blocchi
 
 L'eroe è alto 1,99 m coi capelli: testa piccola, gambe e braccia lunghe e sottili, busto stretto.

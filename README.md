@@ -49,7 +49,7 @@ colpisce solo di punta; i colpi hanno un ritmo più calmo e la camera non balla 
 La lancia affonda dritta anche in terza persona e ferisce solo con la punta; durante il gioco
 non ci sono più riquadri in alto, il Diario è in Menu > Diario (D-041). La terza persona è fissa
 come l'isometrica (ruota e zooma solo l'utente, i muri si aprono coi raggi X); spadone e martello
-colpiscono più pesanti (D-042). L'eroe è snello e alto due blocchi (D-043).
+colpiscono più pesanti (D-042). L'eroe è snello e alto ~1,76 m (D-043, D-044).
 
 ## Struttura
 

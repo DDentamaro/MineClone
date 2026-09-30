@@ -24,9 +24,9 @@ const LAND_REC := 0.28
 const RAMP := 1.15
 ## Altezza del corpo; e' anche quella usata dal prototipo per il controllo di
 ## sovrapposizione quando si piazza un blocco (riga 7101).
-const HEIGHT := 1.9
+const HEIGHT := 1.72
 ## Quota degli occhi sopra i piedi (portata di costruzione, riga 7099).
-const EYE := 1.6
+const EYE := 1.4
 const EPS := 0.001
 const COYOTE_TIME := 0.10
 const JUMP_BUFFER := 0.12

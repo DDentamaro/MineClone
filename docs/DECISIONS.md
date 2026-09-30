@@ -817,3 +817,14 @@ voluto dal prototipo (l'eroe chibi di CHARGEN, testa grande, alto ~1,5 m coi cap
   finiva sopra la testa e mancava il manichino: carica più bassa e colpo che si ferma davanti al
   petto. La prova dei movimenti accetta piedi fino a 1,0 m di distanza nel colpo (prima 0,55 per
   gambe da 0,3 m).
+
+## D-044 — Eroe snello a metà strada: ~1,76 m
+Richiesta del proprietario: con D-043 l'eroe era troppo alto, via di mezzo. Stesse proporzioni
+snelle, tutte le misure ×0,875 (testa un filo più grande in proporzione): alto ~1,76 m coi
+capelli (1,70 senza), fra il chibi del prototipo (~1,5) e i due blocchi di D-043. Anca 0,83,
+collo 1,42, testa 0,28 m, omero 0,30, avambraccio 0,26, busto largo 0,37. Di conseguenza:
+collisione 1,72 m (passa sempre in un varco di due blocchi), occhi 1,4 (portata) e 1,53 (prima
+persona), camere puntate a 0,9 m, punti dei raggi X fino a 1,62, cadenza e passi fra i valori del
+chibi e quelli di D-043, distanze degli affondi ×1,2 rispetto al chibi (erano ×1,35), prima
+persona scala 0,34 con oggetto ×1,16, anteprima dello zaino riquadrata. Limite dei piedi nella
+prova dei movimenti 0,9 m.

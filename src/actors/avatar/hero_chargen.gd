@@ -57,22 +57,23 @@ const BOOTS := ["#4b3623", "#2a2f24", "#5e4636", "#1f1a17"]
 const ACCENTS := ["#d9a441", "#b3321f", "#2f8f8a", "#d8d2bd", "#4a3a6b", "#6b7a2a"]
 const EYE_COLS := ["#297e7b", "#343434", "#3b5fa8", "#6b4a1f", "#5d8a3a", "#9a2d2d"]
 
-## Misure del rig. D-043: eroe snello e slanciato alto due blocchi (prima il
-## chibi del prototipo, CHARGEN.rig: anca .32, collo .80, testa ×.54, alto ~1,5):
-## anca .95, collo 1,62, testa ×.278 (0,30 m, cima ~1,92, coi capelli ~2),
-## omero .34, avambraccio+mano .44, coscia .45, stinco+piede .50; busto largo
-## 0,40, braccia e gambe sottili (scale di larghezza separate).
-const S := 0.38
-const HEAD_S := 0.278
-const ARM_S := 0.27
-const LEG_SX := 0.30
-const LEG_SZ := 0.32
-const HIP_Y := 0.95
-const NECK_Y := 1.62
-const UPPER := 0.34
-const FORE_HAND := 0.44
-const THIGH := 0.45
-const SHIN_FOOT := 0.50
+## Misure del rig. D-043/D-044: eroe snello e slanciato, alto ~1,76 m coi
+## capelli (prima il chibi del prototipo, CHARGEN.rig: anca .32, collo .80,
+## testa ×.54, alto ~1,5; in D-043 due blocchi, troppo alto): anca .83, collo
+## 1,42, testa ×.26 (0,28 m, cima 1,70), omero .30, avambraccio+mano .385,
+## coscia .39, stinco+piede .44; busto largo 0,37, braccia e gambe sottili
+## (scale di larghezza separate).
+const S := 0.35
+const HEAD_S := 0.26
+const ARM_S := 0.25
+const LEG_SX := 0.28
+const LEG_SZ := 0.30
+const HIP_Y := 0.83
+const NECK_Y := 1.42
+const UPPER := 0.30
+const FORE_HAND := 0.385
+const THIGH := 0.39
+const SHIN_FOOT := 0.44
 
 
 static func preset(i: int) -> Dictionary:
