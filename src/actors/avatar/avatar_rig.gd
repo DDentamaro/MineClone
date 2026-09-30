@@ -39,7 +39,7 @@ var bones := {}
 var rest := {}
 var weapon: WeaponDefinition
 var socket: Node3D
-## IK della mano sinistra sull'arma a due mani (spento mentre si lancia una magia).
+## IK della mano sinistra sull'arma a due mani (spento a riposo e al cambio d'arma).
 var ik_enabled := true
 var _material: ShaderMaterial
 var _instances: Array[GeometryInstance3D] = []
@@ -222,6 +222,13 @@ func set_weapon(w: WeaponDefinition, mesh_override: ArrayMesh = null) -> void:
 	_instances.append_array(_weapon_nodes)
 
 
+## Prima persona (D-037): la testa (capelli, cappello, elmo) si nasconde perche'
+## la camera sta negli occhi; braccia, arma e corpo restano visibili.
+func set_head_visible(on: bool) -> void:
+	if bones.has(&"head"):
+		(bones[&"head"] as Node3D).visible = on
+
+
 ## Applica una posa: osso -> rotazione (radianti); "body_pos" sposta il corpo.
 func apply_pose(pose: Dictionary) -> void:
 	for b: StringName in bones:
@@ -317,12 +324,6 @@ func hitboxes() -> Array:
 	for i in n:
 		out.append([g * Vector3(0, lerpf(a, b, float(i) / (n - 1)), 0), weapon.hit_r])
 	return out
-
-
-## Punto di lancio della magia: palmo sinistro, in coordinate globali.
-func cast_point() -> Vector3:
-	var x := global_transform * rig_xf(bones[&"hand_l"]) if is_inside_tree() else rig_xf(bones[&"hand_l"])
-	return x * Vector3(0, -HAND - 0.04, 0)
 
 
 ## Armatura indossata (M5): pezzi a scatole smussate sopra le ossa, nel colore

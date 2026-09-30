@@ -7,7 +7,7 @@ config_version=5
 
 config/name="IsoTerra"
 config/description="Sandbox voxel action per telefono (ricostruzione del prototipo IsoTerra)."
-config/version="0.15.0-m5"
+config/version="0.16.0-m5"
 run/main_scene="res://scenes/main.tscn"
 config/icon="res://icon.svg"
 config/features=PackedStringArray("4.7", "Mobile")
@@ -192,66 +192,6 @@ rays_on={
 water_time={
 "type": "float",
 "value": 0.0
-}
-pt_n={
-"type": "float",
-"value": 0.0
-}
-pt_pos0={
-"type": "vec4",
-"value": Vector4(0, -100, 0, 0.01)
-}
-pt_col0={
-"type": "vec3",
-"value": Vector3(0, 0, 0)
-}
-pt_pos1={
-"type": "vec4",
-"value": Vector4(0, -100, 0, 0.01)
-}
-pt_col1={
-"type": "vec3",
-"value": Vector3(0, 0, 0)
-}
-pt_pos2={
-"type": "vec4",
-"value": Vector4(0, -100, 0, 0.01)
-}
-pt_col2={
-"type": "vec3",
-"value": Vector3(0, 0, 0)
-}
-pt_pos3={
-"type": "vec4",
-"value": Vector4(0, -100, 0, 0.01)
-}
-pt_col3={
-"type": "vec3",
-"value": Vector3(0, 0, 0)
-}
-pt_pos4={
-"type": "vec4",
-"value": Vector4(0, -100, 0, 0.01)
-}
-pt_col4={
-"type": "vec3",
-"value": Vector3(0, 0, 0)
-}
-pt_pos5={
-"type": "vec4",
-"value": Vector4(0, -100, 0, 0.01)
-}
-pt_col5={
-"type": "vec3",
-"value": Vector3(0, 0, 0)
-}
-spell_wind={
-"type": "vec4",
-"value": Vector4(-999, -999, 0, 0)
-}
-spell_wind_rp={
-"type": "vec2",
-"value": Vector2(1, 0)
 }
 tree_hit={
 "type": "vec3",

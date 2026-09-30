@@ -135,7 +135,7 @@ func _run() -> void:
 	for button: Dictionary in _game._session._buttons:
 		if button["id"] == &"interact":
 			shown = true
-			for id: StringName in [&"lock", &"magic", &"attack", &"heavy", &"dodge", &"jump", &"sp0", &"sp1", &"sp2", &"sp3", &"sp4"]:
+			for id: StringName in [&"lock", &"attack", &"heavy", &"dodge", &"jump"]:
 				_check(not (button["rect"] as Rect2).intersects(_game._touch.button_rect(id)), "telefono / indicazione non copre %s" % id)
 	_check(shown, "telefono / indicazione dell'oggetto vicino visibile")
 	var atlas := IconAtlas.new()

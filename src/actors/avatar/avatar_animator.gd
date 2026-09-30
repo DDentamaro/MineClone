@@ -30,19 +30,6 @@ class State:
 	var charge := -1.0
 	## Capriola: avanzamento 0..1, -1 se non in corso.
 	var dodge := -1.0
-	## Magia (mano sinistra): raccolta 0..1 e rilascio 0..1, -1 se assenti.
-	var gather := -1.0
-	var release := -1.0
-	## Magia pesante (Output >= 120): raccolta e spinta a due mani.
-	var two_hands := false
-	## Braccio teso della magia (RMNDWN karmaPose): peso 0..1, impegno 0..1,
-	## postura (inclinazione, apertura, allargamento), convergenza delle mani
-	## e rinculo in corso {upper, lower, spine_y, spine_x, head_y}.
-	var cast_w := 0.0
-	var cast_c := 0.0
-	var stance := Vector3.ZERO
-	var converge := 0.0
-	var recoil := {}
 	## 0 in guardia, 1 rilassato (fuori combattimento).
 	var relax := 0.0
 	## Cambio d'arma: la destra va dietro la spalla (0..1..0).
@@ -233,11 +220,6 @@ func target_pose(dt: float, s: State) -> Dictionary:
 		p[&"leg_r"] += d(-12)
 		p[&"shin_r"] += d(-14)
 
-	# Magia con la mano sinistra: il palmo si carica davanti al viso, poi
-	# spinge in avanti a braccio teso; l'arma resta nella destra.
-	if s.cast_w > 0.0:
-		_apply_cast(p, s)
-
 	# Capriola: giro completo in avanti attorno al centro del corpo, raccolto.
 	if s.dodge >= 0.0:
 		var u := s.dodge
@@ -310,47 +292,6 @@ func _apply_attack(p: Dictionary, s: State) -> void:
 	# Giro del corpo.
 	if at.spin != 0.0 and s.phase == 1:
 		p[&"body"] += Vector3(0, deg_to_rad(at.spin) * _smooth(u), 0)
-
-
-## Posa di lancio di RMNDWN (karmaPose L32165, D-031) specchiata sulla
-## sinistra perche' la destra tiene l'arma (D-024): braccio del tutto teso in
-## avanti, poco verso l'esterno, all'altezza della spalla, il glifo davanti al
-## palmo. Bersagli (non somme) sul braccio che lancia, somme su busto e testa
-## (la corsa continua a muovere il torso). Una spinta di 5 cm della spalla
-## nell'ultimo 22% della raccolta, poi il rinculo quando la magia colpisce.
-## Mano libera raccolta sotto; a due mani le braccia convergono.
-const CAST_ARM := Vector3(90.0, 0.0, 0.0)
-## Verso l'esterno (atan .24) e in su (atan .06) rispetto al dritto avanti.
-const CAST_OUT := 13.5
-const CAST_UP := 3.4
-
-
-func _apply_cast(p: Dictionary, s: State) -> void:
-	var w := s.cast_w
-	var c := s.cast_c
-	var r := s.recoil
-	var lean := rad_to_deg(s.stance.x)
-	var open := rad_to_deg(s.stance.y)
-	var up_rec := rad_to_deg(float(r.get("upper", 0.0)))
-	var fl_rec := rad_to_deg(float(r.get("lower", 0.0)))
-	# Braccio sinistro: dritto in avanti, fuori di 13,5°, su di 3,4°.
-	var conv := rad_to_deg(s.converge) if s.two_hands else 0.0
-	var arm := d(CAST_ARM.x + CAST_UP + lean - 2.9 * c + up_rec, CAST_OUT + open - conv, 0.0)
-	p[&"arm_l"] = (p[&"arm_l"] as Vector3).lerp(arm, w)
-	p[&"fore_l"] = (p[&"fore_l"] as Vector3).lerp(d(fl_rec), w)
-	p[&"hand_l"] = (p[&"hand_l"] as Vector3).lerp(d(-8.0), w)
-	if s.two_hands:
-		var arm_r := d(CAST_ARM.x + CAST_UP + lean - 2.9 * c + up_rec, -(CAST_OUT + open - conv), 0.0)
-		p[&"arm_r"] = (p[&"arm_r"] as Vector3).lerp(arm_r, w)
-		p[&"fore_r"] = (p[&"fore_r"] as Vector3).lerp(d(fl_rec), w)
-		p[&"hand_r"] = (p[&"hand_r"] as Vector3).lerp(d(-8.0), w)
-	else:
-		# L'altra mano (con l'arma) resta raccolta: abd +.16 + wide, flex +.38.
-		p[&"arm_r"] += d(0, 0, rad_to_deg(0.16 + s.stance.z) * w)
-		p[&"fore_r"] += d(rad_to_deg(0.38) * w)
-	# Busto e testa: yaw +.13w (+.04c), pitch +.04w −.05c, testa −.05w; specchiati.
-	p[&"chest"] += Vector3(0.04 * w - 0.05 * c + float(r.get("spine_x", 0.0)), -(0.13 * w + 0.04 * c + float(r.get("spine_y", 0.0))), 0)
-	p[&"head"] += Vector3(0, 0.05 * w - float(r.get("head_y", 0.0)), 0)
 
 
 static func _smooth(x: float) -> float:

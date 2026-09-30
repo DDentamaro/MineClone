@@ -180,26 +180,6 @@ func _move_cells() -> Array:
 		s.dodge = (i + 1) / 5.0
 		row.append({"weapon": w, "pose": _pose(s), "label": "capriola %.1f" % s.dodge, "yaw": -PI * 0.5})
 	rows.append(row)
-	row = []
-	for g in [0.4, 1.0]:
-		var s := _state(w)
-		s.cast_w = g
-		row.append({"weapon": w, "pose": _pose(s), "label": "lancio braccio %.1f" % g})
-	var sc := _state(w)
-	sc.cast_w = 1.0
-	sc.cast_c = 1.0
-	row.append({"weapon": w, "pose": _pose(sc), "label": "lancio impegno"})
-	var sr := _state(w)
-	sr.cast_w = 1.0
-	sr.recoil = SpellDefinition.by_id(&"spina").recoil_pose
-	row.append({"weapon": w, "pose": _pose(sr), "label": "lancio rinculo"})
-	var s2 := _state(w)
-	s2.cast_w = 1.0
-	s2.two_hands = true
-	s2.converge = 0.30
-	s2.stance = Vector3(0.06, 0.18, 0.0)
-	row.append({"weapon": w, "pose": _pose(s2), "label": "lancio due mani"})
-	rows.append(row)
 	return rows
 
 

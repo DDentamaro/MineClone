@@ -91,3 +91,34 @@ func test_terza_persona_segue_le_spalle() -> void:
 		rig.update_camera(1.0 / 60.0, Vector3(32.5, 4, 32.5))
 	check(absf(rig.yaw_target) < 0.01, "senza auto non gira")
 	rig.free()
+
+
+## D-037: prima persona. Il pulsante camera fa il giro iso -> terza -> prima;
+## la camera sta negli occhi, guarda lungo lo sguardo, lo stick va dove si guarda.
+func test_prima_persona() -> void:
+	var rig := _rig()
+	check_eq(rig.mode, CameraRig.Mode.ISO, "parte in isometrica")
+	rig.toggle_mode()
+	check_eq(rig.mode, CameraRig.Mode.TPS, "poi terza persona")
+	rig.toggle_mode()
+	check_eq(rig.mode, CameraRig.Mode.FPS, "poi prima persona")
+	check_eq(rig.camera.projection, Camera3D.PROJECTION_PERSPECTIVE, "prospettica")
+	check(rig.is_persp(), "prospettica per cielo ed erba")
+	rig.yaw_target = 0.7
+	rig.update_camera(1.0 / 60.0, Vector3(10, 4, 10))
+	var eye := rig.camera.global_position
+	check(absf(eye.y - (4.0 + CameraRig.FPS_EYE)) < 1e-4, "all'altezza degli occhi (%s)" % eye)
+	check(Vector2(eye.x - 10.0, eye.z - 10.0).length() < 0.2, "sopra l'eroe")
+	check_eq(rig.yaw, 0.7, "lo sguardo segue il dito senza ritardo")
+	var fwd := -rig.camera.global_transform.basis.z
+	check(fwd.dot(rig.look_forward()) > 0.999, "guarda lungo lo sguardo")
+	var st := rig.stick_to_world(Vector2(0, 1))
+	check(Vector2(fwd.x, fwd.z).normalized().dot(st) > 0.999, "stick avanti = dove si guarda")
+	# Trascinare in giu' guarda in basso, con un limite.
+	rig.drag(Vector2(0, 100))
+	check(rig.fps_pitch < 0.0, "trascinare in giu' guarda in basso")
+	rig.drag(Vector2(0, 100000))
+	check_eq(rig.fps_pitch, CameraRig.FPS_PITCH_MIN, "limite in basso")
+	rig.toggle_mode()
+	check_eq(rig.mode, CameraRig.Mode.ISO, "e di nuovo isometrica")
+	rig.free()

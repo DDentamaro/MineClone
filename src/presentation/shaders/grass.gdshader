@@ -10,8 +10,6 @@ stencil_mode write, compare_always, 2;
 
 uniform sampler2D leaf_tex : source_color, filter_nearest, repeat_disable;
 uniform float wind_climate = 0.72;
-global uniform vec4 spell_wind;
-global uniform vec2 spell_wind_rp;
 
 varying vec2 v_uv;
 varying vec2 v_origin;
@@ -42,9 +40,6 @@ void vertex() {
 	vec3 pos = vec3(off.x, gy + 0.015, off.y);
 	pos += cam_right * local.x; pos += cam_up * local.y; pos.xz += wind_dir * wind * 0.046 * top;
 	pos.xz += vec2(cos(seed * 17.0), sin(seed * 19.0)) * (dry - 0.5) * 0.020 * top;
-	// Vento degli incantesimi: la spina d'aria piega l'erba lungo il passaggio.
-	{ vec2 swd = off - spell_wind.xy; float swr = max(0.001, spell_wind_rp.x); float swm = exp(-dot(swd, swd) / (swr * swr)) * spell_wind_rp.y;
-	  vec2 sdir = length(spell_wind.zw) > 0.01 ? normalize(spell_wind.zw) : normalize(swd + vec2(0.001)); pos.xz += sdir * swm * top; }
 	if (gy > slice_y + 0.5) pos = vec3(0.0, -1000.0, 0.0);
 	VERTEX = pos;
 	v_wpos = pos;

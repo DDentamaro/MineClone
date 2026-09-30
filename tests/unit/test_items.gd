@@ -88,34 +88,9 @@ func test_statistiche_dell_equipaggiamento() -> void:
 	eq.equip(ItemStack.new(&"chest_iron"))
 	var st := eq.stats(s)
 	check(absf(st.melee - (1.2 + 0.1)) < 1e-4, "danno: oro 1,2 + forza 0,1 (%f)" % st.melee)
-	check(absf(st.mana_max - 15.0) < 1e-4, "l'oro da' mana")
 	check(st.defense > 3.0, "difesa della corazza di ferro")
 	check_eq(Equipment.slot_for(ItemStack.new(&"head_copper")), "head", "slot dell'elmo")
 
-
-func test_pergamena_insegna_una_magia() -> void:
-	var items := PlayerItems.new()
-	var m := MagicSystem.new(1)
-	check(ItemLibrary.get_item(&"scroll_nova") != null, "pergamena della Nova")
-	check(ItemLibrary.get_item(&"scroll_ago") == null, "niente pergamene di livello 1")
-	check_eq(items.inv.add_item(&"scroll_nova", 1), 0, "nello zaino")
-	var at := -1
-	for i in items.inv.size():
-		var st := items.inv.get_slot(i)
-		if st != null and st.id == &"scroll_nova":
-			at = i
-	var bag := BagPanel.new()
-	bag.items = items
-	bag.magic = m
-	var cap := m.output_cap()
-	check(bag.learn_scroll(items.inv, at), "imparata")
-	check(m.known.has(&"nova"), "nota")
-	check_eq(m.bar[4], &"nova", "nel primo slot libero della barra")
-	check(absf(m.output_cap() - cap - MagicSystem.STUDY) < 1e-4, "Output +5")
-	check_eq(items.inv.count(&"scroll_nova"), 0, "pergamena consumata")
-	items.inv.add_item(&"scroll_nova", 1)
-	check(not bag.learn_scroll(items.inv, at), "gia' nota: non si consuma")
-	bag.free()
 
 
 func test_impugna_da_forziere_e_indossa() -> void:

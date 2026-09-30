@@ -1,10 +1,10 @@
 class_name CameraRig
 extends Node3D
 ## Camera del gioco (D-010): isometrica ortografica come modalita' principale,
-## terza persona prospettica come opzione. Parametri dal View del prototipo
+## terza persona prospettica e prima persona (D-037) come opzioni. Parametri dal View del prototipo
 ## (righe 6724, 6776–6786) e da RMD_PIX_ISO (riga 4238).
 
-enum Mode { ISO, TPS }
+enum Mode { ISO, TPS, FPS }
 
 # --- isometrica: yaw 45°, pitch 38° (22..62), zoom 0,55..2,4
 const ISO_YAW := PI / 4.0
@@ -29,6 +29,14 @@ const TPS_PITCH_MAX := 1.42
 const TPS_ZOOM_MIN := 0.28
 const TPS_ZOOM_MAX := 3.4
 
+# --- prima persona (D-037): occhi dell'eroe, sguardo col trascinamento
+const FPS_FOV := 70.0
+## Occhi sopra i piedi e un filo davanti alla faccia (la testa e' nascosta).
+const FPS_EYE := 0.86
+const FPS_FRONT := 0.10
+const FPS_PITCH_MIN := -1.35
+const FPS_PITCH_MAX := 1.25
+
 ## Sensibilita' del trascinamento (prototipo: dyaw = -dx*0,006, dpitch = dy*0,004).
 const DRAG_YAW := 0.006
 const DRAG_PITCH := 0.004
@@ -43,6 +51,9 @@ var pitch_target := ISO_PITCH
 var zoom := 1.0
 var zoom_target := 1.0
 var tps_pitch := TPS_PITCH
+## Prima persona: inclinazione dello sguardo (positiva in su) e piano degli
+## occhi (li calcola il gioco: posizione interpolata dell'eroe).
+var fps_pitch := 0.0
 var tps_zoom := 1.0
 var world: WorldData
 var opaque := PackedByteArray()
@@ -57,12 +68,6 @@ var pixel_snap := true
 var shake_amt := 0.0
 var reduced_motion := false
 var _shake_t := 0.0
-## Scossa direzionale delle magie (RMNDWN cameraState L36278–L36315): angoli
-## sull'orbita lungo l'asse del colpo e calcio del campo visivo in gradi.
-var _ss := {}
-var _sh_y := 0.0
-var _sh_p := 0.0
-var _fov_kick := 0.0
 
 # --- terza persona adattiva (frameTPS del prototipo, HTML 6859–6888)
 ## Situazione riempita dal gioco: velocita', direzione dell'eroe, "coperto"
@@ -97,14 +102,29 @@ func set_mode(m: Mode) -> void:
 	_apply_projection()
 
 
+## Ciclo del pulsante camera: isometrica -> terza persona -> prima persona.
 func toggle_mode() -> void:
-	set_mode(Mode.TPS if mode == Mode.ISO else Mode.ISO)
+	match mode:
+		Mode.ISO:
+			set_mode(Mode.TPS)
+		Mode.TPS:
+			set_mode(Mode.FPS)
+		_:
+			set_mode(Mode.ISO)
+
+
+## Camera prospettica (terza o prima persona).
+func is_persp() -> bool:
+	return mode != Mode.ISO
 
 
 func spin(dyaw: float, dpitch: float) -> void:
 	_last_spin = _now()
 	yaw_target += dyaw
-	if mode == Mode.TPS:
+	if mode == Mode.FPS:
+		# Trascinare in giu' guarda in basso (come in terza persona si alza la camera).
+		fps_pitch = clampf(fps_pitch - dpitch, FPS_PITCH_MIN, FPS_PITCH_MAX)
+	elif mode == Mode.TPS:
 		if dpitch != 0.0:
 			var base := tps_pitch if is_nan(tps_user_pitch) else tps_user_pitch
 			tps_user_pitch = clampf(base + dpitch, TPS_PITCH_MIN, TPS_PITCH_MAX)
@@ -116,7 +136,7 @@ func spin(dyaw: float, dpitch: float) -> void:
 ## Rotazione a scatti (tasti Q/E): 90° in isometrica, 45° in terza persona.
 func rotate_step(step: int) -> void:
 	_last_spin = _now()
-	yaw_target += step * (PI / 4.0 if mode == Mode.TPS else PI / 2.0)
+	yaw_target += step * (PI / 4.0 if mode != Mode.ISO else PI / 2.0)
 
 
 func drag(delta_px: Vector2) -> void:
@@ -127,60 +147,6 @@ func shake(amount: float) -> void:
 	if reduced_motion:
 		return
 	shake_amt = maxf(shake_amt, amount)
-
-
-## `amp` in radianti (juice.shake × famiglia × vicinanza × grammatica), `axis`
-## nel mondo (spinta o direzione del colpo), `down` = asse verso il basso (terra).
-## Una nuova scossa sostituisce la corrente solo se piu' forte.
-func spell_shake(amp: float, axis: Vector3, dur: float, freq: float, fov_deg: float, down: bool = false) -> void:
-	if reduced_motion or amp <= 0.0:
-		return
-	if not _ss.is_empty() and float(_ss["amp"]) * _ss_k(float(_ss["t"]), float(_ss["dur"])) > amp:
-		return
-	var dir := view_dir()
-	var basis := Basis.looking_at(-dir, Vector3.UP)
-	var fl := Vector3(-dir.x, 0, -dir.z).normalized()
-	var ax := axis.normalized() if axis.length() > 1e-4 else fl
-	var side := ax.dot(basis.x)
-	var fwd := ax.dot(fl)
-	var dy := side
-	var dp := -ax.y * 0.6 + fwd * 0.22
-	if down:
-		dy = side * 0.35
-		dp = -(0.85 + 0.15 * absf(fwd))
-	var l := Vector2(dy, dp).length()
-	if l < 1e-4:
-		dy = 0.0
-		dp = -1.0
-		l = 1.0
-	_ss = {"amp": amp, "dy": dy / l, "dp": dp / l, "dur": dur, "freq": freq, "t": 0.0, "ph": randf() * TAU, "fov": fov_deg}
-
-
-static func _ss_k(t: float, dur: float) -> float:
-	return exp(-t * 26.0 / maxf(0.35, dur / 0.14))
-
-
-func _step_spell_shake(dt: float) -> void:
-	_sh_y = 0.0
-	_sh_p = 0.0
-	_fov_kick = 0.0
-	if _ss.is_empty():
-		return
-	var t := float(_ss["t"]) + dt
-	_ss["t"] = t
-	var dur := float(_ss["dur"])
-	var k := _ss_k(t, dur)
-	if k < 0.01 and t > dur:
-		_ss = {}
-		return
-	var w := float(_ss["freq"]) * 38.0
-	var along := cos(t * w) * k
-	var cross := sin(float(_ss["ph"]) + 1.9 * t * w) * k * 0.22
-	var amp := float(_ss["amp"]) * 2.2
-	_sh_y = (float(_ss["dy"]) * along - float(_ss["dp"]) * cross) * amp
-	_sh_p = (float(_ss["dp"]) * along + float(_ss["dy"]) * cross) * amp
-	var u := clampf(t / maxf(dur, 1e-3), 0.0, 1.0)
-	_fov_kick = float(_ss["fov"]) * (1.0 - u) * (1.0 - u)
 
 
 func get_zoom() -> float:
@@ -197,9 +163,17 @@ func set_zoom(z: float) -> void:
 
 ## Direzione dal punto guardato verso la camera.
 func view_dir() -> Vector3:
-	var p := (tps_pitch if mode == Mode.TPS else pitch) + _sh_p
-	var y := yaw + _sh_y
+	if mode == Mode.FPS:
+		return -look_forward()
+	var p := tps_pitch if mode == Mode.TPS else pitch
+	var y := yaw
 	return Vector3(cos(p) * sin(y), sin(p), cos(p) * cos(y)).normalized()
+
+
+## Prima persona: direzione dello sguardo (yaw della camera e inclinazione).
+func look_forward() -> Vector3:
+	var p := fps_pitch
+	return Vector3(-sin(yaw) * cos(p), sin(p), -cos(yaw) * cos(p)).normalized()
 
 
 ## Base orizzontale della camera per l'input relativo (groundBasis del prototipo).
@@ -219,10 +193,14 @@ func stick_to_world(stick: Vector2) -> Vector2:
 
 func update_camera(dt: float, target: Vector3) -> void:
 	var k := 1.0 - exp(-dt * 9.0)
+	if mode == Mode.FPS:
+		# In prima persona lo sguardo segue il dito senza ritardo.
+		yaw = yaw_target
+		_frame_fps(target)
+		return
 	yaw += (yaw_target - yaw) * k
 	pitch += (pitch_target - pitch) * k
 	zoom += (zoom_target - zoom) * k
-	_step_spell_shake(dt)
 	var look := target + LOOK_OFFSET
 	var dir := view_dir()
 	if shake_amt > 0.002:
@@ -264,6 +242,30 @@ func update_camera(dt: float, target: Vector3) -> void:
 	rs.global_shader_parameter_set(&"persp", 1.0 if mode == Mode.TPS else 0.0)
 	if mode == Mode.ISO:
 		rs.global_shader_parameter_set(&"px_h", camera.size / _viewport_height())
+
+
+## Prima persona: la camera sta negli occhi dell'eroe e guarda lungo lo sguardo;
+## la scossa dei colpi la muove appena.
+func _frame_fps(feet: Vector3) -> void:
+	var fwd := look_forward()
+	var flat := Vector3(fwd.x, 0, fwd.z).normalized()
+	var eye := feet + Vector3(0, FPS_EYE, 0) + flat * FPS_FRONT
+	if shake_amt > 0.002:
+		_shake_t += 1.0 / 60.0
+		var sb := Basis.looking_at(fwd, Vector3.UP)
+		eye += (sb.x * sin(_shake_t * 83.0) + sb.y * cos(_shake_t * 67.0) * 0.8) * shake_amt * 0.05
+		shake_amt *= 0.85
+	else:
+		shake_amt = 0.0
+	subpixel = Vector2.ZERO
+	camera.global_position = eye
+	camera.global_transform.basis = Basis.looking_at(fwd, Vector3.UP)
+	if absf(camera.fov - FPS_FOV) > 0.01:
+		camera.fov = FPS_FOV
+	_tps_sky()
+	var rs := RenderingServer
+	rs.global_shader_parameter_set(&"view_dir", -fwd)
+	rs.global_shader_parameter_set(&"persp", 1.0)
 
 
 static func _now() -> float:
@@ -340,8 +342,8 @@ func _frame_tps(dt: float, look_feet: Vector3) -> void:
 		tps_pitch += (1.22 - tps_pitch) * (1.0 - exp(-dt * 7.0))
 	var rate := 18.0 if free < tps_dist else (6.0 if free >= dist - 0.01 else 2.5)
 	tps_dist += (free - tps_dist) * (1.0 - exp(-dt * rate))
-	if absf(camera.fov - tps_fov - _fov_kick) > 0.01:
-		camera.fov = tps_fov + _fov_kick
+	if absf(camera.fov - tps_fov) > 0.01:
+		camera.fov = tps_fov
 	var pos := look + view_dir() * tps_dist
 	if world != null:
 		var gy := VoxelQuery.field_height(world, clampf(pos.x, 1.0, world.size_x - 2.0), clampf(pos.z, 1.0, world.size_z - 2.0), float(world.size_y))
@@ -409,6 +411,6 @@ func _apply_projection() -> void:
 		camera.far = 160.0
 	else:
 		camera.projection = Camera3D.PROJECTION_PERSPECTIVE
-		camera.fov = tps_fov
-		camera.near = 0.05
+		camera.fov = FPS_FOV if mode == Mode.FPS else tps_fov
+		camera.near = 0.03 if mode == Mode.FPS else 0.05
 		camera.far = 300.0

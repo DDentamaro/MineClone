@@ -22,16 +22,12 @@ signal button_down(id: StringName)
 signal button_up(id: StringName)
 ## Dito fermo sul mondo oltre HOLD_MS (scavo): inizio, posizione aggiornata, fine.
 signal world_hold(position: Vector2, active: bool)
-## Pulsante tenuto a lungo (barra delle magie: apre il libro su quello slot).
-signal button_long(id: StringName)
 
 const TAP_MAX_MOVE := 8.0
 const TAP_MAX_MS := 450
 const HOLD_MS := 180
 ## Slot della barra rapida (in basso al centro).
 const HOTBAR := 6
-## Barra delle magie (RMNDWN: 5 equipaggiate).
-const SPELLBAR := 5
 ## Raggio di escursione dello stick in dp (prototipo: 40 px).
 const STICK_RADIUS_DP := 44.0
 ## Lato minimo delle aree toccabili (piano §6: almeno 48 dp).
@@ -50,7 +46,6 @@ class Finger:
 	var moved := 0.0
 	var button: StringName = &""
 	var holding := false
-	var long_sent := false
 
 
 class VButton:
@@ -72,22 +67,10 @@ var labels := {}
 ## Icone della barra rapida: id -> {color, glyph, count, wear (0..1 o -1), rarity}.
 var icons := {}
 var hot_selected := 0
-## Barra delle magie: id -> {spell: SpellDefinition, blocked, locked}; la scelta e la Pressione (0..1,25).
-var spell_icons := {}
-## Magia scelta, disegnata nel pulsante Magia col suo nome; motivo del blocco ("" = pronta).
-var magic_spell: SpellDefinition
-var magic_blocked := ""
-## Scritta breve al centro (nome della magia al cambio): testo, colore, tempo rimasto.
+## Scritta breve al centro (conferme come "Nuovo seme"): testo, colore, tempo rimasto.
 var _toast := ""
 var _toast_col := Color.WHITE
 var _toast_t := 0.0
-const LONG_MS := 450
-var spell_selected := 0
-## Fase del lancio (0 nessuna, 1 raccolta, 2 recupero) e avanzamento 0..1.
-var cast_phase := 0
-var cast_u := 0.0
-var pressure := 0.0
-var saturated := false
 ## Pulsanti nascosti in questo momento (es. "Auto" fuori dalla terza persona).
 var hidden_ids := {}
 ## Pannello sviluppatore (comandi tecnici del prototipo) aperto.
@@ -101,6 +84,12 @@ var hero_open := false:
 		hero_open = v
 		queue_redraw()
 const DEV_BUTTON_W_DP := 118.0
+## Mirino al centro dello schermo (prima persona, D-037).
+var crosshair := false:
+	set(v):
+		if v != crosshair:
+			crosshair = v
+			queue_redraw()
 ## Aggancio attivo (D-035): il pulsante Lock si accende di rosso.
 var lock_on := false:
 	set(v):
@@ -121,7 +110,6 @@ func _init() -> void:
 	add_button(&"attack", "Colpo", false)
 	add_button(&"heavy", "Forte", true)
 	add_button(&"dodge", "Schiva", false)
-	add_button(&"magic", "Magia", true)
 	add_button(&"lock", "Lock", false)
 	add_button(&"mode", "Modo", false)
 	add_button(&"weapon", "Arma", false)
@@ -129,8 +117,6 @@ func _init() -> void:
 	add_button(&"bag", "Zaino", false)
 	for i in HOTBAR:
 		add_button(StringName("hot%d" % i), "", false, &"hotbar")
-	for i in SPELLBAR:
-		add_button(StringName("sp%d" % i), "", false, &"spellbar")
 	add_button(&"block", "Blocco", false)
 	add_button(&"camera", "Camera", false)
 	add_button(&"dev", "⚙", false)
@@ -163,7 +149,7 @@ func _visible(b: VButton) -> bool:
 	if dev_open and b.group != &"dev" and b.id != &"dev":
 		return false
 	match b.group:
-		&"hotbar", &"spellbar":
+		&"hotbar":
 			return not hero_open
 		&"dev":
 			return dev_open
@@ -230,26 +216,19 @@ func _layout() -> void:
 	var dw := dp(DEV_BUTTON_W_DP)
 	var dh := dp(DEV_BUTTON_H_DP)
 	var cursor := {}
-	# Barra rapida in basso, fra il bordo e il pulsante Magia: al centro se c'e'
-	# posto, altrimenti piu' stretta (su un telefono finiva sotto la Magia).
-	var magic_left := s.x - m - big - m * 0.4 - big - m * 0.4 - med
-	var hot_right := magic_left - m * 0.5
+	# Barra rapida in basso, fra il bordo e il pulsante Lock: al centro se c'e'
+	# posto, altrimenti piu' stretta (su un telefono finiva sotto i pulsanti).
+	var lock_left := s.x - m - big - m * 0.4 - big - m * 0.4 - med
+	var hot_right := lock_left - m * 0.5
 	var hs := minf(dp(50.0), (hot_right - m - (HOTBAR - 1) * dp(4.0)) / HOTBAR)
 	var hot_w := HOTBAR * hs + (HOTBAR - 1) * dp(4.0)
 	var hx0 := clampf(s.x * 0.5 - hot_w * 0.5, m, hot_right - hot_w)
-	var spells := _spell_row(s, m, big, med, small)
 	_layout_dev_panel(s, m, small)
 	for b in _buttons:
 		var r := Rect2()
 		if b.group == &"hotbar":
 			var i := int(String(b.id).substr(3))
 			b.rect = Rect2(hx0 + i * (hs + dp(4.0)), s.y - m * 0.6 - hs, hs, hs)
-			continue
-		if b.group == &"spellbar":
-			r = spells[int(String(b.id).substr(2))]
-			if left_handed:
-				r.position.x = s.x - r.position.x - r.size.x
-			b.rect = r
 			continue
 		if b.group == &"dev":
 			continue
@@ -270,11 +249,9 @@ func _layout() -> void:
 			r = Rect2(attack_x + (big - med) * 0.5, s.y - m - big - m * 0.4 - med, med, med)
 		elif b.id == &"dodge":
 			r = Rect2(s.x - m - big + (big - med) * 0.5, s.y - m - big - m * 0.4 - med, med, med)
-		elif b.id == &"magic":
-			r = Rect2(attack_x - m * 0.4 - med, s.y - m - med, med, med)
 		elif b.id == &"lock":
-			# Aggancio (D-035): sopra la Magia, a portata di pollice.
-			r = Rect2(attack_x - m * 0.4 - med * 0.5 - small * 0.5, s.y - m - med - m * 0.4 - small, small, small)
+			# Aggancio (D-035): a sinistra di Colpo, a portata di pollice.
+			r = Rect2(attack_x - m * 0.4 - med, s.y - m - med, med, med)
 		else:
 			var i := row.find(b.id)
 			if i < 0:
@@ -285,29 +262,6 @@ func _layout() -> void:
 			r.position.x = s.x - r.position.x - r.size.x
 		b.rect = r
 	queue_redraw()
-
-
-## Barra delle magie: una riga di 5 slot sopra i pulsanti d'azione, allineata
-## al bordo. Il lato scende (fino a 40 dp) finche' la riga non entra fra lo
-## stick e il bordo e fra la riga in alto e i pulsanti d'azione: su un telefono
-## in orizzontale (circa 390 dp di altezza) la vecchia colonna usciva dallo
-## schermo e gli slot in alto non si potevano premere.
-func _spell_row(s: Vector2, m: float, big: float, med: float, small: float) -> Array[Rect2]:
-	var gap := dp(6.0)
-	var label_h := dp(22.0)
-	var bottom := s.y - m - big - m * 0.4 - med - m * 0.5
-	var top_limit := m + small + m * 0.5 + label_h
-	var right := s.x - m * 0.5
-	var left_limit := s.x * 0.42
-	var ss := dp(56.0)
-	ss = minf(ss, (right - left_limit - gap * (SPELLBAR - 1)) / SPELLBAR)
-	ss = minf(ss, bottom - top_limit)
-	ss = maxf(ss, dp(40.0))
-	var out: Array[Rect2] = []
-	var x0 := right - SPELLBAR * ss - (SPELLBAR - 1) * gap
-	for i in SPELLBAR:
-		out.append(Rect2(x0 + i * (ss + gap), bottom - ss, ss, ss))
-	return out
 
 
 ## Pannello delle Opzioni (modale): sotto la riga in alto, dentro lo schermo.
@@ -429,14 +383,10 @@ func show_toast(text: String, col: Color = Color.WHITE) -> void:
 
 
 func _process(_dt: float) -> void:
-	var now := Time.get_ticks_msec()
 	if _toast_t > 0.0:
 		_toast_t -= _dt
 		queue_redraw()
-	for f: Finger in _fingers.values():
-		if f.role == Role.BUTTON and not blocked and not f.long_sent and now - f.t0 >= LONG_MS and String(f.button).begins_with("sp"):
-			f.long_sent = true
-			button_long.emit(f.button)
+	var now := Time.get_ticks_msec()
 	for f: Finger in _fingers.values():
 		if f.role == Role.CAMERA and not f.holding and not _pinch_used and f.moved <= TAP_MAX_MOVE \
 				and now - f.t0 >= HOLD_MS and _count_role(Role.CAMERA) == 1:
@@ -577,12 +527,6 @@ func _draw() -> void:
 		if b.group == &"hotbar":
 			_draw_hot_slot(b)
 			continue
-		if b.group == &"spellbar":
-			_draw_spell_slot(b)
-			continue
-		if b.id == &"magic" and magic_spell != null:
-			_draw_magic_button(b)
-			continue
 		if b.group != &"main":
 			draw_rect(b.rect, Color(0.08, 0.1, 0.12, 0.72 if not b.held else 0.9))
 			draw_rect(b.rect, Color(0.63, 0.89, 0.78, 0.8), false, dp(1.5))
@@ -638,75 +582,6 @@ func _draw_hot_slot(b: VButton) -> void:
 		draw_rect(bar, Color(1.0 - wr, 0.3 + 0.6 * wr, 0.2))
 
 
-## Colore dell'elemento sul bordo sinistro dello slot (RMNDWN #spellBar).
-const EL_EDGE := {"fire": Color("#ff8a2a"), "water": Color("#6bb8ff"), "earth": Color("#a58a58"), "air": Color("#d8e6ea"), "karma": Color("#a86bff")}
-
-
-func _draw_spell_slot(b: VButton) -> void:
-	var i := int(String(b.id).substr(2))
-	var sel := i == spell_selected
-	var ic: Dictionary = spell_icons.get(b.id, {})
-	var rect := b.rect
-	if sel:
-		rect = rect.grow(dp(3.0))
-	if b.held:
-		rect = rect.grow(-dp(2.0))
-	draw_rect(rect, Color(0.19, 0.16, 0.06, 0.86) if sel else Color(0.04, 0.05, 0.045, 0.78))
-	if ic.is_empty():
-		var fs := int(dp(20.0))
-		var ts := _font.get_string_size("+", HORIZONTAL_ALIGNMENT_CENTER, -1, fs)
-		draw_string(_font, rect.get_center() + Vector2(-ts.x * 0.5, ts.y * 0.3), "+", HORIZONTAL_ALIGNMENT_CENTER, -1, fs, Color(0.7, 0.8, 0.75, 0.6))
-	else:
-		var sp: SpellDefinition = ic["spell"]
-		var dim: bool = ic.get("blocked", false) or ic.get("locked", false)
-		SpellIcons.draw(self, rect.grow(-dp(5.0)), sp, dim, ic.get("locked", false))
-		# Bordo sinistro nel colore dell'elemento.
-		var edge: Color = EL_EDGE.get(sp.el, Color.WHITE)
-		draw_rect(Rect2(rect.position, Vector2(dp(3.5), rect.size.y)), Color(edge, 0.45 if dim else 1.0))
-		# Fase del lancio sullo slot scelto: raccolta che si riempie, recupero che si svuota.
-		if sel and cast_phase > 0:
-			var track := Rect2(rect.position + Vector2(dp(3.5), rect.size.y - dp(4.0)), Vector2(rect.size.x - dp(3.5), dp(4.0)))
-			draw_rect(track, Color(1, 1, 1, 0.14))
-			var col := Color("#8fd3ff") if cast_phase == 1 else Color("#c94f45")
-			draw_rect(Rect2(track.position, Vector2(track.size.x * clampf(cast_u, 0.0, 1.0), track.size.y)), col)
-	var border := Color("#c9a23f") if sel else Color(0.63, 0.89, 0.78, 0.45)
-	if sel and cast_phase == 1:
-		border = Color("#8fd3ff")
-	draw_rect(rect, border, false, dp(3.0 if sel else 1.5))
-	# Numero dello slot in alto a sinistra.
-	var ns := int(dp(11.0))
-	var np := rect.position + Vector2(dp(6.0), dp(13.0))
-	draw_string_outline(_font, np, str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, ns, int(dp(2.5)), Color(0, 0, 0, 0.9))
-	draw_string(_font, np, str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, ns, Color(1, 1, 1, 0.9))
-
-
-## Sopra la barra: nome della magia scelta con livello e Output, e la barra
-## della Pressione (viola, rossa se il nucleo e' saturo).
-func _draw_spell_header() -> void:
-	var r0 := button_rect(&"sp0")
-	var r4 := button_rect(&"sp%d" % (SPELLBAR - 1))
-	if r0.size.x <= 0.0 or hero_open or dev_open or magic_spell == null:
-		return
-	var left := minf(r0.position.x, r4.position.x)
-	var right := maxf(r0.end.x, r4.end.x)
-	var y := r0.position.y - dp(6.0)
-	var bar := Rect2(left, y - dp(4.0), right - left, dp(4.0))
-	draw_rect(bar, Color(0, 0, 0, 0.45))
-	var p := clampf(pressure, 0.0, 1.0)
-	if p > 0.0:
-		draw_rect(Rect2(bar.position, Vector2(bar.size.x * p, bar.size.y)), Color("#ff6a5a") if saturated else Color("#a86bff"))
-	var text := magic_spell.display_name + "  ·  T%d · Output %d" % [magic_spell.tier, int(magic_spell.output)]
-	var col := Color.WHITE
-	if magic_blocked != "":
-		text = magic_spell.display_name + "  ·  " + magic_blocked
-		col = Color(1.0, 0.6, 0.5)
-	var fs := int(dp(12.0))
-	var ts := _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
-	var at := Vector2(right - ts.x, bar.position.y - dp(4.0))
-	draw_string_outline(_font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, int(dp(3.0)), Color(0, 0, 0, 0.85))
-	draw_string(_font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
-
-
 func _outlined(p: Vector2, text: String, size_dp: float, col: Color, center: bool = true) -> void:
 	var fs := int(dp(size_dp))
 	var ts := _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
@@ -715,40 +590,18 @@ func _outlined(p: Vector2, text: String, size_dp: float, col: Color, center: boo
 	draw_string(_font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
 
 
-## Pulsante Magia: icona della magia scelta nel cerchio e la raccolta in corso.
-func _draw_magic_button(b: VButton) -> void:
-	var c := b.rect.get_center()
-	var r := b.rect.size.x * 0.5
-	draw_circle(c, r, GamePalette.SURFACE if b.held else GamePalette.PANEL)
-	var q := r * .92
-	SpellIcons.draw(self, Rect2(c - Vector2(q * .5, q * .72), Vector2(q, q)), magic_spell, magic_blocked != "")
-	_outlined(c + Vector2(0, b.rect.size.y * .33), "Magia", 11.0, GamePalette.INK)
-	draw_arc(c, r, 0.0, TAU, 40, magic_spell.color().lightened(0.3), dp(2.5), true)
-	# Raccolta in corso: arco azzurro dentro il cerchio (il nome e' sopra la barra).
-	if cast_phase == 1:
-		draw_arc(c, r - dp(4.0), -PI * 0.5, -PI * 0.5 + TAU * clampf(cast_u, 0.0, 1.0), 40, Color("#8fd3ff"), dp(3.0), true)
-
-
-## Pressione del nucleo come arco attorno al pulsante Magia (rosso se saturo).
-func _draw_pressure() -> void:
-	var r := button_rect(&"magic")
-	if r.size.x <= 0.0 or hero_open or dev_open:
-		return
-	var c := r.get_center()
-	var rad := r.size.x * 0.5 + dp(5.0)
-	draw_arc(c, rad, -PI * 0.5, PI * 1.5, 40, Color(0, 0, 0, 0.35), dp(4.0), true)
-	var p := clampf(pressure, 0.0, 1.0)
-	if p > 0.005:
-		var col := Color(1.0, 0.25, 0.2) if saturated else Color(0.4 + 0.6 * p, 0.85 - 0.5 * p, 1.0 - 0.7 * p)
-		draw_arc(c, rad, -PI * 0.5, -PI * 0.5 + TAU * p, 40, col, dp(4.0), true)
-
-
 func _draw_after() -> void:
-	_draw_pressure()
-	_draw_spell_header()
 	if _toast_t > 0.0 and _toast != "":
-		var a := clampf(_toast_t / 0.3, 0.0, 1.0)
-		_outlined(Vector2(size.x * 0.5, size.y * 0.24), _toast, 20.0, Color(_toast_col, a))
+		var ta := clampf(_toast_t / 0.3, 0.0, 1.0)
+		_outlined(Vector2(size.x * 0.5, size.y * 0.24), _toast, 20.0, Color(_toast_col, ta))
+	if crosshair and not hero_open and not dev_open:
+		var c := size * 0.5
+		var a := dp(7.0)
+		var gap := dp(3.0)
+		for d: Vector2 in [Vector2.RIGHT, Vector2.LEFT, Vector2.UP, Vector2.DOWN]:
+			draw_line(c + d * gap, c + d * a, Color(0, 0, 0, 0.6), dp(3.5))
+			draw_line(c + d * gap, c + d * a, Color(1, 1, 1, 0.9), dp(1.6))
+		draw_circle(c, dp(1.4), Color(1, 0.3, 0.25, 0.95) if lock_on else Color(1, 1, 1, 0.9))
 	if _has_role(Role.STICK):
 		var r := dp(STICK_RADIUS_DP)
 		draw_circle(stick_center, r * 1.25, Color(0, 0, 0, 0.25))

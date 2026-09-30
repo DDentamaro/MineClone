@@ -125,7 +125,7 @@ func _make_node(d: Drop) -> void:
 		mesh = WeaponMeshes.build_tool(def.tool_type, tint)
 	else:
 		var k := MeshKit.new()
-		var s := 0.26 if def.kind != ItemDefinition.Kind.SCROLL else 0.2
+		var s := 0.26
 		k.box(Vector3(0, s * 0.5, 0), Vector3(s, s, s), def.color, 0.03)
 		mesh = k.commit()
 	var mi := MeshInstance3D.new()

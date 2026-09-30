@@ -8,12 +8,10 @@ func test_pausa_e_zaino_azzerano_gli_input() -> void:
 	g._jump_key = true
 	g._hold_active = true
 	g.combat.press_heavy()
-	g.magic.press()
 	g.set_paused(true)
 	check(g.paused and g._touch.blocked, "la pausa ferma gioco e tocchi")
 	check_eq(g._session.page, "pause", "menu di pausa vero")
 	check(not g._light_key and not g._jump_key and not g._hold_active, "nessun input di gioco tenuto")
-	check(not g.magic.held and not g.magic._tap and not g.magic.queued, "nessuna magia in coda")
 	check(not g.combat.heavy_held and g.combat.buffer == &"", "nessun colpo forte in coda")
 	var event := InputEventKey.new()
 	event.physical_keycode = KEY_J
@@ -213,3 +211,27 @@ func test_ricette_predefinite_e_appunti() -> void:
 	check_eq(AvatarRecipe.from_json(b.to_json()).to_dict(), b.to_dict(), "JSON andata e ritorno")
 	check(AvatarRecipe.from_json("non json") == null, "testo non valido")
 	check(AvatarRecipe.from_json("{\"v\":9}") == null, "versione sconosciuta")
+
+
+## D-037: in prima persona la testa sparisce, il mirino compare, il corpo guarda
+## dove guarda la camera e il colpo parte lungo lo sguardo anche camminando di lato.
+func test_prima_persona_nel_gioco() -> void:
+	var g := _scene()
+	g._camera_rig.set_mode(CameraRig.Mode.FPS)
+	g._camera_rig.yaw_target = 1.2
+	for i in 20:
+		g._process(1.0 / 60.0)
+		g._physics_process(1.0 / 60.0)
+	check(not (g._avatar.rig.bones[&"head"] as Node3D).visible, "testa nascosta")
+	check(g._touch.crosshair, "mirino")
+	check(absf(wrapf(g._avatar.facing - 1.2, -PI, PI)) < 0.05, "l'eroe guarda dove guarda la camera (%.2f)" % g._avatar.facing)
+	g._refresh_labels()
+	check_eq(g._touch.labels[&"camera"], "1ª p.", "etichetta del pulsante")
+	g.combat.aim_view = true
+	g.combat.facing = 1.2
+	g.combat._start_attack(g.combat.weapon.light_start, g.motor, [], Vector2(1, 0))
+	check(absf(wrapf(g.combat.facing - 1.2, -PI, PI)) < 1e-4, "colpo lungo lo sguardo, non verso lo stick")
+	g._camera_rig.set_mode(CameraRig.Mode.ISO)
+	g._process(1.0 / 60.0)
+	check((g._avatar.rig.bones[&"head"] as Node3D).visible and not g._touch.crosshair, "in isometrica torna la testa")
+	g.free()

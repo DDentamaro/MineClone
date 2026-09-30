@@ -1,5 +1,22 @@
 # Avanzamento
 
+## 30/09/2026 — D-037: via tutto il sistema di magia, camera in prima persona
+
+Tolta la magia in ogni sua parte (codice, interfaccia, pergamene, statistiche, pose, audio,
+effetti, luci e vento degli shader, test); il pulsante Lock prende il posto del pulsante Magia.
+Nuova camera in prima persona: terzo stato del pulsante camera.
+
+### Test realmente eseguiti (D-037)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 187/187 PASS, log pulito (tolti i test della magia, delle zolle di terra, della pergamena, delle strutture magiche nel salvataggio e del dardo col Lock; nuovi: prima persona della camera, prima persona nel gioco; il test dei pulsanti sul telefono ora controlla tutti i pulsanti e il Lock) |
+| `tools/e2e_fps.gd` (nuova, tocchi veri) | OK: due tocchi su camera → prima persona, mirino e testa nascosta, trascinare gira lo sguardo (50°), lo stick avanti cammina dove si guarda (7 m, allineamento 1,00), il corpo guarda dove guarda la camera, i colpi prendono il manichino nel mirino, Lock gira la vista su un bersaglio a 60° (errore 1°), sguardo in basso, terzo tocco → isometrica con la testa |
+| `e2e_session`, `e2e_lockon`, `e2e_combat`, `e2e_touch`, `e2e_sandbox`, `e2e_walk`, `e2e_drop`, `e2e_armory`, `e2e_swim`, `e2e_options` (e `--phone`), `e2e_moveset` | OK, nessun errore di script. La prima corsa di `e2e_options` ha trovato un errore vero (la conferma di "Nuovo seme" usava un avviso tolto insieme alla magia): corretto e rifatto |
+| Export Android debug 0.16.0-m5 (versionCode 18) + `apksigner verify` + `aapt2 dump badging` | OK; mai installato su un telefono |
+
+Non verificato: la prima persona su un telefono vero (sensibilità del trascinamento, mal di
+movimento), FPS su telefono. Il gioco ora non ha suoni (l'unico audio era quello della magia).
+
 ## 29/09/2026 — D-036: prima revisione dell'esperienza del giocatore
 
 - HUD con identità visiva comune a menu, zaino e barra rapida; telemetria visibile solo

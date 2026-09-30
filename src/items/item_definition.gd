@@ -3,7 +3,7 @@ extends RefCounted
 ## Tipo di oggetto (M5). Le istanze concrete sono `ItemStack` (quantita' e dati
 ## propri: rarita', affissi, usura).
 
-enum Kind { BLOCK, MATERIAL, TOOL, WEAPON, ARMOR, STATION, SCROLL }
+enum Kind { BLOCK, MATERIAL, TOOL, WEAPON, ARMOR, STATION }
 
 var id: StringName
 var display_name := ""
@@ -33,8 +33,6 @@ var base_mods := {}
 var station := ""
 ## Materiale per il colore delle mesh (armature, armi).
 var material := ""
-## SCROLL: magia insegnata (D-027).
-var spell: StringName = &""
 
 
 func is_equipment() -> bool:

@@ -11,7 +11,7 @@ signal message(text: String)
 signal dropped(stack: ItemStack)
 signal crafted(id: StringName)
 
-const TABS := [["bag", "Inventario"], ["magic", "Magie"], ["craft", "Craft"], ["chest", "Forziere"]]
+const TABS := [["bag", "Inventario"], ["craft", "Craft"], ["chest", "Forziere"]]
 const EQ_NAMES := {"head": "Testa", "chest": "Busto", "legs": "Gambe", "feet": "Piedi"}
 
 var items: PlayerItems
@@ -26,14 +26,6 @@ var _pv_key := ""
 var _pv_rect := Rect2()
 var _pv_drag := false
 var _pv_an := AvatarAnimator.new()
-## Libro e barra delle magie (scheda "Magie", pergamene).
-var magic: MagicSystem
-var _sel_spell: StringName = &""
-## Slot della barra da riempire (aperto da uno slot vuoto o tenendo premuto), -1 nessuno.
-var target_slot := -1
-## Riquadri per le prove e2e: magia -> riga del libro, slot della barra.
-var spell_rects := {}
-var bar_rects: Array[Rect2] = []
 var chest: WorldObjects.Obj
 var stations: Array = []
 var tab := "bag"
@@ -98,7 +90,6 @@ func open(p_items: PlayerItems, p_stations: Array, p_chest: WorldObjects.Obj = n
 
 
 func close() -> void:
-	target_slot = -1
 	visible = false
 	if _pv != null:
 		_pv.render_target_update_mode = SubViewport.UPDATE_DISABLED
@@ -208,8 +199,6 @@ func _draw() -> void:
 	_hits.clear()
 	tab_rects.clear()
 	craft_rects.clear()
-	spell_rects.clear()
-	bar_rects.clear()
 	button_rects.clear()
 	slot_rects.clear()
 	chest_rects.clear()
@@ -246,8 +235,6 @@ func _draw() -> void:
 	match tab:
 		"bag":
 			_draw_bag(body)
-		"magic":
-			_draw_magic(body)
 		"craft":
 			_draw_craft(body)
 		"chest":
@@ -396,7 +383,7 @@ func _draw_bag(body: Rect2) -> void:
 	# Statistiche compatte sotto.
 	var st := items.stats()
 	var lines := ["Difesa %.1f" % st.defense, "Danno ×%.2f" % st.melee, "Critico %d%%" % roundi(st.crit * 100.0),
-		"Output +%d" % roundi(st.mana_max), "Magie ×%.2f" % st.arcane, "Scavo ×%.2f" % st.dig, "Passo ×%.2f" % st.speed]
+		"Scavo ×%.2f" % st.dig, "Passo ×%.2f" % st.speed]
 	var sy := hr.end.y + dp(18.0)
 	var sw := _pv_rect.end.x - col_x
 	for j in lines.size():
@@ -523,8 +510,7 @@ func _stats_if(held: ItemStack, armor: ItemStack) -> Equipment.Stats:
 static func stat_diff(a: Equipment.Stats, b: Equipment.Stats) -> Array:
 	var out := []
 	var rows := [["difesa", a.defense, b.defense, "%+.1f", false], ["danno", a.melee, b.melee, "×%.2f", true],
-		["critico", a.crit * 100.0, b.crit * 100.0, "%+d%%", false], ["Output", a.mana_max, b.mana_max, "%+d", false],
-		["magie", a.arcane, b.arcane, "×%.2f", true], ["scavo", a.dig, b.dig, "×%.2f", true], ["passo", a.speed, b.speed, "×%.2f", true]]
+		["critico", a.crit * 100.0, b.crit * 100.0, "%+d%%", false], ["scavo", a.dig, b.dig, "×%.2f", true], ["passo", a.speed, b.speed, "×%.2f", true]]
 	for r: Array in rows:
 		var d: float = float(r[2]) - float(r[1])
 		if absf(d) < 1e-3:
@@ -553,11 +539,6 @@ func _actions(inv: Inventory, i: int) -> Array:
 			items.wear_from(inv, i)
 			message.emit("indossato: %s" % Loot.full_name(st))
 			_sel_i = -1, true])
-	if d.kind == ItemDefinition.Kind.SCROLL and magic != null:
-		var known := magic.known.has(d.spell)
-		out.append(["Già nota" if known else "Impara", (func() -> void:
-			if learn_scroll(inv, i):
-				_sel_i = -1) if not known else Callable(), true])
 	if chest != null and not from_bag:
 		out.append(["Prendi", func() -> void:
 			_transfer(inv, i, items.inv)
@@ -625,8 +606,6 @@ static func usage_hint(d: ItemDefinition) -> String:
 			return "Blocco: in mano, tocca il mondo per posarlo."
 		ItemDefinition.Kind.STATION:
 			return "Stazione: in mano, tocca il suolo per piazzarla; tocca la stazione per usarla."
-		ItemDefinition.Kind.SCROLL:
-			return "Pergamena: \"Impara\" aggiunge la magia al libro (scheda Magie)."
 	return "Materiale: serve nelle ricette (scheda Craft)."
 
 
@@ -760,160 +739,3 @@ func _tap_select(inv: Inventory, i: int) -> void:
 		_sel_i = i
 
 
-## Pergamena: impara la magia (consuma la pergamena) e la mette nel primo slot libero.
-func learn_scroll(inv: Inventory, i: int) -> bool:
-	var st := inv.get_slot(i)
-	if st == null or magic == null or st.def().kind != ItemDefinition.Kind.SCROLL:
-		return false
-	var id := st.def().spell
-	if not magic.learn(id):
-		return false
-	inv.take(i, 1)
-	var free := magic.bar.find(&"")
-	if free >= 0:
-		magic.equip(id, free)
-	items.held_changed.emit()
-	message.emit("imparata: %s (Output %d)" % [SpellDefinition.by_id(id).display_name, int(magic.output_cap())])
-	return true
-
-
-const SCHOOLS := ["fire", "water", "air", "earth", "karma"]
-
-
-func _draw_magic(body: Rect2) -> void:
-	if magic == null:
-		return
-	var cap := magic.output_cap()
-	var hint := "Tocca una magia per vederla, poi \"Metti nello slot\"." if target_slot < 0 else "Scegli la magia per lo slot %d." % (target_slot + 1)
-	_text(body.position + Vector2(0, dp(16.0)), "Output %d  ·  Pressione %d%%%s  ·  conosciute %d/%d  —  %s" % [
-		int(cap), int(magic.pressure * 100.0), " (satura)" if magic.saturated else "", magic.known.size(), SpellDefinition.all().size(), hint],
-		13, Color(0.85, 0.9, 0.85))
-	# Barra: 5 slot con icona e nome.
-	var bh := dp(50.0)
-	var gw := body.size.x * 0.66
-	var bw := minf(dp(170.0), (gw - dp(6.0) * 4) / 5.0)
-	var by := body.position.y + dp(26.0)
-	for k in MagicSystem.BAR:
-		var r := Rect2(body.position.x + k * (bw + dp(6.0)), by, bw, bh)
-		bar_rects.append(r)
-		var sp := SpellDefinition.by_id(magic.bar[k]) if magic.bar[k] != &"" else null
-		draw_rect(r, Color(0.13, 0.16, 0.17, 0.95))
-		if sp != null:
-			var ir := Rect2(r.position + Vector2(dp(4.0), dp(4.0)), Vector2(bh - dp(8.0), bh - dp(8.0)))
-			SpellIcons.draw(self, ir, sp, sp.output > cap)
-			_text(r.position + Vector2(bh, dp(21.0)), sp.display_name, 13, Color.WHITE, r.size.x - bh - dp(4.0))
-			_text(r.position + Vector2(bh, dp(39.0)), "slot %d · Output %d" % [k + 1, int(sp.output)], 11,
-				Color(0.95, 0.5, 0.45) if sp.output > cap else Color(0.7, 0.8, 0.75))
-		else:
-			_text_center(r, "slot %d vuoto" % (k + 1), 12, Color(0.55, 0.6, 0.57))
-		var border := Color(0.4, 0.5, 0.46, 0.8)
-		var bwid := 1.0
-		if k == target_slot:
-			border = Color(0.55, 0.95, 1.0)
-			bwid = 3.0
-		elif k == magic.bar_index:
-			border = Color(1, 0.9, 0.5)
-			bwid = 2.5
-		draw_rect(r, border, false, dp(bwid))
-		var slot := k
-		_hits.append([r, func() -> void:
-			if _sel_spell != &"" and magic.known.has(_sel_spell):
-				_equip(_sel_spell, slot)
-			else:
-				target_slot = slot
-				if magic.bar[slot] != &"":
-					_sel_spell = magic.bar[slot]])
-	# Libro: una colonna per scuola, righe per livello e Output.
-	var top := by + bh + dp(12.0)
-	var cw := (gw - dp(6.0) * 4) / 5.0
-	var rows := 0
-	var cols := {}
-	for el: String in SCHOOLS:
-		var l: Array[SpellDefinition] = []
-		for sp in SpellDefinition.all():
-			if sp.el == el:
-				l.append(sp)
-		l.sort_custom(func(a: SpellDefinition, b: SpellDefinition) -> bool: return a.tier < b.tier or (a.tier == b.tier and a.output < b.output))
-		cols[el] = l
-		rows = maxi(rows, l.size())
-	var rh := minf(dp(40.0), (body.end.y - top - dp(22.0)) / rows - dp(3.0))
-	for c in SCHOOLS.size():
-		var el: String = SCHOOLS[c]
-		var x := body.position.x + c * (cw + dp(6.0))
-		_text(Vector2(x, top + dp(12.0)), {"fire": "Fuoco", "water": "Acqua", "air": "Aria", "earth": "Terra", "karma": "Karma"}[el], 13, SpellDefinition.EL_COLOR[el])
-		var y := top + dp(20.0)
-		for sp: SpellDefinition in cols[el]:
-			var r := Rect2(x, y, cw, rh)
-			spell_rects[sp.id] = r
-			var known := magic.known.has(sp.id)
-			draw_rect(r, Color(0.12, 0.15, 0.15, 0.95) if known else Color(0.08, 0.08, 0.09, 0.85))
-			SpellIcons.draw(self, Rect2(r.position + Vector2(dp(2.0), dp(2.0)), Vector2(rh - dp(4.0), rh - dp(4.0))), sp, known and sp.output > cap, not known)
-			var col := Color.WHITE if known and sp.output <= cap else (Color(0.95, 0.6, 0.5) if known else Color(0.5, 0.5, 0.5))
-			_text_fit(r.position + Vector2(rh + dp(2.0), rh * 0.5 + dp(5.0)), sp.display_name, 12, col, r.size.x - rh - dp(30.0))
-			_text(r.position + Vector2(r.size.x - dp(26.0), rh * 0.5 + dp(5.0)), str(int(sp.output)), 11, col)
-			if sp.id == _sel_spell:
-				draw_rect(r, Color(1, 0.9, 0.5), false, dp(2.0))
-			elif magic.bar.has(sp.id):
-				draw_rect(r, Color(0.63, 0.89, 0.78, 0.8), false, dp(1.0))
-			var id := sp.id
-			_hits.append([r, func() -> void: _sel_spell = id])
-			y += rh + dp(3.0)
-	_draw_spell_info(Rect2(body.position.x + gw + dp(10.0), by, body.size.x - gw - dp(10.0), body.end.y - by))
-
-
-func _equip(id: StringName, slot: int) -> void:
-	if magic.equip(id, slot):
-		magic.select(slot)
-		message.emit("slot %d: %s" % [slot + 1, SpellDefinition.by_id(id).display_name])
-		target_slot = -1
-
-
-func _draw_spell_info(r: Rect2) -> void:
-	draw_rect(r, Color(0.1, 0.12, 0.13, 0.9))
-	var sp := SpellDefinition.by_id(_sel_spell) if _sel_spell != &"" else null
-	var x := r.position.x + dp(10.0)
-	var w := r.size.x - dp(20.0)
-	if sp == null:
-		_text(Vector2(x, r.position.y + dp(24.0)), "Nessuna magia selezionata", 15, Color(0.7, 0.7, 0.7))
-		_text(Vector2(x, r.position.y + dp(48.0)), "Tocca una magia del libro. Le magie di livello 2+ si imparano dalle pergamene dei tesori.", 12, Color(0.65, 0.7, 0.68), w)
-		return
-	var cap := magic.output_cap()
-	var known := magic.known.has(sp.id)
-	var isz := dp(54.0)
-	SpellIcons.draw(self, Rect2(Vector2(x, r.position.y + dp(10.0)), Vector2(isz, isz)), sp, known and sp.output > cap, not known)
-	_text(Vector2(x + isz + dp(10.0), r.position.y + dp(32.0)), sp.display_name, 17, sp.color().lightened(0.2), w - isz - dp(10.0))
-	_text(Vector2(x + isz + dp(10.0), r.position.y + dp(54.0)), "%s · livello %d%s" % [sp.school_name(), sp.tier, " · due mani" if sp.two_handed() else ""], 13, Color(0.85, 0.88, 0.85))
-	var y := r.position.y + isz + dp(34.0)
-	var lines: Array[String] = ["Output %d / %d" % [int(sp.output), int(cap)], "raccolta %.2f s · recupero %.2f s" % [sp.cast_dur, sp.recover]]
-	if sp.dmg > 0.0:
-		lines.append("danno %d%s" % [int(sp.dmg), (" ×%d" % sp.salvo_n) if sp.salvo_n > 1 else ""])
-	if sp.dps > 0.0:
-		lines.append("%d danni/s" % int(sp.dps))
-	if sp.burst_r > 0.0:
-		lines.append("scoppio %d (raggio %.1f)" % [int(sp.burst_dmg), sp.burst_r])
-	if sp.decoh > 0.0:
-		lines.append("coerenza: cala con la distanza (min %d%%)" % int(sp.coh_floor * 100.0))
-	if sp.note != "":
-		lines.append(sp.note)
-	for l in lines:
-		_text(Vector2(x, y), l, 13, Color(0.9, 0.92, 0.88), w)
-		y += dp(19.0)
-	var bh := dp(42.0)
-	var bottom := r.end.y - dp(10.0)
-	if not known:
-		_text(Vector2(x, bottom - bh * 0.4), "Sconosciuta: serve la pergamena", 14, Color(0.95, 0.65, 0.5), w)
-		return
-	if sp.output > cap:
-		_text(Vector2(x, bottom - bh * 2.0 - dp(40.0)), "Output insufficiente: equipaggiamento (Mente, oro) o altre magie studiate", 12, Color(0.95, 0.6, 0.5), w)
-	var id := sp.id
-	if target_slot >= 0:
-		var slot := target_slot
-		_button(Rect2(x, bottom - bh, w, bh), "Metti nello slot %d" % (slot + 1), func() -> void: _equip(id, slot), true, true)
-		bottom -= bh + dp(8.0)
-	# Cinque pulsanti: uno per slot.
-	_text(Vector2(x, bottom - bh - dp(8.0)), "Metti nello slot:", 13, Color(0.8, 0.85, 0.8))
-	var sw := (w - dp(6.0) * 4) / 5.0
-	for k in MagicSystem.BAR:
-		var slot := k
-		var here := magic.bar[k] == id
-		_button(Rect2(x + k * (sw + dp(6.0)), bottom - bh, sw, bh), str(k + 1) + (" ✓" if here else ""), func() -> void: _equip(id, slot), not here, k == target_slot)

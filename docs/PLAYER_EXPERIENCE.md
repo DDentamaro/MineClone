@@ -1,8 +1,8 @@
 # D-036 — Esperienza del giocatore
 
 Questa revisione rende leggibili i sistemi esistenti e corregge le interazioni che possono
-confondere o intrappolare il giocatore. Conserva il mondo dipinto, i moveset e le magie
-esistenti. Non dichiara raggiunto il traguardo G o una qualità di rilascio.
+confondere o intrappolare il giocatore. Conserva il mondo dipinto e i moveset
+esistenti (le magie sono state tolte dopo, in D-037). Non dichiara raggiunto il traguardo G o una qualità di rilascio.
 
 ## Interfaccia
 

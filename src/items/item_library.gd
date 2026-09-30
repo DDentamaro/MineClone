@@ -2,14 +2,14 @@ class_name ItemLibrary
 extends RefCounted
 ## Tutti gli oggetti (M5): blocchi, materiali, attrezzi, armi e armature in cinque
 ## materiali, stazioni. I materiali sono una scala: legno < pietra < rame < ferro
-## < oro (l'oro e' morbido ma arcano: meno usura, bonus di mana).
+## < oro (l'oro e' morbido: meno usura).
 
 const TIERS := [
 	{"key": "wood", "name": "legno", "adj": "di legno", "tier": 1, "color": Color(0.62, 0.45, 0.26), "speed": 2.0, "dur": 60, "dmg": 0.8, "mat": &"wood", "mods": {}},
 	{"key": "stone", "name": "pietra", "adj": "di pietra", "tier": 2, "color": Color(0.58, 0.58, 0.60), "speed": 4.0, "dur": 130, "dmg": 1.0, "mat": &"stone", "mods": {}},
 	{"key": "copper", "name": "rame", "adj": "di rame", "tier": 3, "color": Color(0.80, 0.50, 0.30), "speed": 5.0, "dur": 200, "dmg": 1.15, "mat": &"copper_ingot", "mods": {}},
 	{"key": "iron", "name": "ferro", "adj": "di ferro", "tier": 4, "color": Color(0.78, 0.80, 0.84), "speed": 6.5, "dur": 320, "dmg": 1.35, "mat": &"iron_ingot", "mods": {}},
-	{"key": "gold", "name": "oro", "adj": "d'oro", "tier": 5, "color": Color(0.95, 0.78, 0.30), "speed": 9.0, "dur": 90, "dmg": 1.2, "mat": &"gold_ingot", "mods": {"mana_max": 15.0, "mana_regen": 1.5}},
+	{"key": "gold", "name": "oro", "adj": "d'oro", "tier": 5, "color": Color(0.95, 0.78, 0.30), "speed": 9.0, "dur": 90, "dmg": 1.2, "mat": &"gold_ingot", "mods": {}},
 ]
 const TOOLS := {"pick": "Piccone", "axe": "Ascia", "shovel": "Pala"}
 const WEAPONS := {"sword": "Spada", "spear": "Lancia", "hammer": "Martello", "greatsword": "Spadone"}
@@ -93,14 +93,6 @@ static func _build() -> void:
 		var d := _mk(st[0], st[1], ItemDefinition.Kind.STATION, st[3], st[4])
 		d.station = st[2]
 		d.max_stack = 8
-	# Pergamene: una per magia di livello 2+ (si imparano dallo zaino).
-	for sp in SpellDefinition.all():
-		if sp.tier > 1:
-			var d := _mk(StringName("scroll_" + String(sp.id)), "Pergamena: %s" % sp.display_name, ItemDefinition.Kind.SCROLL,
-				sp.color().lerp(Color(0.93, 0.87, 0.7), 0.45), "P%d" % sp.tier)
-			d.spell = sp.id
-			d.tier = sp.tier
-			d.max_stack = 8
 
 
 ## Oggetto raccolto rompendo un blocco (null = niente).

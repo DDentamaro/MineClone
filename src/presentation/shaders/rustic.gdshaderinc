@@ -82,37 +82,6 @@ float cloud_shadow(vec3 wp) {
 }
 
 // rusticLightM con l'ombra direzionale di Godot (0..1) al posto di worldShadow.
-global uniform float pt_n;
-global uniform vec4 pt_pos0;
-global uniform vec3 pt_col0;
-global uniform vec4 pt_pos1;
-global uniform vec3 pt_col1;
-global uniform vec4 pt_pos2;
-global uniform vec3 pt_col2;
-global uniform vec4 pt_pos3;
-global uniform vec3 pt_col3;
-global uniform vec4 pt_pos4;
-global uniform vec3 pt_col4;
-global uniform vec4 pt_pos5;
-global uniform vec3 pt_col5;
-// Luci puntiformi della magia (pointLights del prototipo, HTML 5151): sfera in
-// mano, dardi, lampi d'impatto, fuoco a terra. pt_posN.w = raggio.
-vec3 pt_one(vec3 N, vec3 wp, vec4 pp, vec3 col) {
-	vec3 d = pp.xyz - wp; float dd = length(d); float r = max(pp.w, 0.01);
-	float f = max(0.0, 1.0 - dd / r); f = f * f; if (paint_mode > 0.5) f = floor(f * 5.0 + 0.6) / 5.0;
-	float nd = max(dot(N, d / max(dd, 0.01)), 0.0) * 0.65 + 0.35; return col * f * nd;
-}
-vec3 point_lights(vec3 N, vec3 wp) {
-	vec3 acc = vec3(0.0);
-	if (pt_n > 0.5) acc += pt_one(N, wp, pt_pos0, pt_col0);
-	if (pt_n > 1.5) acc += pt_one(N, wp, pt_pos1, pt_col1);
-	if (pt_n > 2.5) acc += pt_one(N, wp, pt_pos2, pt_col2);
-	if (pt_n > 3.5) acc += pt_one(N, wp, pt_pos3, pt_col3);
-	if (pt_n > 4.5) acc += pt_one(N, wp, pt_pos4, pt_col4);
-	if (pt_n > 5.5) acc += pt_one(N, wp, pt_pos5, pt_col5);
-	return acc;
-}
-
 vec3 rustic_light_m(vec3 n, float sun, float blk, vec3 wp, vec3 S, float bands, float shadow) {
 	vec3 N = normalize(n); float ndl = max(dot(N, normalize(sun_dir)), 0.0);
 	float band = ndl < 0.18 ? 0.56 : (ndl < 0.52 ? 0.76 : 1.0);
@@ -123,7 +92,6 @@ vec3 rustic_light_m(vec3 n, float sun, float blk, vec3 wp, vec3 S, float bands, 
 	if (paint_mode > 0.5) amb *= S / 0.40 * mix(1.0, 0.85, night);
 	float rim = pow(1.0 - max(dot(N, normalize(view_dir)), 0.0), 2.5) * night * pow(sun, 0.8);
 	vec3 l = amb + sun_color * (sun_intensity * band * sh) + vec3(0.30, 0.40, 0.62) * rim * 0.35 + vec3(1.0, 0.72, 0.42) * pow(blk, 1.4) * 0.95;
-	l += point_lights(N, wp);
 	if (paint_mode > 0.5) l = min(l, vec3(1.12));
 	return l;
 }

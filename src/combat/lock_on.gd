@@ -5,7 +5,7 @@ extends RefCounted
 ## piu', ma vale anche uno alle spalle entro la portata. Premendo di nuovo si
 ## sgancia. L'aggancio cade da solo se il bersaglio si rompe o va oltre
 ## BREAK_RANGE. Mentre e' attivo l'eroe guarda il bersaglio (camminata laterale),
-## e colpi d'arma, pugni e magie partono verso di lui.
+## e colpi d'arma e pugni partono verso di lui.
 ##
 ## Nessun nodo: gira nei test headless.
 

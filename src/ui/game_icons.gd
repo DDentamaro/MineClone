@@ -100,10 +100,6 @@ static func item(c: CanvasItem, r: Rect2, d: ItemDefinition) -> void:
 			"feet":
 				for x in [.06, .51]:
 					_poly(c, r, [Vector2(x, .15), Vector2(x + .28, .15), Vector2(x + .28, .64), Vector2(x + .41, .75), Vector2(x + .4, .93), Vector2(x, .93)], color)
-	elif d.kind == ItemDefinition.Kind.SCROLL:
-		_poly(c, r, [Vector2(.2, .1), Vector2(.87, .1), Vector2(.76, .9), Vector2(.09, .9)], Color("#e3ce99"))
-		for y in [.32, .47, .62]:
-			_line(c, r, Vector2(.3, y), Vector2(.65, y), color.darkened(.45), .04)
 	elif d.id == &"torch" or d.id == &"campfire":
 		_line(c, r, Vector2(.35, .93), Vector2(.57, .47), Color("#bc915b"), .14)
 		if d.id == &"campfire":

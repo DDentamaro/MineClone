@@ -24,26 +24,24 @@ visiva e usabilità su dispositivi reali, prestazioni mobile e bilanciamento com
 Stato attuale: **M5 — sandbox persistente con equipaggiamento RPG** (D-026), dopo il gate R e **M4 — action** (vedi `docs/PROGRESS.md`): generatore, luce,
 mesh, vegetazione e acqua identici al prototipo; resa dipinta con contorni, cielo, giorno/notte
 e acqua fusa come nella reference; nuoto e guado, schizzi; camera isometrica (terza persona
-facoltativa), controlli touch, costruzione e scavo di debug, pannello sviluppatore (⚙).
+e prima persona facoltative, D-037), controlli touch, costruzione e scavo di debug, pannello sviluppatore (⚙).
 Eroe animato con editor, cinque armi con catene di colpi, carica, capriola e picchiata,
-manichini d'allenamento (animazioni e armi disegnate da zero, D-022); eroe del prototipo (CHARGEN) con passo procedurale e danno dal contatto della lama (D-028), mira assistita leggera e catene che vanno a segno con ogni arma (D-033); moveset e ritmi per arma, lancia perforante e passo delle gambe nei colpi, Lock sul bersaglio con triangolo rosso, camminata laterale e colpi e magie che seguono il bersaglio agganciato (D-035);
-magia dei quattro elementi con reazioni (D-024), ampliata a 39 magie in cinque scuole con Output,
-Pressione, libro, barra delle magie e pergamene (D-027, da RMNDWN K122), allineata alle regole, alla
-posa, al suono e all'aspetto di RMNDWN (D-031: raggi Karma che viaggiano, colpo al contatto), con la terra
-come il reticolo di granelli di RMNDWN, l'accumulo della sostanza nel palmo e i colpi continui di fuoco e acqua (D-032); inventario unico con la miniatura dell'eroe e armatura che copre il corpo (D-030).
+manichini d'allenamento (animazioni e armi disegnate da zero, D-022); eroe del prototipo (CHARGEN) con passo procedurale e danno dal contatto della lama (D-028), mira assistita leggera e catene che vanno a segno con ogni arma (D-033); moveset e ritmi per arma, lancia perforante e passo delle gambe nei colpi, Lock sul bersaglio con triangolo rosso, camminata laterale e colpi che seguono il bersaglio agganciato (D-035);
+inventario unico con la miniatura dell'eroe e armatura che copre il corpo (D-030). Il sistema di magia (D-024…D-035) è stato tolto
+del tutto in D-037.
 
 Controlli desktop: WASD/frecce, Spazio salto, trascinamento del mouse per ruotare, rotella
 zoom, clic = tap (posa o colpo secondo l'oggetto in mano), clic tenuto = scava/abbatte, clic
 destro = apri forziere/banco/falò, F = interagisci con l'oggetto vicino, 1–6 barra rapida,
-I o Tab zaino, V camera, Q/E rotazione, Z/X zoom, N nuovo seme (con conferma),
+I o Tab zaino, V camera (isometrica → terza persona → prima persona), Q/E rotazione, Z/X zoom, N nuovo seme (con conferma),
 Esc (o indietro su Android) chiude il pannello aperto oppure apre la pausa.
 Equipaggiare: nello zaino tocca un oggetto e usa "Impugna" (armi, attrezzi, blocchi: vanno nella
 barra rapida e in mano) o "Indossa" (armature); la scheda Equipaggiamento mostra Mano e i quattro
 pezzi con i confronti. Un'armeria con tutte le armi è accanto al punto di partenza.
 Combattimento: J colpo (o clic sul mondo in esplorazione), K forte (tenuto = carica), L o Maiusc
 capriola, R o clic centrale aggancia/sgancia il bersaglio, H editor dell'eroe, M rimette
-i manichini davanti, U magia (una pressione: la raccolta finisce da sola), Y magia successiva
-della barra, P pausa; J tenuto continua la catena.
+i manichini davanti, P pausa; J tenuto continua la catena. In prima persona si guarda
+trascinando (dito o mouse), lo stick cammina dove si guarda e i colpi partono verso il mirino.
 
 ## Struttura
 
@@ -74,7 +72,7 @@ node tools/extract_render_fixture.mjs 1931  # riferimenti di resa dal prototipo
 xvfb-run -a godot --path . --script res://tools/e2e_touch.gd -- --out=/tmp/e2e.png
 xvfb-run -a godot --path . --script res://tools/e2e_swim.gd -- --out=/tmp/swim.png
 xvfb-run -a godot --path . --script res://tools/e2e_combat.gd -- --out=/tmp/combat.png
-xvfb-run -a godot --path . --script res://tools/e2e_magic.gd -- --out=/tmp/magic.png
+xvfb-run -a godot --path . --script res://tools/e2e_fps.gd -- --out=/tmp/fps.png
 xvfb-run -a godot --path . --script res://tools/e2e_walk.gd -- --out=/tmp/walk.png
 xvfb-run -a godot --path . --script res://tools/e2e_armory.gd -- --out=/tmp/armory.png
 xvfb-run -a godot --path . --script res://tools/e2e_drop.gd -- --out=/tmp/drop.png

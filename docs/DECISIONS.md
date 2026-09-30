@@ -678,3 +678,29 @@ vedono male.
   in alto al centro. Le prove `e2e_options` e `e2e_armory` fallivano perché il pulsante ⚙ è
   nascosto (la riga aggiunta alla prova delle opzioni girava prima che il gioco fosse pronto):
   ora lo riattivano a mondo pronto. Commenti e test tradotti in italiano come il resto del codice.
+
+## D-037 — Via tutto il sistema di magia; camera in prima persona
+Richiesta del proprietario: togliere tutto il sistema di magia e avere il progetto pulito;
+implementare una camera in prima persona.
+- **Magia tolta del tutto** (D-024…D-035 superate): `src/magic` (MagicSystem, SpellDefinition,
+  SpellRuntime), `MagicFx`, `EarthFx`, `MagicAudio` (era l'unico audio: il gioco resta senza
+  suoni finché non se ne aggiungono di nuovi), `SpellIcons`; pulsante Magia, barra delle magie,
+  Pressione e scheda "Magie" dello zaino; pergamene (oggetti e bottino dei tesori); affissi e
+  statistiche Output, dissipazione e Arcano (e il bonus dell'oro); pose di lancio dell'eroe e
+  `cast_point`; scossa direzionale e calcio del campo visivo della camera; luci puntiformi e
+  vento degli incantesimi negli shader e nei globali del progetto; celle delle strutture magiche
+  saltate nel salvataggio; palette dei grani solo magiche (karma, fiamma, vapore); test ed e2e
+  della magia. Tasti U e Y liberi.
+- **Salvataggi vecchi:** la chiave "magic" si ignora; le pergamene nello zaino spariscono al
+  caricamento (oggetti sconosciuti già scartati); gli affissi magici rimasti negli oggetti non
+  contano più e non si mostrano.
+- **Pulsante Lock** al posto del pulsante Magia (a sinistra di Colpo).
+- **Prima persona** (`CameraRig.Mode.FPS`): il pulsante camera (V) fa il giro isometrica → terza
+  persona → prima persona. La camera sta negli occhi dell'eroe (0,86 sopra i piedi, 10 cm davanti
+  alla faccia), FOV 70°, sguardo col trascinamento (dito o mouse) senza ritardo, in su e in giù
+  entro −77°…+72°. La testa dell'eroe si nasconde, braccia, corpo e arma restano visibili; un
+  mirino al centro (rosso col Lock). Lo stick cammina dove si guarda e il corpo guarda sempre
+  dove guarda la camera; i colpi partono lungo lo sguardo anche camminando di lato
+  (`CombatController.aim_view`). Col Lock la vista gira da sola sul petto del bersaglio. Niente
+  raggi X in prima persona; cielo, sole ed erba come in terza persona. L'editor dell'eroe passa
+  in terza persona e torna in prima alla chiusura. Avvio diretto con `--cam=fps`.

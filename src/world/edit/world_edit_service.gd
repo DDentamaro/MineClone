@@ -1,6 +1,6 @@
 class_name WorldEditService
 extends RefCounted
-## Unico percorso per modificare i blocchi (costruzione, scavo, magia, debug).
+## Unico percorso per modificare i blocchi (costruzione, scavo, debug).
 ## Un edit riuscito scrive i dati una volta, aggiorna la colonna `surface`,
 ## incrementa la versione di ogni chunk toccato (compresi i vicini entro una
 ## cella, per facce e AO) e notifica i chunk sporchi.

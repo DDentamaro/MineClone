@@ -281,15 +281,6 @@ static func fill_treasure(inv: Inventory, far: float, rng: RandomNumberGenerator
 			id = StringName("%s_%s" % [kind, "copper"])
 		var w := [10.0, 45.0, 32.0, 13.0] if far > 0.5 else [25.0, 50.0, 20.0, 5.0]
 		inv.add(Loot.make_equipment(id, Loot.roll_rarity(rng, w), rng))
-	# Pergamene di magia: livelli piu' alti lontano dallo spawn.
-	if rng.randf() < 0.75:
-		var pool: Array[StringName] = []
-		var top := 4 if far > 0.5 else 3
-		for sp in SpellDefinition.all():
-			if sp.tier > 1 and sp.tier <= top and (far > 0.5 or sp.tier < 3 or rng.randf() < 0.3):
-				pool.append(StringName("scroll_" + String(sp.id)))
-		if not pool.is_empty():
-			inv.add_item(pool[rng.randi() % pool.size()], 1)
 
 
 func _make_node(o: Obj) -> void:

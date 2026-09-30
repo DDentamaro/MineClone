@@ -1,17 +1,9 @@
 class_name FloatingText
 extends Node3D
-## Scritte brevi che salgono e svaniscono sopra il mondo (reazioni: VAPORE,
-## SHOCK TERMICO, SPENTO, CRATERE, stati) e numeri del danno delle magie
-## (D-032): colore dell'elemento, piu' grandi per i colpi pieni e i critici.
+## Scritte brevi che salgono e svaniscono sopra il mondo (CRITICO!, RIPOSO al falo').
 
 const LIFE := 1.1
 var _items: Array[Dictionary] = []
-
-
-## Numero del danno, spostato un poco a caso perche' i colpi vicini non si coprano.
-func number(p: Vector3, value: float, color: Color, big: bool) -> void:
-	var j := Vector3(randf_range(-0.25, 0.25), randf_range(0.0, 0.2), randf_range(-0.25, 0.25))
-	spawn(p + j, str(maxi(1, roundi(value))), color, 44 if big else 30)
 
 
 func spawn(p: Vector3, text: String, color: Color = Color(1, 0.95, 0.8), font_size: int = 40) -> void:

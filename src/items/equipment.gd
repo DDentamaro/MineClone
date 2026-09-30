@@ -50,9 +50,6 @@ class Stats:
 	var defense := 0.0
 	var melee := 1.0
 	var crit := 0.0
-	var mana_max := 0.0
-	var mana_regen := 0.0
-	var arcane := 1.0
 	var dig := 1.0
 	var speed := 1.0
 
@@ -75,9 +72,6 @@ func stats(held: ItemStack = null) -> Stats:
 			mods[m] = float(mods.get(m, 0.0)) + float(s.data["mods"][m])
 		st.melee += float(mods.get("strength", 0.0))
 		st.crit += float(mods.get("crit", 0.0))
-		st.mana_max += float(mods.get("mana_max", 0.0))
-		st.mana_regen += float(mods.get("mana_regen", 0.0))
-		st.arcane += float(mods.get("arcane", 0.0))
 		st.dig += float(mods.get("dig", 0.0))
 		st.speed += float(mods.get("speed", 0.0))
 	return st

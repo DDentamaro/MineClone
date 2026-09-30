@@ -2,8 +2,8 @@ extends SceneTree
 ## Prova end-to-end dell'aggancio (D-035) con tocchi reali: Lock aggancia un
 ## manichino fuori dal cono della mira assistita, compare il triangolo rosso,
 ## lo stick a destra fa girare l'eroe attorno al bersaglio guardandolo
-## (camminata laterale), i colpi e una magia vanno sul bersaglio agganciato,
-## due magie d'acqua per vedere la nuova palette, Lock di nuovo sgancia.
+## (camminata laterale), i colpi vanno sul bersaglio agganciato, Lock di
+## nuovo sgancia.
 ## Uso: xvfb-run -a godot --path . --script res://tools/e2e_lockon.gd -- --out=/tmp/lock.png
 
 var _game: GameRoot
@@ -142,51 +142,16 @@ func _process(dt: float) -> bool:
 				_shot("colpo")
 			if _t > 2.2:
 				_expect(_hits() > _hits0, "i colpi prendono il bersaglio agganciato (%d)" % (_hits() - _hits0))
-				_hits0 = _hits()
-				var m := g.magic
-				m.equip(&"fire_bolt", 4)
-				m.select(4)
-				m.pressure = 0.0
-				m.saturated = false
-				g._refresh_spellbar()
-				_tap(&"magic")
 				_next()
 		4:
-			if _frame == 3:
-				_log.append("   magia: fase %d, bersaglio a %.1f m, agganciato %s" % [g.magic.phase, g.lock.flat_dist(g.motor.position) if g.lock.active() else -1.0, g.lock.active()])
-			if _t > 2.0:
-				_expect(_hits() > _hits0, "la magia prende il bersaglio agganciato (%d)" % (_hits() - _hits0))
-				var m := g.magic
-				m.equip(&"water_hydrant", 4)
-				m.select(4)
-				m.pressure = 0.0
-				m.saturated = false
-				g._refresh_spellbar()
-				_tap(&"magic")
-				_next()
-		5:
-			if _t > 0.9 and not _shots.has("acqua_idrante"):
-				_shot("acqua_idrante")
-			if _t > 1.6:
-				var m := g.magic
-				m.equip(&"water_rain", 4)
-				m.select(4)
-				m.pressure = 0.0
-				m.saturated = false
-				g._refresh_spellbar()
-				_tap(&"magic")
-				_next()
-		6:
-			if _t > 1.3 and not _shots.has("acqua_diluvio"):
-				_shot("acqua_diluvio")
-			if _t > 2.4:
+			if _t > 0.3:
 				if not g.lock.active():
-					# Il manichino si e' rotto sotto le magie: l'aggancio e' caduto
+					# Il manichino si e' rotto sotto i colpi: l'aggancio e' caduto
 					# da solo. Si riaggancia per provare lo sgancio col pulsante.
 					_log.append("   aggancio caduto col manichino rotto (%s): si riaggancia" % (not _target.alive))
 					_tap(&"lock")
 				_next()
-		7:
+		5:
 			if _frame == 4:
 				_expect(g.lock.active(), "agganciato prima dello sgancio")
 				_tap(&"lock")

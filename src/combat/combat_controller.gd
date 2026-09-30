@@ -61,6 +61,8 @@ var lock_target: CombatTarget
 ## Bersaglio agganciato col Lock (D-035): ogni colpo parte verso di lui (anche
 ## fuori dal cono della mira assistita) e lo segue durante la carica.
 var forced: CombatTarget
+## Prima persona (D-037): il colpo va dove si guarda, anche camminando di lato.
+var aim_view := false
 ## Oltre questa distanza il Lock orienta il colpo ma lo scatto resta il suo.
 const FORCED_RANGE := 12.0
 ## Guida del motore: velocita' imposta (scatti, capriole) o scala dello stick.
@@ -255,7 +257,7 @@ func _start_attack(id: StringName, motor: PlayerMotor, targets: Array, stick: Ve
 	charge = 0.0
 	# Mira assistita leggera: la direzione voluta (stick o sguardo) si corregge
 	# di al massimo 20° verso un bersaglio vicino al suo asse.
-	var want := facing if stick.length() < 0.2 else heading(stick)
+	var want := facing if stick.length() < 0.2 or aim_view else heading(stick)
 	var hard := _forced_ok(motor)
 	lock_target = forced if hard else _pick_target(motor.position, want, targets, a)
 	var dist_goal := a.lunge

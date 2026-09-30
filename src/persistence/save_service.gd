@@ -85,30 +85,9 @@ static func delete_all() -> void:
 
 
 ## Stato del mondo modificabile (blocchi e acqua); il resto si rigenera dal seme.
-## `skip`: celle di passaggio (muri e colonne delle magie) salvate come aria.
-static func world_state(w: WorldData, skip: Array[Vector3i] = []) -> Dictionary:
-	if skip.is_empty():
-		return {"seed": w.world_seed, "size": [w.size_x, w.size_y, w.size_z], "blocks": w.blocks, "fluid": w.fluid,
-			"water_level": w.water_level, "water_flow": w.water_flow, "surface": w.surface}
-	var old_blocks := w.blocks.duplicate()
-	var old_surface := w.surface.duplicate()
-	var cols := {}
-	for c in skip:
-		if w.inside(c.x, c.y, c.z):
-			w.blocks[w.index(c.x, c.y, c.z)] = BlockCatalog.AIR
-			cols[Vector2i(c.x, c.z)] = true
-	for k: Vector2i in cols:
-		var top := 0
-		for y in range(w.size_y - 1, -1, -1):
-			if w.is_solid_at(k.x, y, k.y):
-				top = y
-				break
-		w.surface[k.y * w.size_x + k.x] = top
-	var d := {"seed": w.world_seed, "size": [w.size_x, w.size_y, w.size_z], "blocks": w.blocks.duplicate(), "fluid": w.fluid,
-		"water_level": w.water_level, "water_flow": w.water_flow, "surface": w.surface.duplicate()}
-	w.blocks = old_blocks
-	w.surface = old_surface
-	return d
+static func world_state(w: WorldData) -> Dictionary:
+	return {"seed": w.world_seed, "size": [w.size_x, w.size_y, w.size_z], "blocks": w.blocks, "fluid": w.fluid,
+		"water_level": w.water_level, "water_flow": w.water_flow, "surface": w.surface}
 
 
 ## Applica lo stato salvato a un mondo appena generato dallo stesso seme e ne

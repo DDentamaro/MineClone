@@ -128,35 +128,6 @@ func _process(_dt: float) -> bool:
 				_ok = _ok and _game._touch.hero_open
 				_tap(&"hero_close")
 			if _frame == 130:
-				_phase = 4
-				_frame = 0
-				_game.magic.pressure = 0.0
-				_game._dummies.place_around(_game.motor.position, _game._avatar.facing, 3, 4.5)
-				_hits = _count_hits()
-		4:
-			# Magia: acqua (bagna) poi fuoco sullo stesso manichino (vapore), terra, aria.
-			var m := _game.magic
-			var plan := {10: 1, 70: 0, 130: 2, 190: 3}
-			if plan.has(_frame):
-				m.select(plan[_frame])
-				m.pressure = 0.0
-				m.saturated = false
-				_touch(5, _button(&"magic"), true)
-			if _frame in [40, 100, 160, 215]:
-				_touch(5, _button(&"magic"), false)
-			if m.phase == MagicSystem.Phase.GATHER and m.w > 0.8:
-				_shot("gather_%s" % m.spell().id)
-			for d in m.darts:
-				if d.t > 0.12:
-					_shot("dart_%s" % d.spell.id)
-			for e in m.events:
-				if e["type"] == "text":
-					_log.append("scritta: %s" % e["text"])
-			if _frame == 300:
-				_shot("magic_end")
-				var h := _count_hits() - _hits
-				_log.append("magia: colpi sui manichini %d, celle in fiamme %d, crateri %d" % [h, m.fire.size(), m.crater_items])
-				_ok = _ok and h >= 2
 				for l in _log:
 					print(l)
 				print("e2e combattimento %s" % ("OK" if _ok else "FALLITO"))

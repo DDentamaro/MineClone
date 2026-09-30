@@ -64,17 +64,12 @@ var _hud_tick := 0.0
 var ground := GroundItems.new()
 var last_edit := ""
 var combat: CombatController
-var magic := MagicSystem.new(1931)
-var mfx := MagicFx.new()
-var _earth_fx: EarthFx
 ## Aggancio del bersaglio (D-035) e il suo triangolo rosso.
 var lock := LockOn.new()
 var _lock_marker: LockMarker
 ## Camminata laterale col Lock: un po' piu' lenta della corsa libera.
 const STRAFE_SPEED := 0.78
 var _texts: FloatingText
-var _magic_key := false
-var _audio: MagicAudio
 var _light_key := false
 var paused := false
 var show_hitboxes := false
@@ -84,7 +79,6 @@ var _preset_i := 0
 var _hitbox_lines: DebugLines
 var _cursor_lines: DebugLines
 var _mouse_pos := Vector2(-1, -1)
-var _audio_n := 0
 var recipe: AvatarRecipe
 var weapon_index := 1
 var fx := CombatFx.new()
@@ -146,12 +140,6 @@ func _ready() -> void:
 	if _args.has("weapon"):
 		select_weapon(weapon_index)
 	fx.grains = _grains
-	mfx.grains = _grains
-	# Zolle vere delle magie di terra (D-032), accanto ai grani.
-	_earth_fx = EarthFx.new()
-	_earth_fx.name = "EarthFx"
-	_grains.get_parent().add_child(_earth_fx)
-	mfx.earth = _earth_fx
 	_lock_marker = LockMarker.new()
 	_lock_marker.name = "LockMarker"
 	_grains.get_parent().add_child(_lock_marker)
@@ -177,8 +165,7 @@ func _ready() -> void:
 	_bag.closed.connect(func() -> void:
 		_touch.blocked = paused
 		get_tree().paused = paused
-		_refresh_held()
-		_refresh_spellbar())
+		_refresh_held())
 	_bag.message.connect(func(t: String) -> void: last_edit = t)
 	_bag.dropped.connect(func(st: ItemStack) -> void:
 		ground.drop(st, motor.position, Vector3(-sin(_avatar.facing), 0, -cos(_avatar.facing))))
@@ -202,11 +189,6 @@ func _ready() -> void:
 	_touch.hidden_ids[&"dev"] = not _args.has("dev")
 	ground.name = "GroundItems"
 	_view.add_child(ground)
-	_audio = MagicAudio.new()
-	_audio.name = "MagicAudio"
-	add_child(_audio)
-	magic.catalog = catalog
-	_bag.magic = magic
 	_swap_world(w)
 	_camera_rig.opaque = catalog.opaque_table()
 	for d: Array in DEV_BUTTONS:
@@ -216,6 +198,8 @@ func _ready() -> void:
 	var cam_mode: int = Settings.load_value("camera", "mode", CameraRig.Mode.ISO)
 	if _args.get("cam", "") == "tps":
 		cam_mode = CameraRig.Mode.TPS
+	elif _args.get("cam", "") == "fps":
+		cam_mode = CameraRig.Mode.FPS
 	_camera_rig.set_mode(cam_mode as CameraRig.Mode)
 	_camera_rig.tps_auto = bool(Settings.load_value("camera", "tps_auto", true))
 	_camera_rig.tps_zoom = clampf(float(Settings.load_value("camera", "tps_zoom", 1.0)), CameraRig.TPS_ZOOM_MIN, CameraRig.TPS_ZOOM_MAX)
@@ -252,27 +236,16 @@ func _ready() -> void:
 		_hold_active = on
 		_hold_pos = pos)
 	_touch.button_pressed.connect(_on_button)
-	_touch.button_long.connect(func(id: StringName) -> void:
-		_bag.target_slot = int(String(id).substr(2))
-		if not _bag.is_open():
-			open_bag(null, "magic"))
 	_touch.button_down.connect(func(id: StringName) -> void:
 		if id == &"heavy":
-			combat.press_heavy()
-		elif id == &"magic":
-			magic.press())
+			combat.press_heavy())
 	_touch.button_up.connect(func(id: StringName) -> void:
 		if id == &"heavy":
-			combat.release_heavy()
-		elif id == &"magic":
-			magic.release())
+			combat.release_heavy())
 	if not saved.is_empty():
 		_restore(saved)
-	if TEST_ALL_SPELLS:
-		_unlock_all_spells(saved.is_empty())
 	_refresh_labels()
 	_refresh_held()
-	_refresh_spellbar()
 	_camera_rig.update_camera(1.0, motor.position)
 	_update_session_hud()
 	if saved.is_empty() and not _args.has("screenshot"):
@@ -315,13 +288,6 @@ func _swap_world(w: WorldData) -> void:
 	fx.world = world
 	combat.world = world
 	combat.opaque = catalog.opaque_table()
-	mfx.world = world
-	_earth_fx.world = world
-	_earth_fx.clear()
-	magic.world = world
-	magic.edits = edits
-	magic.tree_grid = _vegetation.tree_grid
-	magic.reset()
 	_dummies.setup(world)
 	_dummies.place_around(motor.position, _avatar.facing)
 	_objects.world = world
@@ -341,7 +307,7 @@ func _physics_process(dt: float) -> void:
 	_apply_stats()
 	_step_mining(dt)
 	# Colpo tenuto premuto: la catena continua da sola (come J tenuto nel prototipo).
-	if (_touch.is_held(&"attack") or _light_key) and combat.buffer == &"" and not magic.is_casting():
+	if (_touch.is_held(&"attack") or _light_key) and combat.buffer == &"":
 		if combat.state == CombatController.State.IDLE or (combat.state == CombatController.State.ATTACK and combat.phase() == 2):
 			combat.press_light()
 	for d in _dummies.dummies:
@@ -349,45 +315,28 @@ func _physics_process(dt: float) -> void:
 			_avatar.aware_t = 2.5
 	var stick := _read_stick()
 	_move_world = _camera_rig.stick_to_world(stick)
+	var fps := _camera_rig.mode == CameraRig.Mode.FPS
+	combat.aim_view = fps
 	if not combat.is_busy():
-		combat.facing = _avatar.facing
+		# In prima persona il colpo parte lungo lo sguardo.
+		combat.facing = _camera_rig.yaw if fps else _avatar.facing
 	var targets := _dummies.targets()
 	lock.step(motor.position, targets)
 	var locked := lock.active()
 	combat.forced = lock.target if locked else null
-	magic.forced = combat.forced
 	_touch.lock_on = locked
 	if locked:
 		_avatar.aware_t = 2.5
-	if magic.is_casting():
-		# Durante la magia il corpo a corpo non parte (la capriola si').
-		if combat.buffer != &"dodge":
-			combat.buffer = &""
 	# Hitbox vere: la lama (o i pugni) nella posa corrente dell'eroe.
 	combat.hitboxes = _avatar.rig.hitboxes() if use_blade_hitboxes else []
 	combat.step(dt, motor, targets, _move_world)
 	_handle_combat_events()
 	var frozen := combat.hitstop > 0.0
 	if not frozen:
-		magic.daylight = float(_day.state.get("daylight", 1.0))
-		# La magia mira nella direzione dello stick se spinto, altrimenti davanti.
-		var want := _avatar.facing if _move_world.length() < 0.2 else CombatController.heading(_move_world)
-		if locked:
-			want = lock.heading_from(motor.position)
-		magic.step(dt, motor, targets, want, _avatar.rig.cast_point(), not combat.is_busy())
-		if magic.hitstop > 0.0:
-			combat.hitstop = maxf(combat.hitstop, magic.hitstop)
-			magic.hitstop = 0.0
 		motor.drive_on = combat.drive_on
 		motor.drive = combat.drive
 		motor.move_scale = combat.move_scale * combat.weapon.move_mult
 		motor.move_scale *= _stats.speed
-		if magic.phase != MagicSystem.Phase.NONE and not magic.spell().is_legacy():
-			# Per tutta la magia si cammina al massimo a 1,75 m/s (ACTP.strikeEntryCap).
-			motor.move_scale = minf(motor.move_scale, MagicSystem.CAST_WALK / PlayerMotor.SPEED)
-		elif magic.phase == MagicSystem.Phase.GATHER:
-			motor.move_scale *= 0.35
-		motor.move_scale *= magic.player_speed()
 		if locked and not combat.is_busy():
 			motor.move_scale *= STRAFE_SPEED
 		var before_move := motor.position
@@ -402,69 +351,21 @@ func _physics_process(dt: float) -> void:
 		_avatar.position = motor.position
 		if combat.is_busy():
 			_avatar.turn_to(combat.facing, dt, PlayerAvatar.ATTACK_TURN)
-		elif magic.phase == MagicSystem.Phase.GATHER:
-			_avatar.turn_to(magic.face, dt, PlayerAvatar.ATTACK_TURN)
 		elif locked and lock.flat_dist(motor.position) > 0.2:
 			# Lock: lo sguardo resta sul bersaglio, lo stick sposta di lato e indietro.
 			_avatar.turn_to(lock.heading_from(motor.position), dt, PlayerAvatar.LOCK_TURN)
+			if fps:
+				_fps_track_lock(dt)
+		elif fps:
+			# Prima persona: il corpo guarda dove guarda la camera.
+			_avatar.turn_to(_camera_rig.yaw, dt, PlayerAvatar.ATTACK_TURN)
 		else:
 			_avatar.face_towards(Vector2(motor.velocity.x, motor.velocity.z), dt)
 	for d in _dummies.step(0.0 if frozen else dt):
 		fx.broke(d)
 	# Posa dell'eroe al passo della fisica (D-028): la lama che ferisce e' quella
 	# che si vede, anche quando piu' passi di fisica cadono in un fotogramma.
-	_avatar.animate(0.0 if combat.hitstop > 0.0 else dt, motor, combat, magic)
-
-
-## Numeri del danno delle magie (D-032). I colpi pieni escono subito; i colpi
-## continui (getti, aree che bruciano o investono, bruciatura) si sommano per
-## bersaglio e si mostrano ogni .35 s, cosi' un getto non riempie lo schermo.
-const DMG_COL := {"fire": Color(1.0, 0.62, 0.25), "water": Color(0.55, 0.8, 1.0), "air": Color(0.9, 0.97, 1.0),
-	"earth": Color(0.85, 0.7, 0.45), "karma": Color(0.82, 0.6, 1.0)}
-var _dmg_acc := {}
-
-
-func _damage_number(e: Dictionary) -> void:
-	var amount := float(e.get("damage", 0.0))
-	var tg: CombatTarget = e.get("target")
-	if amount < 0.5 or tg == null:
-		return
-	var col: Color = DMG_COL.get(e.get("el", "fire"), Color.WHITE)
-	var top := tg.position + Vector3(0, tg.height + 0.25, 0)
-	if e["type"] == "hit" and not e.get("quiet", false):
-		if e.get("crit", false):
-			col = Color(1.0, 0.9, 0.3)
-		_texts.number(top, amount, col, true)
-		return
-	var acc: Dictionary = _dmg_acc.get(tg, {"sum": 0.0, "t": 0.0, "col": col})
-	acc["sum"] = float(acc["sum"]) + amount
-	acc["col"] = col
-	_dmg_acc[tg] = acc
-
-
-func _flush_damage_numbers(dt: float) -> void:
-	for tg: CombatTarget in _dmg_acc.keys():
-		var acc: Dictionary = _dmg_acc[tg]
-		acc["t"] = float(acc["t"]) + dt
-		if float(acc["t"]) >= 0.35:
-			if float(acc["sum"]) >= 0.5 and tg.alive:
-				_texts.number(tg.position + Vector3(0, tg.height + 0.25, 0), float(acc["sum"]), acc["col"], false)
-			_dmg_acc.erase(tg)
-
-
-## Scossa di un colpo di magia (RMNDWN triggerCombatJuice + cameraState): i
-## dardi del prototipo scuotono come prima; le magie del libro con la scossa
-## direzionale lungo il colpo (la terra verso il basso) e il calcio del campo visivo.
-func _hit_juice(e: Dictionary) -> void:
-	var S: SpellDefinition = e["spell"]
-	if S.is_legacy():
-		_camera_rig.shake(0.09 * float(MagicSystem.GRAMMAR[S.el][0]))
-		return
-	var g: Array = MagicSystem.GRAMMAR.get(S.el, MagicSystem.GRAMMAR["karma"])
-	var dur := (0.20 if S.heavy else 0.14) * 0.85 * float(g[2])
-	var d: Vector2 = e["dir"]
-	var fov := S.fov * 0.55 * float(e["near"]) * float(g[4])
-	_camera_rig.spell_shake(float(e["shake"]), Vector3(d.x, 0, d.y), dur, float(g[3]), fov, S.el == "earth")
+	_avatar.animate(0.0 if combat.hitstop > 0.0 else dt, motor, combat)
 
 
 ## Riquadri dei colpi (Hitbox) e cubo del cursore di costruzione.
@@ -529,22 +430,16 @@ func _draw_debug() -> void:
 	_cursor_lines.finish()
 
 
-## Luci puntiformi e vento degli incantesimi (globali degli shader).
-func _apply_magic_globals(hand: Vector3, player: Vector3) -> void:
-	var rs := RenderingServer
-	var ls := mfx.lights(magic, hand, player)
-	rs.global_shader_parameter_set(&"pt_n", float(ls.size()))
-	for i in ls.size():
-		var l: Array = ls[i]
-		var pp: Vector3 = l[0]
-		rs.global_shader_parameter_set(StringName("pt_pos%d" % i), Vector4(pp.x, pp.y, pp.z, float(l[2])))
-		rs.global_shader_parameter_set(StringName("pt_col%d" % i), l[1])
-	var w := magic.wind
-	if w.is_empty():
-		rs.global_shader_parameter_set(&"spell_wind_rp", Vector2(1, 0))
-	else:
-		rs.global_shader_parameter_set(&"spell_wind", Vector4(w["x"], w["z"], w["dx"], w["dz"]))
-		rs.global_shader_parameter_set(&"spell_wind_rp", Vector2(float(w.get("r", 1.7)), float(w.get("pow", 0.3)) * minf(1.0, float(w["t"]) / 0.25)))
+## Prima persona col Lock: la vista gira da sola sul bersaglio agganciato
+## (orizzontale e in altezza, sul petto del bersaglio).
+func _fps_track_lock(dt: float) -> void:
+	var eye := motor.position + Vector3(0, CameraRig.FPS_EYE, 0)
+	var c := lock.target.position + Vector3(0, lock.target.height * 0.55, 0)
+	var k := 1.0 - exp(-dt * 10.0)
+	_camera_rig.yaw_target = lerp_angle(_camera_rig.yaw_target, lock.heading_from(motor.position), k)
+	var v := c - eye
+	var want := atan2(v.y, Vector2(v.x, v.z).length())
+	_camera_rig.fps_pitch = lerpf(_camera_rig.fps_pitch, clampf(want, CameraRig.FPS_PITCH_MIN, CameraRig.FPS_PITCH_MAX), k)
 
 
 ## Situazione per la terza persona adattiva (tpsCtx del prototipo, riga 7968)
@@ -554,7 +449,11 @@ var _prefs_t := 0.0
 
 func _update_camera_context(dt: float) -> void:
 	var tps := _camera_rig.mode == CameraRig.Mode.TPS
-	_day.tps_sky = tps
+	var fps := _camera_rig.mode == CameraRig.Mode.FPS
+	_day.tps_sky = _camera_rig.is_persp()
+	# Prima persona: niente testa davanti alla camera, mirino al centro.
+	_avatar.rig.set_head_visible(not fps)
+	_touch.crosshair = fps
 	_camera_rig.sun_dir = _day.state.get("dir", Vector3(-0.3, 0.93, 0.22))
 	if _touch.hidden_ids.get(&"tps_auto", false) != (not tps):
 		_touch.hidden_ids[&"tps_auto"] = not tps
@@ -641,39 +540,18 @@ func _process(dt: float) -> void:
 	_autosave_t += dt
 	if _autosave_t >= AUTOSAVE_S and not _args.has("screenshot"):
 		save_game()
-	mfx.update(dt, magic, _avatar.rig.cast_point(), p)
-	_flush_damage_numbers(dt)
 	_lock_marker.set_target(lock.target if lock.active() else null)
 	_lock_marker.update(dt)
-	_apply_magic_globals(_avatar.rig.cast_point(), p)
-	_audio_n += 1
-	_audio.handle(magic.events, _audio_n)
-	for e in magic.events:
-		if e["type"] == "text":
-			_texts.spawn(e["p"], e["text"])
-		elif e["type"] == "crater":
-			# Il masso scava: il blocco finisce nello zaino (give del prototipo).
-			var drop := ItemLibrary.drop_for_block(int(e["id"]))
-			if drop != &"" and items.inv.add_item(drop, 1) == 0:
-				last_edit = "+1 %s dal cratere" % ItemLibrary.get_item(drop).display_name
-		elif e["type"] == "shake_tree":
-			var ts: Vegetation.TreeSpot = e["tree"]
-			var d: Vector2 = e["dir"]
-			RenderingServer.global_shader_parameter_set(&"tree_hit", Vector3(ts.seed_value, _day.clock, float(e["k"])))
-			RenderingServer.global_shader_parameter_set(&"tree_hit_dir", d)
-		elif e["type"] == "impact" and (e["spell"] as SpellDefinition).is_legacy():
-			_camera_rig.shake(0.12 if e["el"] != "earth" else 0.25)
-		elif e["type"] == "hit" and e.get("juice", false):
-			_hit_juice(e)
-		if e["type"] == "hit" or e["type"] == "dot":
-			_damage_number(e)
-	magic.events.clear()
 	var lt := TrainingGround._light_at(world, p + Vector3(0, 1.1, 0))
 	_avatar.set_light(lt.x, lt.y)
-	_earth_fx.set_light(lt.x, lt.y)
 	_dummies.sync_views(combat.lock_target if combat.is_busy() else null)
 	_camera_rig.update_camera(dt, p)
-	_vegetation.cull_grass(_camera_rig.camera.global_position, 46.0 + _camera_rig.tps_dist * 1.2 if _camera_rig.mode == CameraRig.Mode.TPS else 0.0)
+	var grass_r := 0.0
+	if _camera_rig.mode == CameraRig.Mode.TPS:
+		grass_r = 46.0 + _camera_rig.tps_dist * 1.2
+	elif _camera_rig.mode == CameraRig.Mode.FPS:
+		grass_r = 46.0
+	_vegetation.cull_grass(_camera_rig.camera.global_position, grass_r)
 	_place_screen()
 	_runtime.focus = p
 	_update_xray(dt, p)
@@ -692,19 +570,6 @@ func _process(dt: float) -> void:
 	if sandbox.message != "":
 		last_edit = sandbox.message
 		sandbox.message = ""
-	var why := _magic_block_text()
-	# Avanzamento del lancio sullo slot scelto: raccolta (azzurro) e recupero (rosso).
-	var cph := 1 if magic.phase == MagicSystem.Phase.GATHER else (2 if magic.phase == MagicSystem.Phase.RECOVER else 0)
-	var cu := magic.w if cph == 1 else (1.0 - clampf(magic.t / maxf(magic.spell().recover, 0.01), 0.0, 1.0) if cph == 2 else 0.0)
-	if cph != _touch.cast_phase or absf(cu - _touch.cast_u) > 0.01:
-		_touch.cast_phase = cph
-		_touch.cast_u = cu
-		_touch.queue_redraw()
-	if absf(_touch.pressure - magic.pressure) > 0.004 or _touch.saturated != magic.saturated or why != _touch.magic_blocked:
-		_touch.pressure = magic.pressure
-		_touch.saturated = magic.saturated
-		_touch.magic_blocked = why
-		_touch.queue_redraw()
 	var h := items.held()
 	_status.text = "%d FPS · in mano: %s%s · chunk in coda %d%s\nposizione %.1f %.1f %.1f%s" % [
 		Engine.get_frames_per_second(), Loot.full_name(h) if h != null else "niente", " · SCAVO DEBUG" if dig_debug else "",
@@ -712,10 +577,7 @@ func _process(dt: float) -> void:
 		motor.position.x, motor.position.y, motor.position.z, ("\n" + last_edit) if last_edit != "" else ""]
 	if motor.water_state != "dry":
 		_status.text += " · acqua: %s" % motor.water_state
-	_status.text += "\n%s%s · pressione %d%%%s · Output %d · %s%s%s" % [combat.weapon.display_name, (" · combo %d" % combat.combo) if combat.combo > 1 else "",
-		int(magic.pressure * 100.0), " SATURO" if magic.saturated else "", int(magic.output_cap()), magic.spell().display_name,
-		(" · raduna %d%%%s" % [int(magic.w * 100.0), " ●" if magic.committed else ""]) if magic.phase == MagicSystem.Phase.GATHER else "",
-		(" · fuoco %d celle" % magic.fire.size()) if not magic.fire.is_empty() else ""]
+	_status.text += "\n%s%s" % [combat.weapon.display_name, (" · combo %d" % combat.combo) if combat.combo > 1 else ""]
 	if sandbox.harvester.target != null and sandbox.harvester.progress > 0.0:
 		_status.text += " · raccolta %d%%" % int(sandbox.harvester.progress * 100.0)
 	_screenshot_tick()
@@ -736,13 +598,11 @@ func _reset_gameplay_input() -> void:
 	_jump_key = false
 	_light_key = false
 	_heavy_key = false
-	_magic_key = false
 	_hold_active = false
 	_move_world = Vector2.ZERO
 	motor.reset_jump_input()
 	combat.buffer = &""
 	combat.release_heavy()
-	magic.clear_input()
 	sandbox.harvester.reset()
 	_avatar.mining = -1.0
 
@@ -768,10 +628,6 @@ func _apply_session_settings() -> void:
 	_camera_rig.reduced_motion = _session.reduced_motion
 	if _session.reduced_motion:
 		_camera_rig.shake_amt = 0.0
-		_camera_rig._ss.clear()
-		_camera_rig._sh_y = 0.0
-		_camera_rig._sh_p = 0.0
-		_camera_rig._fov_kick = 0.0
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(0.001, _session.volume / 100.0)))
 	AudioServer.set_bus_mute(0, _session.volume == 0)
 
@@ -854,10 +710,8 @@ func _update_session_hud() -> void:
 	var key := "" if DisplayServer.is_touchscreen_available() else "F / "
 	_session.context_text = (key + String(names.get(nearby.type, "Interagisci"))) if nearby != null else ""
 	_session.avoid.clear()
-	for id: StringName in [&"lock", &"magic", &"attack", &"heavy", &"dodge", &"jump"]:
+	for id: StringName in [&"lock", &"attack", &"heavy", &"dodge", &"jump"]:
 		_session.avoid.append(_touch.button_rect(id))
-	for i in TouchControls.SPELLBAR:
-		_session.avoid.append(_touch.button_rect(StringName("sp%d" % i)))
 	if last_edit != "" and last_edit != _last_notice:
 		_last_notice = last_edit
 		_session.notify(last_edit)
@@ -906,11 +760,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			_jump_key = k.pressed
 		if k.physical_keycode == KEY_J and not k.echo:
 			_light_key = k.pressed
-		if k.physical_keycode == KEY_U and not k.echo:
-			if k.pressed:
-				magic.press()
-			else:
-				magic.release()
 		if k.physical_keycode == KEY_K and not k.echo:
 			if k.pressed:
 				combat.press_heavy()
@@ -937,8 +786,6 @@ func _unhandled_input(event: InputEvent) -> void:
 				_on_button(&"dev_pause")
 			KEY_L, KEY_SHIFT:
 				combat.press_dodge()
-			KEY_Y:
-				_on_button(&"spell")
 			KEY_H:
 				_on_button(&"hero")
 			KEY_M:
@@ -1065,17 +912,6 @@ func _on_button(id: StringName) -> void:
 			combat.press_light()
 		&"dodge":
 			combat.press_dodge()
-		&"spell":
-			magic.select_next()
-			_spell_chosen()
-		&"sp0", &"sp1", &"sp2", &"sp3", &"sp4":
-			var i := int(String(id).substr(2))
-			if magic.bar[i] == &"":
-				_bag.target_slot = i
-				open_bag(null, "magic")
-			else:
-				magic.select(i)
-				_spell_chosen()
 		&"dev_dummies":
 			_dummies.place_around(motor.position, _avatar.facing)
 			last_edit = "manichini davanti al giocatore"
@@ -1154,32 +990,11 @@ func _refresh_hotbar() -> void:
 	_touch.queue_redraw()
 
 
-## Output aggiunto per le prove (e2e): tutte le magie del libro lanciabili.
-var dev_output := 0.0
-## Build di prova (D-034): tutte le magie conosciute e Output per lanciarle
-## tutte, cosi' si possono giudicare. Da spegnere per il gioco normale.
-const TEST_ALL_SPELLS := true
-const TEST_OUTPUT := 200.0
-
-
-func _unlock_all_spells(fresh: bool) -> void:
-	for sp in SpellDefinition.all():
-		magic.known[sp.id] = true
-	dev_output = maxf(dev_output, TEST_OUTPUT)
-	if fresh:
-		# Partita nuova: una barra con una magia per scuola, il resto dal libro.
-		magic.bar = [&"fire_columns", &"water_rain", &"earth_twins", &"air_slash", &"zoltraak"] as Array[StringName]
-		magic.bar_index = 0
-
-
-## Statistiche dell'equipaggiamento applicate a colpi, magia e movimento.
+## Statistiche dell'equipaggiamento applicate a colpi e movimento.
 func _apply_stats() -> void:
 	_stats = items.stats()
 	combat.damage_mult = _stats.melee
 	combat.crit_chance = _stats.crit
-	magic.output_bonus = _stats.mana_max + dev_output
-	magic.decay_bonus = _stats.mana_regen
-	magic.power = _stats.arcane
 
 
 ## Raggio dallo schermo (origine, direzione) nella vista del mondo.
@@ -1191,7 +1006,7 @@ func _screen_ray(screen_pos: Vector2) -> Array:
 
 ## Tenere premuto sul mondo: raccolta con l'oggetto in mano.
 func _step_mining(dt: float) -> void:
-	var busy := combat.is_busy() or magic.is_casting() or motor.swimming or dig_debug
+	var busy := combat.is_busy() or motor.swimming or dig_debug
 	if not _hold_active or busy:
 		if _avatar.mining >= 0.0:
 			_avatar.mining = -1.0
@@ -1243,10 +1058,10 @@ func _world_from_save(st: Dictionary) -> WorldData:
 
 
 func make_save_state() -> Dictionary:
-	return {"v": 1, "world": SaveService.world_state(world, magic.runtime.struct_cells()),
+	return {"v": 1, "world": SaveService.world_state(world),
 		"player": {"pos": motor.position, "facing": _avatar.facing}, "items": items.to_dict(),
 		"objects": _objects.to_array(), "ground": ground.to_array(), "dead_trees": _vegetation.dead_indices() if _pending_dead_trees.is_empty() else _pending_dead_trees,
-		"checkpoint": checkpoint, "time": _day.time, "magic": magic.to_dict(), "journal": journal.to_dict()}
+		"checkpoint": checkpoint, "time": _day.time, "journal": journal.to_dict()}
 
 
 func save_game() -> bool:
@@ -1274,8 +1089,6 @@ func _restore(st: Dictionary) -> void:
 	ground.load_array(st.get("ground", []))
 	checkpoint = st.get("checkpoint", Vector3.INF)
 	_day.time = float(st.get("time", _day.time))
-	magic.load_dict(st.get("magic", {}))
-	_refresh_spellbar()
 	_dummies.place_around(motor.position, _avatar.facing)
 	# Gli alberi si costruiscono su un thread: si abbattono appena pronti.
 	_pending_dead_trees = st.get("dead_trees", [])
@@ -1393,16 +1206,26 @@ func set_checkpoint(o: WorldObjects.Obj) -> void:
 
 
 ## Editor dell'eroe: pulsanti della ricetta e camera ravvicinata.
+var _mode_before_hero := CameraRig.Mode.ISO
+
+
 func set_hero_editor(open: bool) -> void:
 	if open == _touch.hero_open:
 		return
 	_touch.hero_open = open
 	if open:
 		_touch.dev_open = false
+		# In prima persona l'eroe non si vede: l'editor lo mostra in terza persona.
+		_mode_before_hero = _camera_rig.mode
+		if _camera_rig.mode == CameraRig.Mode.FPS:
+			_camera_rig.set_mode(CameraRig.Mode.TPS)
 		_zoom_before_hero = _camera_rig.get_zoom()
 		_camera_rig.set_zoom(CameraRig.ISO_ZOOM_MAX if _camera_rig.mode == CameraRig.Mode.ISO else 0.4)
-	elif _zoom_before_hero > 0.0:
-		_camera_rig.set_zoom(_zoom_before_hero)
+	else:
+		if _zoom_before_hero > 0.0:
+			_camera_rig.set_zoom(_zoom_before_hero)
+		if _mode_before_hero != _camera_rig.mode:
+			_camera_rig.set_mode(_mode_before_hero)
 	_refresh_labels()
 
 
@@ -1504,45 +1327,8 @@ func _poll_generation() -> void:
 	_gen_result = null
 
 
-## Motivo breve per cui la magia scelta non parte ("" = pronta).
-func _magic_block_text() -> String:
-	var why := magic.blocked_reason(magic.spell())
-	match why:
-		"":
-			return ""
-		"NON CONOSCIUTA":
-			return "serve la pergamena"
-		"NUCLEO SATURO":
-			return "nucleo saturo"
-		"SPINTO":
-			return ""
-	return "Output %d/%d" % [int(magic.spell().output), int(magic.output_cap())]
-
-
-func _spell_chosen() -> void:
-	_refresh_spellbar()
-	var sp := magic.spell()
-	_touch.show_toast("%s  ·  Output %d" % [sp.display_name, int(sp.output)], sp.color().lightened(0.4))
-	last_edit = "magia: %s" % sp.display_name
-
-
-## Barra delle magie e Pressione sui TouchControls.
-func _refresh_spellbar() -> void:
-	for i in MagicSystem.BAR:
-		var sp := SpellDefinition.by_id(magic.bar[i]) if magic.bar[i] != &"" else null
-		var bid := StringName("sp%d" % i)
-		if sp == null:
-			_touch.spell_icons.erase(bid)
-		else:
-			_touch.spell_icons[bid] = {"spell": sp, "blocked": sp.output > magic.output_cap(), "locked": not magic.known.has(sp.id)}
-	_touch.spell_selected = magic.bar_index
-	_touch.magic_spell = magic.spell()
-	_touch.magic_blocked = _magic_block_text()
-	_touch.queue_redraw()
-
-
 func _refresh_labels() -> void:
-	_touch.labels[&"camera"] = "Iso" if _camera_rig.mode == CameraRig.Mode.ISO else "3ª p."
+	_touch.labels[&"camera"] = ["Iso", "3ª p.", "1ª p."][_camera_rig.mode]
 	_touch.labels[&"dev"] = "Chiudi" if _touch.dev_open else "Opzioni"
 	_touch.labels[&"dev_res"] = "Righe %d" % rt_height
 	for key: String in toggles:
@@ -1665,7 +1451,8 @@ func coverage(p: Vector3) -> float:
 
 
 func _update_xray(dt: float, p: Vector3) -> void:
-	var target := coverage(p)
+	# In prima persona non c'e' nulla fra la camera e l'eroe: niente raggi X.
+	var target := coverage(p) if _camera_rig.mode != CameraRig.Mode.FPS else 0.0
 	var tau := 0.10 if target > _occl else 0.22
 	_occl += (target - _occl) * (1.0 - exp(-dt / tau))
 	if _occl < 0.01:

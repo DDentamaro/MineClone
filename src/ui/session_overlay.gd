@@ -117,7 +117,7 @@ func _draw() -> void:
 		# a meta' schermo copriva il personaggio.
 		var ch := maxf(48, 48 * ui_density / _scale)
 		var cr := Rect2(s.x * 0.5 - 148, s.y - 180 - ch, 296, ch)
-		# Si sposta a sinistra finche' non copre piu' i pulsanti (Lock, Magia...).
+		# Si sposta a sinistra finche' non copre piu' i pulsanti (Lock, Colpo...).
 		while cr.position.x > 20.0 and _covers(cr):
 			cr.position.x -= 16.0
 		# Schermo stretto: nessun posto a sinistra, allora sale sopra i pulsanti.
@@ -180,7 +180,7 @@ func _draw_menu(s: Vector2) -> void:
 		var lines := [
 			["MUOVITI", "WASD / frecce o stick  ·  Spazio / Salto"],
 			["COMBATTI", "J: colpo  ·  K tenuto: carica  ·  L / Maiusc: schiva"],
-			["AGGANCIA / MAGIA", "R / tasto centrale: Lock  ·  U: magia  ·  Y: cambia"],
+			["AGGANCIA", "R / tasto centrale / Lock: aggancia o sgancia il bersaglio"],
 			["RACCOGLI / COSTRUISCI", "Tieni sul mondo: raccogli  ·  Tocca con blocco: posa"],
 			["INTERAGISCI", "F / clic destro / indicazione sullo schermo"],
 			["ZAINO / CAMERA", "I / Tab: zaino  ·  1–6: oggetto  ·  V: camera"],
@@ -226,7 +226,7 @@ func _draw_compact_menu(s: Vector2) -> void:
 		_text(p + Vector2(24, 329), "Preferenze salvate automaticamente", 13, GamePalette.MUTED)
 	else:
 		var clues := ["Esplora 24 metri con WASD / stick", "Tieni su alberi o blocchi", "Zaino > Craft: banco (4 legno)", "Impugna il banco e tocca il terreno", "Colpisci 3 volte un manichino", "Maiusc, L o Schiva", "Crea, posa e usa un falò", "Trova e apri un tesoro"]
-		var help := [["Movimento", "WASD / frecce / stick"], ["Salto", "Spazio / Salto"], ["Combattimento", "J: colpo · K: carica · L: schiva"], ["Magia", "U: lancia · Y: cambia magia"], ["Raccogli / posa", "Tieni premuto / tocca il mondo"], ["Zaino / interazioni", "I: zaino · F: interagisci vicino"], ["Camera", "Trascina · Q/E · rotella/pinch"], ["Lock", "R / clic centrale / Lock"]]
+		var help := [["Movimento", "WASD / frecce / stick"], ["Salto", "Spazio / Salto"], ["Combattimento", "J: colpo · K: carica · L: schiva"], ["Prima persona", "V / Iso: cambia camera"], ["Raccogli / posa", "Tieni premuto / tocca il mondo"], ["Zaino / interazioni", "I: zaino · F: interagisci vicino"], ["Camera", "Trascina · Q/E · rotella/pinch"], ["Lock", "R / clic centrale / Lock"]]
 		for i in 8:
 			var pos := p + Vector2(24 + (i % 2) * 294, 90 + (i / 2) * 50)
 			var title: String = help[i][0]

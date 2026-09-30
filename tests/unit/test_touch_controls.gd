@@ -152,16 +152,16 @@ func test_tocco_tenuto_sul_mondo() -> void:
 	tc.free()
 
 
-func test_barra_magie_entra_nello_schermo_del_telefono() -> void:
+func test_pulsanti_entrano_nello_schermo_del_telefono() -> void:
 	# Telefono 2400×1080 a 440 dpi: canvas 1600×720, 1 dp = 1,83 unita'
-	# (~393 dp di altezza). La vecchia colonna usciva sopra lo schermo.
+	# (~393 dp di altezza).
 	for case: Array in [[Vector2(1600, 720), 1.83], [Vector2(1280, 720), 1.0], [Vector2(960, 720), 1.6], [Vector2(1560, 720), 2.4]]:
 		var tc := _make()
 		tc.dp_scale = case[1]
 		tc.size = case[0]
 		tc._layout()
 		var others: Array[Rect2] = []
-		for id: StringName in [&"jump", &"attack", &"heavy", &"dodge", &"magic", &"bag", &"hero", &"dev", &"camera", &"lock"]:
+		for id: StringName in [&"jump", &"attack", &"heavy", &"dodge", &"bag", &"hero", &"dev", &"camera", &"lock", &"menu"]:
 			others.append(tc.button_rect(id))
 		var screen := Rect2(Vector2.ZERO, tc.size)
 		# D-035: il pulsante Lock entra nello schermo e non copre gli altri.
@@ -170,24 +170,18 @@ func test_barra_magie_entra_nello_schermo_del_telefono() -> void:
 		for o in others:
 			if o != lk:
 				check(not lk.intersects(o), "%s: Lock non copre %s" % [case, o])
-		for i in TouchControls.SPELLBAR:
-			var r := tc.button_rect(StringName("sp%d" % i))
-			check(screen.encloses(r), "%s: slot %d dentro lo schermo (%s)" % [case, i + 1, r])
-			check(r.size.x >= tc.dp(40.0) - 0.01, "%s: slot %d di almeno 40 dp" % [case, i + 1])
-			for o in others:
-				check(not r.intersects(o), "%s: slot %d non copre altri pulsanti (%s)" % [case, i + 1, o])
-			if i > 0:
-				check(not r.intersects(tc.button_rect(StringName("sp%d" % (i - 1)))), "slot separati")
+		for i in others.size():
+			check(screen.encloses(others[i]), "%s: pulsante %d dentro lo schermo (%s)" % [case, i, others[i]])
+			for j in range(i + 1, others.size()):
+				check(not others[i].intersects(others[j]), "%s: pulsanti %d e %d separati" % [case, i, j])
 		for i in TouchControls.HOTBAR:
 			var h := tc.button_rect(StringName("hot%d" % i))
 			check(screen.encloses(h), "%s: barra rapida %d dentro lo schermo" % [case, i + 1])
 			for o in others:
 				check(not h.intersects(o), "%s: barra rapida %d non sotto altri pulsanti (%s)" % [case, i + 1, o])
-		# Un tocco al centro di ogni slot lo preme.
-		for i in TouchControls.SPELLBAR:
-			var c := tc.button_rect(StringName("sp%d" % i)).get_center()
-			_buttons.clear()
-			_down(tc, 1, c)
-			_up(tc, 1, c)
-			check(_buttons.has(StringName("sp%d" % i)), "%s: slot %d premuto" % [case, i + 1])
+		# Un tocco al centro di Lock lo preme.
+		_buttons.clear()
+		_down(tc, 1, lk.get_center())
+		_up(tc, 1, lk.get_center())
+		check(_buttons.has(&"lock"), "%s: Lock premuto" % [case])
 		tc.queue_free()

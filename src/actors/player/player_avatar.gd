@@ -21,7 +21,7 @@ var _last_pos := Vector3.INF
 var trail: WeaponTrail
 var anim_state := AvatarAnimator.State.new()
 var _turn_prev := 0.0
-## Consapevolezza di combattimento: colpi, magia o un manichino vicino tengono
+## Consapevolezza di combattimento: colpi o un manichino vicino tengono
 ## la guardia; dopo 2,5 s di calma ci si rilassa.
 var aware_t := 0.0
 var _relax := 0.0
@@ -85,7 +85,7 @@ func turn_to(target: float, dt: float, rate: float) -> void:
 
 
 ## Aggiorna posa e scia; `dt` = 0 durante l'hitstop (posa congelata).
-func animate(dt: float, motor: PlayerMotor, combat: CombatController, magic: MagicSystem = null) -> void:
+func animate(dt: float, motor: PlayerMotor, combat: CombatController) -> void:
 	var s := anim_state
 	s.speed = Vector2(motor.velocity.x, motor.velocity.z).length()
 	s.on_ground = motor.on_ground
@@ -102,24 +102,8 @@ func animate(dt: float, motor: PlayerMotor, combat: CombatController, magic: Mag
 	s.u = combat.phase_u()
 	s.charge = combat.charge_fraction() if combat.charging else -1.0
 	s.dodge = combat.dodge_u()
-	s.gather = -1.0
-	s.release = -1.0
-	s.two_hands = false
-	s.cast_w = 0.0
-	if magic != null:
-		var cs := magic.cast_spell if magic.cast_spell != null else magic.spell()
-		s.two_hands = cs.two_handed()
-		if magic.phase == MagicSystem.Phase.GATHER:
-			s.gather = magic.w
-		elif magic.phase == MagicSystem.Phase.RECOVER:
-			s.release = clampf(magic.t / magic.spell().recover, 0.0, 1.0)
-		s.cast_w = magic.arm_w
-		s.cast_c = magic.cast_commit
-		s.stance = Vector3(cs.lean, cs.open, cs.widen)
-		s.converge = cs.hands_converge()
-		s.recoil = magic.recoil_pose()
 	# Guardia o riposo, e cambio d'arma.
-	var busy := s.attack != null or s.dodge >= 0.0 or s.cast_w > 0.0 or combat.combo > 0
+	var busy := s.attack != null or s.dodge >= 0.0 or combat.combo > 0
 	if busy:
 		aware_t = 2.5
 	else:
@@ -141,7 +125,7 @@ func animate(dt: float, motor: PlayerMotor, combat: CombatController, magic: Mag
 		s.reach = 1.0 - absf(_swap_t - half) / half
 		if _swap_t >= SWAP_TIME:
 			_swap_t = -1.0
-	rig.ik_enabled = s.cast_w <= 0.01 and _relax < 0.5 and s.reach < 0.3
+	rig.ik_enabled = _relax < 0.5 and s.reach < 0.3
 	if s.dodge >= 0.0 or s.attack != null:
 		s.speed = 0.0 if s.attack != null else s.speed * 0.2
 	if dt > 0.0:
