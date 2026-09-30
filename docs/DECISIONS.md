@@ -764,3 +764,18 @@ Richiesta del proprietario:
 - **Ritmo:** carica ×1,25, colpo ×1,1, rientro ×1,3 e il colpo seguente della catena parte non
   prima del 35% del rientro, per tutte le armi. Spadone e martello, già lenti (D-034), prendono metà
   dell'effetto; giri e picchiate restano come sono. Gli attrezzi non cambiano.
+
+## D-041 — Via i riquadri in alto, lancia dritta anche in terza persona, danno solo di punta
+Richiesta del proprietario:
+- **Riquadri in alto tolti:** il riquadro col titolo, l'ora e l'oggetto in mano e quello del
+  Diario non si disegnano più durante il gioco (occupavano schermo). L'oggetto in mano si vede
+  nella barra rapida, il Diario resta in Menu > Diario e un obiettivo completato arriva come
+  avviso. Restano i pulsanti in alto a destra (Eroe, camera, Zaino, Menu).
+- **Lancia dritta in terza persona:** in prima persona gli affondi si leggevano, in terza persona
+  sembravano spazzate. Misurato con `tools/spear_probe.gd`: dalla carica al colpo la lancia girava
+  da 36° a destra a 47° a sinistra (il petto ruotava da -40° a +55°). Nuove pose di carica, colpo e
+  seguito: la lancia resta entro ±9° dall'avanti per tutto il colpo e la punta avanza di ~0,8 m
+  lungo l'asta (più il passo dell'affondo). La stoccata alta sale di ~28°, non spazza di lato.
+- **Danno solo di punta:** le sfere che feriscono della lancia coprono solo la testa di ferro
+  (da 1,2 a 1,62 lungo l'arma), non più l'asta (prima da 0,95). Test: lancia dritta per ogni
+  colpo di punta, punta che avanza, sfere tutte sulla testa.

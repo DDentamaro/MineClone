@@ -123,3 +123,40 @@ func test_facce_sotto_l_armatura_tolte() -> void:
 				if b.has_point(P[I[j]]) and b.has_point(P[I[j + 1]]) and b.has_point(P[I[j + 2]]):
 					inside += 1
 	check_eq(inside, 0, "niente facce dentro la corazza")
+
+
+## D-041: in terza persona la lancia affonda dritta (non spazza) e ferisce solo
+## con la punta di ferro.
+func test_lancia_affonda_dritta_e_ferisce_di_punta() -> void:
+	var w := WeaponLibrary.by_id(&"spear")
+	var rig := AvatarRig.new()
+	(Engine.get_main_loop() as SceneTree).root.add_child(rig)
+	rig.build(AvatarRecipe.new())
+	rig.set_weapon(w)
+	for aid in [&"thrust", &"thrust2", &"rise", &"impale", &"drive", &"charge", &"dash_thrust"]:
+		var a := w.attack(aid)
+		var worst := 0.0
+		var tip0 := 0.0
+		var tip1 := 0.0
+		for k in 7:
+			var s := AvatarAnimator.State.new()
+			s.weapon = w
+			s.attack = a
+			s.phase = 0 if k == 0 else 1
+			s.u = 1.0 if k == 0 else float(k) / 6.0
+			rig.apply_pose(AvatarAnimator.new().target_pose(0.0, s))
+			var g := rig.socket.global_transform
+			var d := g * Vector3(0, w.trail_to, 0) - g.origin
+			worst = maxf(worst, absf(rad_to_deg(atan2(d.x, -d.z))))
+			var f := -(g * Vector3(0, w.trail_to, 0)).z
+			if k == 0:
+				tip0 = f
+			tip1 = f
+		check(worst < 12.0, "%s: la lancia resta dritta davanti (scarto massimo %.0f°)" % [aid, worst])
+		check(tip1 - tip0 > 0.5, "%s: la punta va avanti (%.2f m)" % [aid, tip1 - tip0])
+	# Le sfere che feriscono stanno tutte sulla testa della lancia.
+	var g := rig.socket.global_transform
+	for hb: Array in rig.hitboxes():
+		var local: Vector3 = g.affine_inverse() * (hb[0] as Vector3)
+		check(local.y >= 1.19, "sfera sulla punta (%.2f)" % local.y)
+	rig.free()

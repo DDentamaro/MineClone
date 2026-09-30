@@ -95,23 +95,9 @@ func _draw() -> void:
 		return
 	if not hud_visible:
 		return
-	# Scheda compatta; la telemetria di debug si vede solo negli strumenti sviluppatore.
-	var x := s.x - 312.0 if left_handed else 20.0
-	_box(Rect2(x, 20, 292, 92))
-	_text(Vector2(x + 16, 45), "ISOTERRA", 21, GamePalette.ACCENT)
-	_text(Vector2(x + 178, 45), clock_text, 14, GamePalette.MUTED, 102)
-	_text(Vector2(x + 16, 75), held_name, 16, GamePalette.INK, 260)
-	_text(Vector2(x + 16, 97), "ESPLORA  /  CREA  /  SCOPRI", 10, GamePalette.MUTED)
-	if hints and show_objective:
-		var goal := journal.current()
-		_box(Rect2(x, 124, 292, 100))
-		_text(Vector2(x + 16, 147), "DIARIO   %d / %d" % [journal.completed_count(), ExpeditionJournal.GOALS.size()], 11, GamePalette.ACCENT)
-		_text(Vector2(x + 16, 171), "La tua avventura continua" if goal.is_empty() else String(goal["title"]), 16, GamePalette.INK, 260)
-		var fraction := 1.0 if goal.is_empty() else float(journal.counts.get(goal["id"], 0.0)) / float(goal["target"])
-		draw_rect(Rect2(Vector2(x + 16, 184) * _scale, Vector2(260, 3) * _scale), GamePalette.EDGE)
-		draw_rect(Rect2(Vector2(x + 16, 184) * _scale, Vector2(260 * fraction, 3) * _scale), GamePalette.ACCENT)
-		var clues := {"walk": "WASD / stick: esplora 24 metri", "harvest": "Tieni premuto su alberi o blocchi", "craft": "Zaino > Craft: banco da lavoro", "build": "Impugna il banco e tocca il terreno", "hit": "J / Colpo: colpisci i manichini", "dodge": "Maiusc / Schiva: esegui una capriola", "camp": "Crea un falò e interagisci", "treasure": "Cerca i forzieri oltre il campo"}
-		_text(Vector2(x + 16, 210), String(clues.get(goal.get("id", ""), "Menu > Diario per i traguardi")), 12, GamePalette.MUTED, 260)
+	# D-041: niente piu' riquadri fissi in alto (titolo con l'oggetto in mano e
+	# Diario): occupavano schermo. L'oggetto si vede nella barra rapida, il
+	# Diario resta in Menu > Diario e i traguardi raggiunti arrivano come avviso.
 	if context_text != "":
 		# Sotto i piedi dell'eroe (al centro dello schermo) e sopra gli avvisi:
 		# a meta' schermo copriva il personaggio.

@@ -46,6 +46,8 @@ del corpo si vedono solo le braccia dritte e la mano con l'oggetto impugnato (D-
 Armi e attrezzi sono a cubetti come i blocchi del mondo; ascia e piccone ripetono sempre lo
 stesso colpo; sul telefono due dita zoomano in isometrica e in terza persona (D-039). La lancia
 colpisce solo di punta; i colpi hanno un ritmo più calmo e la camera non balla (D-040).
+La lancia affonda dritta anche in terza persona e ferisce solo con la punta; durante il gioco
+non ci sono più riquadri in alto, il Diario è in Menu > Diario (D-041).
 
 ## Struttura
 

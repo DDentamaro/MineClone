@@ -291,7 +291,8 @@ static func _spear() -> WeaponDefinition:
 	w.air_attack = &"plunge"
 	w.trail_from = 1.25
 	w.trail_to = 1.62
-	w.hit_from = 0.95
+	# D-041: ferisce solo la punta (la testa di ferro, da 1,2 a 1,62), non l'asta.
+	w.hit_from = 1.2
 	w.strike_dist = 1.25
 	w.move_mult = 1.0
 	w.relaxed = pose({"arm_r": [10, 0, 10], "fore_r": [70, 0, 0], "hand_r": [0, 0, 0], "arm_l": [4, 0, -6], "fore_l": [14, 0, 0]})
@@ -302,11 +303,13 @@ static func _spear() -> WeaponDefinition:
 	var th := {"windup": 0.08, "active": 0.08, "recovery": 0.18, "chain_at": 0.12, "shape": AttackDefinition.Shape.THRUST,
 		"reach_min": 0.4, "reach": 2.75, "width": 0.35, "damage": 8.0, "knockback": 1.2, "hitstop": 0.05, "shake": 0.1, "lunge": 0.8,
 		"strike": 1.3, "pierce": 0.6}
-	var wind := _with(STANCE, {"arm_r": [-18, 0, 12], "fore_r": [86, 0, 0], "hand_r": [-68, 0, 0], "chest": [0, -40, 0], "head": [0, 34, 0]})
-	# L'affondo punta dritto: la spalla destra viene avanti (petto girato di 55°),
-	# altrimenti la lancia usciva di 43° di lato e passava accanto al bersaglio.
-	var strike := _with(LUNGE, {"arm_r": [86, -6, 2], "fore_r": [6, 0, 0], "hand_r": [-86, 0, 0], "chest": [-12, 55, 0], "head": [0, -40, 0]})
-	var follow := _with(STANCE, {"arm_r": [60, 0, 6], "fore_r": [30, 0, 0], "hand_r": [-90, 0, 0], "chest": [0, -20, 0]})
+	# D-041: carica, colpo e seguito tengono la lancia dritta davanti all'eroe
+	# (entro ±6°, misurato con tools/spear_probe.gd): la punta va avanti e indietro
+	# lungo l'asta. Prima il petto girava da -40° a +55° e la lancia spazzava di
+	# 80° da destra a sinistra, come un fendente.
+	var wind := _with(STANCE, {"arm_r": [-30, 50, 12], "fore_r": [100, 0, 0], "hand_r": [-68, 0, 0], "chest": [0, -55, 0], "head": [0, 45, 0]})
+	var strike := _with(LUNGE, {"arm_r": [86, -15, 2], "fore_r": [6, 0, 0], "hand_r": [-86, 0, 0], "chest": [-12, 20, 0], "head": [0, -20, 0]})
+	var follow := _with(STANCE, {"arm_r": [30, 15, 8], "fore_r": [55, 0, 0], "hand_r": [-78, 0, 0], "chest": [-6, -20, 0], "head": [0, 20, 0]})
 	_atk(w, "thrust", _with(th, {"next_light": "thrust2", "next_heavy": "drive"}), wind, strike, follow)
 	_atk(w, "thrust2", _with(th, {"damage": 9.0, "next_light": "rise", "next_heavy": "drive", "lunge": 0.9, "step_foot": 1.0}), wind, strike, follow)
 	# Stoccata alta (D-040): la punta sale da sotto e trapassa verso l'alto,
@@ -314,22 +317,22 @@ static func _spear() -> WeaponDefinition:
 	_atk(w, "rise", _with(th, {"windup": 0.12, "active": 0.1, "recovery": 0.24, "chain_at": 0.2, "damage": 11.0,
 		"knockback": 2.0, "launch": 4.0, "hitstop": 0.07, "shake": 0.14, "lunge": 0.9, "pierce": 0.9, "step_foot": 1.0,
 		"next_light": "impale", "next_heavy": "drive"}),
-		_with(SQUAT, {"arm_r": [-12, 0, 14], "fore_r": [80, 0, 0], "hand_r": [-50, 0, 0], "chest": [-6, -45, 0], "head": [0, 38, 0]}),
-		_with(LUNGE, {"arm_r": [104, -6, 2], "fore_r": [4, 0, 0], "hand_r": [-96, 0, 0], "chest": [-16, 55, 0], "head": [0, -40, 0]}),
-		_with(STANCE, {"arm_r": [84, 0, 6], "fore_r": [20, 0, 0], "hand_r": [-94, 0, 0], "chest": [-4, -10, 0]}))
+		_with(SQUAT, {"arm_r": [-30, 50, 12], "fore_r": [100, 0, 0], "hand_r": [-68, 0, 0], "chest": [0, -55, 0], "head": [0, 45, 0]}),
+		_with(LUNGE, {"arm_r": [116, -15, 2], "fore_r": [4, 0, 0], "hand_r": [-86, 0, 0], "chest": [-16, 20, 0], "head": [0, -20, 0]}),
+		_with(STANCE, {"arm_r": [60, 0, 6], "fore_r": [40, 0, 0], "hand_r": [-84, 0, 0], "chest": [-6, -10, 0], "head": [0, 10, 0]}))
 	# Infilzata: carica lunga all'indietro, affondo col peso del corpo che
 	# trapassa per 1,6 m oltre la punta; chiude la catena e spinge lontano.
 	_atk(w, "impale", _with(th, {"windup": 0.22, "active": 0.13, "recovery": 0.36, "chain_at": 0.3, "reach": 2.9, "width": 0.45,
 		"damage": 15.0, "knockback": 8.0, "hitstop": 0.11, "shake": 0.3, "lunge": 1.4, "pierce": 1.6, "move_scale": 0.0,
 		"next_light": "thrust", "next_heavy": "charge"}),
-		_with(STANCE, {"arm_r": [-30, 0, 14], "fore_r": [96, 0, 0], "hand_r": [-66, 0, 0], "chest": [4, -55, 0], "spine": [0, -12, 0], "head": [0, 45, 0], "body_pos": [0, -0.02, 0.06]}),
+		_with(SQUAT, {"arm_r": [-40, 50, 12], "fore_r": [100, 0, 0], "hand_r": [-68, 0, 0], "chest": [0, -55, 0], "head": [0, 50, 0]}),
 		strike, follow)
 	# Affondo in avanzata (D-040, ramo forte della catena): un passo lungo e la
 	# lancia che trapassa la fila; prima era un giro di taglio a 360°.
 	_atk(w, "drive", _with(th, {"windup": 0.18, "active": 0.14, "recovery": 0.34, "chain_at": 0.3, "reach": 2.9, "width": 0.45,
 		"damage": 13.0, "knockback": 6.0, "hitstop": 0.1, "shake": 0.22, "lunge": 1.9, "pierce": 1.3, "move_scale": 0.0,
 		"step_foot": 1.0, "next_light": "thrust", "next_heavy": "charge"}),
-		_with(STANCE, {"arm_r": [-30, 0, 14], "fore_r": [96, 0, 0], "hand_r": [-66, 0, 0], "chest": [4, -55, 0], "spine": [0, -12, 0], "head": [0, 45, 0]}),
+		_with(SQUAT, {"arm_r": [-40, 50, 12], "fore_r": [100, 0, 0], "hand_r": [-68, 0, 0], "chest": [0, -55, 0], "head": [0, 50, 0]}),
 		strike, follow)
 	_atk(w, "charge", _with(th, {"windup": 0.22, "active": 0.24, "recovery": 0.36, "chain_at": 0.0, "reach": 2.9, "width": 0.55,
 		"damage": 16.0, "knockback": 12.0, "launch": 2.0, "hitstop": 0.12, "shake": 0.35, "lunge": 6.0, "move_scale": 0.0,

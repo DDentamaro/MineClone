@@ -1,5 +1,21 @@
 # Avanzamento
 
+## 30/09/2026 — D-041: via i riquadri in alto, lancia dritta anche in terza persona, danno solo di punta
+
+Tolti dal gioco i riquadri in alto a sinistra (titolo con l'oggetto in mano e Diario). In terza
+persona la lancia affonda dritta invece di spazzare, e ferisce solo con la punta di ferro.
+
+### Test realmente eseguiti (D-041)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 192/192 PASS, log pulito. Nuovo: per ogni colpo di punta della lancia, scarto massimo dall'avanti < 12° e punta che avanza di oltre 0,5 m; sfere che feriscono tutte sulla testa della lancia |
+| `tools/spear_probe.gd` (nuovo) | prima: la lancia girava da +36° a -47° durante il colpo; dopo: entro ±9° per stoccate, stoccata alta, infilzata, affondo, carica e stoccata in corsa |
+| Suite e2e completa (movimenti, prima persona, combattimento, aggancio, sessione, touch, sandbox, passo, oggetti a terra, armeria, nuoto, opzioni e opzioni sul telefono) | OK, nessun errore di script. Lancia col solo danno di punta: catena `thrust, thrust2, rise, impale` tutta a segno, infilzata su due in fila [1, 1] |
+| Screenshot controllati | lancia in isometrica: stoccata e stoccata alta dritte sul manichino; niente riquadri in alto |
+| Export Android debug 0.20.0-m5 (versionCode 22) + `apksigner verify` + `aapt2 dump badging` | OK; mai installato su un telefono |
+
+Non verificato: come si legge l'affondo della lancia in terza persona su un telefono vero.
+
 ## 30/09/2026 — D-040: lancia solo di punta, prima persona più piccola a destra, camera più calma, colpi meno frenetici
 
 La lancia non taglia più: stoccata, stoccata col passo, stoccata alta, infilzata; ramo forte
