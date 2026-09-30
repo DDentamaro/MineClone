@@ -8,10 +8,6 @@ enum Kind { FISTS, SWORD, SPEAR, HAMMER, GREATSWORD }
 @export var id: StringName
 @export var display_name := ""
 @export var kind: Kind = Kind.SWORD
-## La mano sinistra afferra l'impugnatura (IK a due ossa).
-@export var two_handed := false
-## Punto dell'impugnatura per la mano sinistra (spazio arma, lungo +Y).
-@export var off_grip := -0.2
 @export var light_start: StringName = &""
 @export var heavy_start: StringName = &""
 @export var dash_attack: StringName = &""

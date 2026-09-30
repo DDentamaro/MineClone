@@ -185,3 +185,53 @@ func test_pulsanti_entrano_nello_schermo_del_telefono() -> void:
 		_up(tc, 1, lk.get_center())
 		check(_buttons.has(&"lock"), "%s: Lock premuto" % [case])
 		tc.queue_free()
+
+
+func test_pinch_parte_anche_dalla_zona_stick() -> void:
+	# D-039: due dita quasi insieme, la prima nella zona dello stick: zoom, non stick.
+	var tc := _make()
+	_down(tc, 0, Vector2(300, 600))
+	check(tc.in_stick_zone(Vector2(300, 600)), "il primo dito e' nella zona stick")
+	_down(tc, 1, Vector2(800, 300))
+	_move(tc, 1, Vector2(900, 250))
+	_move(tc, 1, Vector2(1000, 200))
+	check(_zooms.size() >= 1 and _zooms[-1] > 1.0, "zoom in allargando (%s)" % [_zooms])
+	check_eq(tc.stick_vector, Vector2.ZERO, "nessuno stick")
+	check_eq(_drags.size(), 0, "il pinch non ruota la camera")
+	_up(tc, 0, Vector2(300, 600))
+	_up(tc, 1, Vector2(1000, 200))
+	check_eq(_taps.size(), 0, "nessun tap")
+	tc.free()
+
+
+func test_pinch_annulla_lo_scavo_appena_iniziato() -> void:
+	var tc := _make()
+	var holds: Array = []
+	tc.world_hold.connect(func(p: Vector2, on: bool) -> void: holds.append(on))
+	_down(tc, 0, Vector2(800, 300))
+	# Il primo dito e' fermo da 200 ms: e' gia' partita la tenuta (scavo).
+	for f in tc._fingers.values():
+		f.t0 -= 200
+	tc._process(0.016)
+	check_eq(holds, [true], "tenuta iniziata")
+	_down(tc, 1, Vector2(1000, 300))
+	check_eq(holds, [true, false], "il secondo dito annulla lo scavo")
+	_move(tc, 1, Vector2(1050, 300))
+	_move(tc, 1, Vector2(1100, 300))
+	check(_zooms.size() >= 1 and _zooms[-1] > 1.0, "zoom (%s)" % [_zooms])
+	tc.free()
+
+
+func test_stick_gia_in_uso_non_diventa_pinch() -> void:
+	# Lo stick tenuto da piu' di PINCH_MS resta stick quando scende un altro dito.
+	var tc := _make()
+	_down(tc, 0, Vector2(200, 600))
+	for f in tc._fingers.values():
+		f.t0 -= TouchControls.PINCH_MS + 50
+	_move(tc, 0, Vector2(300, 600))
+	_down(tc, 1, Vector2(900, 300))
+	_move(tc, 1, Vector2(950, 300))
+	check(tc.stick_vector.x > 0.99, "lo stick resta attivo")
+	check_eq(_zooms.size(), 0, "nessuno zoom")
+	check_eq(_drags.size(), 1, "il secondo dito gira la camera")
+	tc.free()

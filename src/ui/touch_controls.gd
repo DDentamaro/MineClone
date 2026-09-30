@@ -26,6 +26,8 @@ signal world_hold(position: Vector2, active: bool)
 const TAP_MAX_MOVE := 8.0
 const TAP_MAX_MS := 450
 const HOLD_MS := 180
+## Seconda dita entro questo tempo dalla prima: pinch (zoom), non stick.
+const PINCH_MS := 300
 ## Slot della barra rapida (in basso al centro).
 const HOTBAR := 6
 ## Raggio di escursione dello stick in dp (prototipo: 40 px).
@@ -361,15 +363,24 @@ func _touch_down(index: int, p: Vector2) -> bool:
 				button_pressed.emit(b.id)
 			queue_redraw()
 			return true
-	if in_stick_zone(p) and not _has_role(Role.STICK):
+	# Pinch a due dita (D-039): se un altro dito sul mondo e' appena sceso ed e'
+	# quasi fermo, le due dita zoomano anche se il primo era nella zona dello
+	# stick; prima uno dei due diventava stick o scavo e lo zoom non partiva.
+	var other := _pinch_partner(f.t0)
+	if other != null:
+		if other.role == Role.STICK:
+			stick_vector = Vector2.ZERO
+		other.role = Role.CAMERA
+		f.role = Role.CAMERA
+		_start_pinch()
+	elif in_stick_zone(p) and not _has_role(Role.STICK):
 		f.role = Role.STICK
 		stick_center = p
 		stick_vector = Vector2.ZERO
 	else:
 		f.role = Role.CAMERA
 		if _count_role(Role.CAMERA) >= 1:
-			_pinch_used = true
-			_pinch_d0 = 0.0
+			_start_pinch()
 	_fingers[index] = f
 	queue_redraw()
 	return true
@@ -392,6 +403,30 @@ func _process(_dt: float) -> void:
 				and now - f.t0 >= HOLD_MS and _count_role(Role.CAMERA) == 1:
 			f.holding = true
 			world_hold.emit(f.last, true)
+
+
+## Dito sul mondo (stick o camera) sceso da meno di PINCH_MS e quasi fermo.
+func _pinch_partner(now: int) -> Finger:
+	var list: Array[Finger] = []
+	for g: Finger in _fingers.values():
+		if g.role == Role.STICK or g.role == Role.CAMERA:
+			list.append(g)
+	if list.size() != 1:
+		return null
+	var g := list[0]
+	if now - g.t0 <= PINCH_MS and g.moved <= TAP_MAX_MOVE * 2.0:
+		return g
+	return null
+
+
+## Due dita sul mondo: zoom. Uno scavo appena iniziato col primo dito si annulla.
+func _start_pinch() -> void:
+	_pinch_used = true
+	_pinch_d0 = 0.0
+	for g: Finger in _fingers.values():
+		if g.holding:
+			g.holding = false
+			world_hold.emit(g.last, false)
 
 
 func _touch_move(index: int, p: Vector2) -> bool:

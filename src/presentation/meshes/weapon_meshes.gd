@@ -47,65 +47,103 @@ static func build(kind: WeaponDefinition.Kind, mat: Color = Color(0, 0, 0, 0)) -
 	var k := MeshKit.new()
 	match kind:
 		WeaponDefinition.Kind.SWORD:
-			_sword(k)
+			_sprite(k, _sword_rows(), 2)
 		WeaponDefinition.Kind.SPEAR:
-			_spear(k)
+			_sprite(k, _spear_rows(), 13)
 		WeaponDefinition.Kind.HAMMER:
-			_hammer(k)
+			_sprite(k, _hammer_rows(), 6)
 		WeaponDefinition.Kind.GREATSWORD:
-			_greatsword(k)
+			_sprite(k, _greatsword_rows(), 6)
 		_:
 			_wraps(k)
 	return k.commit()
 
 
-## Spada a una mano: lama con sguscio, guardia a becchi, pomo a disco.
-static func _sword(k: MeshKit) -> void:
-	k.prism(Vector3.ZERO, -0.12, 0.09, 0.028, 0.026, 6, LEATHER)
-	k.prism(Vector3.ZERO, -0.17, -0.12, 0.045, 0.04, 8, BRASS)
-	k.box(Vector3(0, 0.11, 0), Vector3(0.26, 0.04, 0.06), BRASS, 0.012)
-	k.box(Vector3(0.14, 0.13, 0), Vector3(0.04, 0.06, 0.05), BRASS, 0.01)
-	k.box(Vector3(-0.14, 0.13, 0), Vector3(0.04, 0.06, 0.05), BRASS, 0.01)
-	k.blade(0.13, 0.84, 0.1, 0.028, 0.16, _steel, _edge, Transform3D.IDENTITY, 0.085)
-	# Sguscio: una lista scura sottile al centro delle due facce.
-	k.box(Vector3(0, 0.42, 0), Vector3(0.018, 0.5, 0.032), _dark, 0.0)
+# --- armi a voxel (D-039): come gli oggetti di Minecraft, un disegno a pixel
+# estruso in cubetti, cosi' le armi hanno lo stesso aspetto a blocchi del mondo.
+# Righe dall'alto (punta) al basso (pomo); `grip` = riga dell'impugnatura
+# (y = 0). Stesse lunghezze delle vecchie mesh lisce: hitbox e scie non cambiano.
+
+## Lato di un pixel nello spazio arma.
+const PX := 0.055
+## Spessore (in pixel) per lettera; le altre lettere sono spesse un pixel.
+const DEPTH := {"G": 1.4, "H": 4.4, "h": 4.4, "L": 1.2}
 
 
-## Lancia: asta lunga con fasce di cuoio, puntale e ferro a foglia con alette.
-static func _spear(k: MeshKit) -> void:
-	k.prism(Vector3.ZERO, -0.62, 1.3, 0.03, 0.028, 6, WOOD)
-	k.prism(Vector3.ZERO, -0.7, -0.62, 0.02, 0.034, 6, _dark)
-	for y in [-0.08, 0.1, -0.44]:
-		k.prism(Vector3.ZERO, y, y + 0.07, 0.036, 0.036, 6, LEATHER)
-	k.prism(Vector3.ZERO, 1.26, 1.34, 0.04, 0.034, 6, BRASS)
-	k.box(Vector3(0, 1.3, 0), Vector3(0.12, 0.03, 0.04), _dark, 0.008)
-	k.blade(1.33, 1.48, 0.12, 0.034, 0.2, _steel, _edge, Transform3D.IDENTITY, 0.1)
-	# Nappa rossa sotto il ferro.
-	k.box(Vector3(0.0, 1.18, 0.0), Vector3(0.07, 0.12, 0.07), CLOTH, 0.02, 0.6)
+static func _pal(ch: String) -> Color:
+	match ch:
+		"B", "H":
+			return _steel
+		"E":
+			return _edge
+		"D", "h":
+			return _dark
+		"W":
+			return WOOD
+		"L":
+			return LEATHER
+		"G":
+			return BRASS
+		"C":
+			return CLOTH
+	return Color.MAGENTA
 
 
-## Martello da guerra: manico lungo, testa squadrata con fasce e punta.
-static func _hammer(k: MeshKit) -> void:
-	k.prism(Vector3.ZERO, -0.28, 0.9, 0.034, 0.032, 6, WOOD)
-	k.prism(Vector3.ZERO, -0.34, -0.28, 0.045, 0.045, 6, _dark)
-	k.prism(Vector3.ZERO, -0.1, 0.12, 0.04, 0.04, 6, LEATHER)
-	k.box(Vector3(0, 0.98, 0), Vector3(0.44, 0.26, 0.26), _dark, 0.035)
-	k.box(Vector3(0.23, 0.98, 0), Vector3(0.05, 0.3, 0.3), _steel, 0.02)
-	k.box(Vector3(-0.23, 0.98, 0), Vector3(0.05, 0.3, 0.3), _steel, 0.02)
-	k.box(Vector3(0, 0.98, 0), Vector3(0.1, 0.28, 0.28), BRASS, 0.015)
-	k.prism(Vector3(0, 1.1, 0), 0.0, 0.14, 0.05, 0.0, 4, _steel)
+## Estrude il disegno: un cubetto per pixel, con una leggera variazione a
+## scacchi del colore come la tessitura dei blocchi.
+static func _sprite(k: MeshKit, rows: Array, grip: int) -> void:
+	var n := rows.size()
+	for i in n:
+		var row: String = rows[i]
+		var r := n - 1 - i
+		var w := row.length()
+		for c in w:
+			var ch := row[c]
+			if ch == ".":
+				continue
+			var col := _pal(ch)
+			col = col.lightened(0.05) if (r + c) % 2 == 0 else col.darkened(0.05)
+			var d := PX * float(DEPTH.get(ch, 1.0))
+			k.box(Vector3((c - (w - 1) * 0.5) * PX, (r - grip) * PX, 0), Vector3(PX, PX, d), col, 0.0)
 
 
-## Spadone a due mani: lama larga e lunga, ricasso, guardia dritta.
-static func _greatsword(k: MeshKit) -> void:
-	k.prism(Vector3.ZERO, -0.3, 0.1, 0.032, 0.03, 6, LEATHER)
-	k.box(Vector3(0, -0.34, 0), Vector3(0.09, 0.08, 0.09), BRASS, 0.02)
-	k.box(Vector3(0, 0.12, 0), Vector3(0.42, 0.05, 0.07), _dark, 0.014)
-	k.box(Vector3(0.21, 0.12, 0), Vector3(0.05, 0.08, 0.08), BRASS, 0.012)
-	k.box(Vector3(-0.21, 0.12, 0), Vector3(0.05, 0.08, 0.08), BRASS, 0.012)
-	k.box(Vector3(0, 0.22, 0), Vector3(0.1, 0.16, 0.04), _dark, 0.008)
-	k.blade(0.3, 1.36, 0.17, 0.04, 0.2, _steel, _edge, Transform3D.IDENTITY, 0.14)
-	k.box(Vector3(0, 0.78, 0), Vector3(0.028, 0.86, 0.046), _dark, 0.0)
+## Spada a una mano: lama di tre pixel col filo chiaro, guardia, manico, pomo.
+static func _sword_rows() -> Array:
+	var rows := ["..E.."]
+	for i in 13:
+		rows.append(".EBE.")
+	rows.append_array(["GGGGG", "..L..", "..L..", "..L..", "..L..", ".GGG."])
+	return rows
+
+
+## Spadone: lama larga con la sgusciatura scura, guardia lunga, manico lungo.
+static func _greatsword_rows() -> Array:
+	var rows := ["...E...", "..EEE.."]
+	for i in 22:
+		rows.append(".EBDBE.")
+	rows.append("GGGGGGG")
+	for i in 7:
+		rows.append("...L...")
+	rows.append("..GGG..")
+	return rows
+
+
+## Lancia: ferro a foglia, collare, nappa, asta lunga con fasce di cuoio.
+static func _spear_rows() -> Array:
+	var rows := ["..E..", ".EBE.", ".EBE.", "EBDBE", "EBDBE", ".EBE.", "..D..", ".CGC."]
+	for r in range(34, 0, -1):
+		rows.append("..L.." if (r >= 11 and r <= 15) or r == 5 or r == 6 else "..W..")
+	rows.append("..D..")
+	return rows
+
+
+## Martello: manico con impugnatura di cuoio, testa squadrata spessa con fascia.
+static func _hammer_rows() -> Array:
+	var rows := ["....E....", "....B....", "hHHHHHHHh", "hHGGGGGHh", "hHGGGGGHh", "hHGGGGGHh", "hHHHHHHHh"]
+	for r in range(21, 0, -1):
+		rows.append("....L...." if r >= 4 and r <= 8 else "....W....")
+	rows.append("....D....")
+	return rows
 
 
 ## Pugni: fasce di cuoio con borchie (vanno su entrambe le mani).
@@ -117,26 +155,22 @@ static func _wraps(k: MeshKit) -> void:
 		k.box(Vector3(x, -0.113, -0.02), Vector3(0.026, 0.02, 0.026), _steel, 0.006)
 
 
-## Attrezzi da raccolta (M5): impugnatura in legno lungo +Y, testa del materiale.
+## Attrezzi da raccolta (M5, a voxel da D-039): manico in legno lungo +Y,
+## testa del materiale.
 static func build_tool(tool_type: String, mat: Color) -> ArrayMesh:
 	_set_material(mat)
 	var k := MeshKit.new()
-	k.prism(Vector3.ZERO, -0.16, 0.62, 0.028, 0.026, 6, WOOD)
-	k.prism(Vector3.ZERO, -0.06, 0.08, 0.034, 0.034, 6, LEATHER)
+	var head: Array
 	match tool_type:
 		"pick":
-			# Testa ricurva: due bracci inclinati verso il basso.
-			for sx in [-1.0, 1.0]:
-				var xf := MeshKit.rot_about(Vector3(0, 0, 1), sx * -0.35, Vector3(0, 0.6, 0))
-				k.box(Vector3(0.14 * sx, 0.6, 0), Vector3(0.26, 0.06, 0.06), _steel, 0.015, 1.0, xf)
-				k.prism(Vector3(0.28 * sx, 0.55, 0), 0.0, 0.0001, 0.02, 0.02, 4, _edge)
-			k.box(Vector3(0, 0.6, 0), Vector3(0.08, 0.09, 0.08), _dark, 0.015)
+			head = [".EBBBBBE.", "E...D...E"]
 		"axe":
-			k.box(Vector3(0.1, 0.55, 0), Vector3(0.16, 0.16, 0.04), _steel, 0.01, 0.75)
-			k.box(Vector3(0.19, 0.55, 0), Vector3(0.03, 0.2, 0.045), _edge, 0.006)
-			k.box(Vector3(0, 0.55, 0), Vector3(0.07, 0.1, 0.07), _dark, 0.015)
+			head = ["....WBBE.", "....DBBBE", "....WBBBE", "....WBBE."]
 		_:
-			k.box(Vector3(0, 0.72, 0), Vector3(0.16, 0.2, 0.025), _steel, 0.01, 1.0)
-			k.box(Vector3(0, 0.83, 0), Vector3(0.14, 0.03, 0.03), _edge, 0.006)
-			k.box(Vector3(0, 0.6, 0), Vector3(0.06, 0.05, 0.05), _dark, 0.01)
+			head = ["..EBBBE..", "..BBBBB..", "..BBBBB..", "...BBB...", "....D...."]
+	var rows: Array = head.duplicate()
+	for r in range(18 - head.size(), 0, -1):
+		rows.append("....L...." if r >= 2 and r <= 4 else "....W....")
+	rows.append("....D....")
+	_sprite(k, rows, 3)
 	return k.commit()

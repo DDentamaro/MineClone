@@ -337,3 +337,18 @@ func test_ritmi_per_arma() -> void:
 	check(gs.total() > sw.total() * 1.4 and hm.total() > sw.total() * 1.4, "spadone e martello lenti (%.2f, %.2f)" % [gs.total(), hm.total()])
 	check(gs.windup >= 0.25 and hm.windup >= 0.3, "carica lunga")
 	check(hm.move_scale < sw.move_scale, "quasi fermi mentre colpiscono")
+
+
+func test_attrezzo_ripete_lo_stesso_colpo() -> void:
+	# D-039: ascia e piccone non sono armi da lotta: un solo colpo, sempre uguale.
+	var w := WeaponLibrary.by_id(&"tool")
+	check_eq(w.attacks.keys(), [&"chop"], "un solo colpo")
+	var r := Rig.new(&"tool")
+	for i in 3:
+		r.combat.press_light()
+		r.step(int(0.3 / DT))
+	r.settle()
+	r.combat.press_heavy()
+	r.combat.release_heavy()
+	r.settle()
+	check_eq(r.started, [&"chop", &"chop", &"chop", &"chop"] as Array[StringName], "leggero e forte ripetono il colpo")

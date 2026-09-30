@@ -30,17 +30,15 @@ const HAND := 0.04
 const SHOULDER := Vector3(0.40, 0.19, 0.0)
 ## Altezza della testa senza capelli (collo .80 + testa .58).
 const HEIGHT := 1.38
-## Le armi di M4 sono lunghe per un eroe di 1,46 m con arti lunghi: nella mano
-## dell'eroe del prototipo stanno a questa scala (spada ~0,7 come nel prototipo).
-const WEAPON_SCALE := 0.72
+## Armi a voxel (D-039): cubetti di pixel come i blocchi del mondo, a questa
+## scala la spada e' lunga ~1,3 m nella mano dell'eroe (si legge anche dal telefono).
+const WEAPON_SCALE := 1.2
 
 var recipe := AvatarRecipe.new()
 var bones := {}
 var rest := {}
 var weapon: WeaponDefinition
 var socket: Node3D
-## IK della mano sinistra sull'arma a due mani (spento a riposo e al cambio d'arma).
-var ik_enabled := true
 var _material: ShaderMaterial
 var _instances: Array[GeometryInstance3D] = []
 var _weapon_nodes: Array[MeshInstance3D] = []
@@ -252,37 +250,6 @@ func apply_pose(pose: Dictionary) -> void:
 		n.transform = Transform3D(Basis.from_euler(r), rest[b])
 	var bp: Vector3 = pose.get(&"body_pos", Vector3.ZERO)
 	(bones[&"body"] as Node3D).position = bp
-	if weapon != null and weapon.two_handed and ik_enabled:
-		solve_off_hand()
-
-
-## IK a due ossa: la mano sinistra afferra l'impugnatura dell'arma. Tutto in
-## spazio del rig (funziona anche fuori dall'albero, nei test).
-func solve_off_hand() -> void:
-	var arm: Node3D = bones[&"arm_l"]
-	var fore: Node3D = bones[&"fore_l"]
-	var hand: Node3D = bones[&"hand_l"]
-	var chest_x := rig_xf(bones[&"chest"])
-	var t: Vector3 = rig_xf(socket) * Vector3(0, weapon.off_grip, 0)
-	var s := (chest_x * arm.transform).origin
-	var a := UPPER_ARM
-	var b := FOREARM + HAND
-	var to := t - s
-	var d := clampf(to.length(), 0.02, a + b - 0.002)
-	var dir := to.normalized() if to.length() > 1e-5 else Vector3.DOWN
-	var cb := chest_x.basis
-	# Il gomito piega in basso, all'esterno e indietro.
-	var pole := -cb.y * 0.6 - cb.x * 0.8 + cb.z * 0.4
-	var perp := pole - dir * pole.dot(dir)
-	perp = perp.normalized() if perp.length() > 1e-5 else cb.z
-	var ca := clampf((a * a + d * d - b * b) / (2.0 * a * d), -1.0, 1.0)
-	var e := s + a * (dir * ca + perp * sqrt(1.0 - ca * ca))
-	var tgt := s + dir * d
-	var arm_x := Transform3D(_aim(e - s, cb.z), s)
-	arm.transform = chest_x.affine_inverse() * arm_x
-	var fore_x := Transform3D(_aim(tgt - e, cb.z), e)
-	fore.transform = arm_x.affine_inverse() * fore_x
-	hand.transform = Transform3D(Basis.IDENTITY, hand.transform.origin)
 
 
 ## Trasformazione di un nodo del rig nello spazio del rig.

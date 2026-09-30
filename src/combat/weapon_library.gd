@@ -159,15 +159,29 @@ static func _fists() -> WeaponDefinition:
 	return w
 
 
-## Attrezzo in mano (piccone, ascia, pala): colpisce con i movimenti della spada.
+## Attrezzo in mano (piccone, ascia, pala; D-039): non e' un'arma da lotta.
+## Un solo colpo, quello dello scavo (dall'alto verso il basso davanti a se'),
+## che si ripete sempre uguale: niente catene, niente forte, niente scatti
+## particolari; anche dopo la capriola e in aria e' lo stesso colpo.
 static func _tool() -> WeaponDefinition:
 	var w := _sword()
 	w.id = &"tool"
 	w.display_name = "Attrezzo"
+	w.attacks = {}
+	w.light_start = &"chop"
+	w.heavy_start = &"chop"
+	w.dash_attack = &"chop"
+	w.air_attack = &"chop"
 	w.trail_from = 0.35
 	w.trail_to = 0.62
 	w.hit_r = 0.12
 	w.strike_dist = 0.95
+	_atk(w, "chop", {"windup": 0.18, "active": 0.1, "recovery": 0.26, "chain_at": 0.6, "shape": AttackDefinition.Shape.THRUST,
+		"reach_min": 0.3, "reach": 1.7, "width": 0.5, "damage": 5.0, "knockback": 1.5, "hitstop": 0.05, "shake": 0.08,
+		"lunge": 0.2, "move_scale": 0.3, "next_light": "chop", "next_heavy": "chop", "trail": false},
+		_with(STANCE, {"arm_r": [150, -8, 10], "fore_r": [55, 0, 0], "hand_r": [-40, 0, 0], "chest": [8, -10, 0], "arm_l": [35, 10, -12], "fore_l": [60, 0, 0]}),
+		_with(STANCE, {"arm_r": [55, -8, 10], "fore_r": [10, 0, 0], "hand_r": [-100, 0, 0], "chest": [-22, -10, 0], "spine": [-8, 0, 0], "arm_l": [35, 10, -12], "fore_l": [60, 0, 0]}),
+		_with(STANCE, {"arm_r": [60, -8, 10], "fore_r": [20, 0, 0], "hand_r": [-90, 0, 0], "chest": [-10, -10, 0], "arm_l": [35, 10, -12], "fore_l": [60, 0, 0]}))
 	return w
 
 
@@ -246,8 +260,6 @@ static func _spear() -> WeaponDefinition:
 	w.id = &"spear"
 	w.display_name = "Lancia"
 	w.kind = WeaponDefinition.Kind.SPEAR
-	w.two_handed = true
-	w.off_grip = -0.42
 	w.light_start = &"thrust"
 	w.heavy_start = &"charge"
 	w.dash_attack = &"dash_thrust"
@@ -308,8 +320,6 @@ static func _hammer() -> WeaponDefinition:
 	w.id = &"hammer"
 	w.display_name = "Martello"
 	w.kind = WeaponDefinition.Kind.HAMMER
-	w.two_handed = true
-	w.off_grip = -0.2
 	w.move_mult = 0.9
 	w.light_start = &"swing"
 	w.heavy_start = &"quake"
@@ -363,8 +373,6 @@ static func _greatsword() -> WeaponDefinition:
 	w.id = &"greatsword"
 	w.display_name = "Spadone"
 	w.kind = WeaponDefinition.Kind.GREATSWORD
-	w.two_handed = true
-	w.off_grip = -0.16
 	w.move_mult = 0.94
 	w.light_start = &"sweep"
 	w.heavy_start = &"cyclone"

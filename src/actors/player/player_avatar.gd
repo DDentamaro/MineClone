@@ -125,7 +125,6 @@ func animate(dt: float, motor: PlayerMotor, combat: CombatController) -> void:
 		s.reach = 1.0 - absf(_swap_t - half) / half
 		if _swap_t >= SWAP_TIME:
 			_swap_t = -1.0
-	rig.ik_enabled = _relax < 0.5 and s.reach < 0.3
 	if s.dodge >= 0.0 or s.attack != null:
 		s.speed = 0.0 if s.attack != null else s.speed * 0.2
 	if dt > 0.0:

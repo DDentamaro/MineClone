@@ -70,7 +70,6 @@ func _setup() -> void:
 			rig.set_weapon(cell.get("weapon"))
 			rig.position = right * c * sx - Vector3(0, r * sy, 0)
 			rig.rotation.y = float(cell.get("yaw", 0.0))
-			rig.ik_enabled = not (String(cell["label"]).begins_with("lancio"))
 			rig.apply_pose(cell["pose"])
 			var l := Label3D.new()
 			l.text = cell["label"]

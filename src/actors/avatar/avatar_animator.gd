@@ -142,7 +142,7 @@ func target_pose(dt: float, s: State) -> Dictionary:
 		p[&"shin_l"] += d(-(8.0 + 62.0 * maxf(0.0, cs)) * r)
 		p[&"shin_r"] += d(-(8.0 + 62.0 * maxf(0.0, -cs)) * r)
 	var free_r := 0.35 if s.weapon != null and s.weapon.kind != WeaponDefinition.Kind.FISTS else 0.6
-	p[&"arm_l"] += d(-sn * 34.0 * r * (0.35 if s.weapon != null and s.weapon.two_handed else 1.0), 0, -6.0 * r)
+	p[&"arm_l"] += d(-sn * 34.0 * r, 0, -6.0 * r)
 	p[&"fore_l"] += d(24.0 * r)
 	p[&"arm_r"] += d(sn * 30.0 * r * free_r)
 	p[&"chest"] += d(0, sn * 9.0 * r)

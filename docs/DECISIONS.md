@@ -723,3 +723,26 @@ con l'oggetto equipaggiato; poi (stessa sessione) anche le braccia devono veders
   colpi dall'alto e urti ad area; montanti; con i pugni il braccio che colpisce (sinistro nel
   diretto e nel gancio); carica che trema; scavo come colpo dall'alto ripetuto; capriola; cambio
   d'arma con la mano che scende fuori vista; oscillazione del passo.
+
+## D-039 — Pugni con la forma della presa, zoom a due dita, armi a voxel più grandi, attrezzi senza combo, via la presa a due mani
+Richiesta del proprietario, in ordine:
+1. **Prima persona a mani nude:** le braccia hanno la stessa forma di quando si impugna un
+   oggetto (stessa posa di riposo) e si muovono col moveset del combattimento dei pugni: il
+   braccio che colpisce (destro o sinistro, dalle pose chiave del rig) fa fendente, diretto,
+   colpo dall'alto o montante come con un'arma. Tolte le pose dedicate ai pugni.
+2. **Zoom a due dita in terza persona e in isometrica:** prima, se il primo dito scendeva nella
+   zona dello stick diventava stick (o scavo, se fermo) e il pinch non partiva. Ora, se un
+   secondo dito sul mondo scende entro 300 ms dal primo e il primo è quasi fermo, le due dita
+   diventano pinch; lo scavo appena iniziato col primo dito si annulla. Uno stick già in uso da
+   più di 300 ms resta stick. Lo zoom vale in isometrica e in terza persona.
+3. **Armi più grandi e nello stile del mondo:** spada, spadone, lancia, martello e attrezzi
+   (piccone, ascia, pala) sono ora disegni a pixel estrusi in cubetti (lato 5,5 cm, colori a
+   scacchi appena variati, nessuno smusso), come i blocchi del mondo, al posto delle mesh lisce.
+   Scala delle armi nella mano dell'eroe 0,72 → 1,2 (su richiesta successiva: "più grandi in
+   tutte le camere"), le hitbox seguono la lunghezza; in prima persona ancora ×1,35.
+4. **Ascia e piccone senza moveset:** non sono armi da lotta, ripetono sempre lo stesso colpo
+   (come lo scavo, dall'alto in avanti) senza combo: colpo leggero, pesante, in corsa e in aria
+   sono tutti lo stesso "chop".
+5. **Via la presa a due mani:** tolte l'IK della mano sinistra sull'impugnatura e le proprietà
+   `two_handed`/`off_grip` delle armi: le braccia corte non arrivavano all'arma e la mano
+   entrava nel corpo. Il braccio sinistro oscilla libero con tutte le armi.

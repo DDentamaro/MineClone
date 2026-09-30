@@ -1,5 +1,24 @@
 # Avanzamento
 
+## 30/09/2026 — D-039: pugni con la forma della presa, zoom a due dita, armi a voxel più grandi, attrezzi senza combo
+
+In prima persona a mani nude le braccia hanno la forma della presa e fanno i colpi dei pugni;
+lo zoom a due dita parte anche se il primo dito cade nella zona dello stick; spada, spadone,
+lancia, martello, piccone, ascia e pala sono ora a cubetti come il mondo e più grandi in tutte
+le camere (scala 0,72 → 1,2; in prima persona ancora ×1,35); ascia e piccone ripetono un solo
+colpo; tolta la presa a due mani.
+
+### Test realmente eseguiti (D-039)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 190/190 PASS, log pulito. Nuovi: pinch che parte dalla zona dello stick, pinch che annulla lo scavo appena iniziato, stick in uso che non diventa pinch, attrezzo che ripete sempre lo stesso colpo; tolto il test della mano sinistra sull'impugnatura |
+| Suite e2e completa (prima persona, sessione, aggancio, combattimento, touch, sandbox, passo, oggetti a terra, armeria, nuoto, opzioni e opzioni sul telefono, movimenti) | OK, nessun errore di script, con le armi alla scala nuova (i colpi del moveset prendono ancora i manichini) |
+| Screenshot controllati | prima persona: spada a cubetti, pugni, piccone; isometrica: spada di ferro, martello, spadone, rastrelliera dell'armeria |
+| Export Android debug 0.18.0-m5 (versionCode 20) + `apksigner verify` + `aapt2 dump badging` | OK; mai installato su un telefono |
+
+Non verificato: pinch su un telefono vero (i test simulano i tocchi), leggibilità delle armi sullo
+schermo del telefono.
+
 ## 30/09/2026 — D-038: prima persona con le sole braccia dritte e l'oggetto in mano
 
 In prima persona il corpo dell'eroe non si vede più (resta l'ombra); si vedono solo le braccia

@@ -55,32 +55,6 @@ func test_scheletro_e_altezza() -> void:
 	rig.free()
 
 
-func test_mano_sinistra_sull_impugnatura() -> void:
-	for id in [&"spear", &"hammer", &"greatsword"]:
-		var w := WeaponLibrary.by_id(id)
-		var rig := AvatarRig.new()
-		rig.build(AvatarRecipe.new())
-		rig.set_weapon(w)
-		var an := AvatarAnimator.new()
-		var s := AvatarAnimator.State.new()
-		s.weapon = w
-		var poses: Array[Dictionary] = [an.target_pose(0.0, s)]
-		for a: AttackDefinition in w.attacks.values():
-			poses.append(a.key_strike)
-		var worst := 0.0
-		for p in poses:
-			rig.apply_pose(p)
-			var grip := rig.rig_xf(rig.socket) * Vector3(0, w.off_grip, 0)
-			var hand := rig.rig_xf(rig.bones[&"hand_l"]) * Vector3(0, -AvatarRig.HAND, 0)
-			var reach := AvatarRig.UPPER_ARM + AvatarRig.FOREARM + AvatarRig.HAND
-			var shoulder := rig.rig_xf(rig.bones[&"arm_l"]).origin
-			# Se l'impugnatura e' raggiungibile la mano ci arriva.
-			if shoulder.distance_to(grip) < reach - 0.01:
-				worst = maxf(worst, hand.distance_to(grip))
-		check(worst < 0.03, "%s: mano sinistra a %f dall'impugnatura" % [id, worst])
-		rig.free()
-
-
 func test_animazione_finita_e_nuoto_prono() -> void:
 	var an := AvatarAnimator.new()
 	var s := AvatarAnimator.State.new()

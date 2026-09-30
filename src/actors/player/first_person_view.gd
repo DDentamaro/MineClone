@@ -18,6 +18,8 @@ const UPPER_ARM := AvatarRig.UPPER_ARM
 const SCALE := 0.46
 ## Braccio dritto: l'omero continua l'avambraccio fino alla spalla, fuori dallo schermo.
 const ELBOW_FLEX := 0.0
+## L'oggetto in mano appare piu' grande che sull'eroe (D-039), come nei giochi a blocchi.
+const HELD_GROW := 1.35
 
 class Pose:
 	extends RefCounted
@@ -39,7 +41,6 @@ class Pose:
 
 # Pose chiave (lato destro; il sinistro e' lo specchio).
 static var REST := Pose.new(Vector3(0.21, -0.19, -0.48), Vector3(-0.15, 0.85, -0.5), Vector3(-0.3, 0.5, -0.8))
-static var FIST_REST := Pose.new(Vector3(0.19, -0.19, -0.46), Vector3(0.0, 1.0, 0.1), Vector3(-0.15, 0.25, -0.95))
 static var ARC_W := Pose.new(Vector3(0.36, -0.06, -0.46), Vector3(0.75, 0.55, 0.35), Vector3(0.2, 0.6, -0.7))
 static var ARC_M := Pose.new(Vector3(0.12, -0.20, -0.56), Vector3(0.0, 0.15, -1.0), Vector3(-0.2, 0.3, -0.9))
 static var ARC_S := Pose.new(Vector3(-0.28, -0.28, -0.46), Vector3(-0.85, -0.2, 0.45), Vector3(-0.7, 0.1, -0.7))
@@ -50,8 +51,6 @@ static var OVER_M := Pose.new(Vector3(0.12, -0.08, -0.56), Vector3(0.0, 0.55, -0
 static var OVER_S := Pose.new(Vector3(0.06, -0.36, -0.56), Vector3(0.0, -0.6, -0.8), Vector3(-0.2, 0.6, -0.8))
 static var UP_W := Pose.new(Vector3(0.19, -0.34, -0.42), Vector3(0.0, -0.3, -0.95), Vector3(-0.2, 0.5, -0.8))
 static var UP_S := Pose.new(Vector3(0.12, 0.02, -0.55), Vector3(0.0, 0.95, 0.3), Vector3(-0.2, 0.9, -0.4))
-static var FIST_W := Pose.new(Vector3(0.21, -0.22, -0.38), Vector3(0.0, 1.0, 0.1), Vector3(-0.1, 0.2, -0.97))
-static var FIST_S := Pose.new(Vector3(0.08, -0.16, -0.70), Vector3(0.0, 1.0, 0.1), Vector3(-0.1, 0.15, -0.98))
 
 ## Impugnature: [destra] o [destra, sinistra] con i pugni.
 var _grips: Array[Node3D] = []
@@ -84,6 +83,9 @@ func sync_from(rig: AvatarRig) -> void:
 		var hand := grip.get_node_or_null(NodePath("hand_" + side)) as Node3D
 		if hand != null:
 			hand.transform = Transform3D(Basis.IDENTITY, Vector3(0, -FOREARM, 0))
+			var sock := hand.get_node_or_null(^"Socket") as Node3D
+			if sock != null:
+				sock.scale *= HELD_GROW
 		# Omero: le mesh dell'osso del braccio, col gomito sull'origine
 		# dell'avambraccio, in linea con esso (braccio dritto).
 		var upper := Node3D.new()
@@ -135,13 +137,14 @@ func grip_count() -> int:
 func update(dt: float, combat: CombatController, speed: float, mining: float, swap: float) -> void:
 	_t += dt
 	var fists := _grips.size() > 1
-	var rest := FIST_REST if fists else REST
+	# A mani nude le braccia hanno la stessa forma di quando si impugna (D-039).
+	var rest := REST
 	var right := rest
 	var left := rest.mirrored()
 	var a := combat.attack if combat.state == CombatController.State.ATTACK else null
 	if a != null:
 		var use_left := fists and a.key_strike.has(&"arm_l") and not a.key_strike.has(&"arm_r")
-		var p := _attack_pose(a, combat, fists, rest)
+		var p := _attack_pose(a, combat, use_left, rest)
 		if use_left:
 			left = p.mirrored()
 		else:
@@ -163,23 +166,22 @@ func update(dt: float, combat: CombatController, speed: float, mining: float, sw
 		_place(1, left, bob * Vector3(-1, 1, 1) + drop)
 
 
-func _attack_pose(a: AttackDefinition, c: CombatController, fists: bool, rest: Pose) -> Pose:
+## Posa del colpo per il braccio destro; `left` = colpo del braccio sinistro
+## (pugni): si legge dalle pose chiave del braccio sinistro con l'arco
+## specchiato, e chi chiama specchia la posa sul lato sinistro.
+func _attack_pose(a: AttackDefinition, c: CombatController, left: bool, rest: Pose) -> Pose:
 	var w: Pose
 	var m: Pose = null
 	var s: Pose
-	var arm_w: Vector3 = a.key_wind.get(&"arm_r", Vector3.ZERO)
-	var arm_s: Vector3 = a.key_strike.get(&"arm_r", Vector3.ZERO)
-	if fists and a.shape != AttackDefinition.Shape.ARC:
-		w = FIST_W
-		s = FIST_S
-		if arm_s.x > deg_to_rad(115.0):
-			w = UP_W
-			s = UP_S
-	elif a.shape == AttackDefinition.Shape.ARC:
+	var arm := &"arm_l" if left else &"arm_r"
+	var arm_w: Vector3 = a.key_wind.get(arm, Vector3.ZERO)
+	var arm_s: Vector3 = a.key_strike.get(arm, Vector3.ZERO)
+	var arc_from := -a.arc_from if left else a.arc_from
+	if a.shape == AttackDefinition.Shape.ARC:
 		w = ARC_W
 		m = ARC_M
 		s = ARC_S
-		if a.arc_from > 0.0:
+		if arc_from > 0.0:
 			# Da sinistra verso destra (rovescio).
 			w = w.mirrored()
 			m = m.mirrored()
