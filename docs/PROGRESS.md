@@ -1,5 +1,18 @@
 # Avanzamento
 
+## 30/09/2026 — D-038: prima persona con le sole braccia dritte e l'oggetto in mano
+
+In prima persona il corpo dell'eroe non si vede più (resta l'ombra); si vedono solo le braccia
+dritte e la mano con l'oggetto impugnato, animate dai colpi.
+
+### Test realmente eseguiti (D-038)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 187/187 PASS, log pulito (il test della prima persona ora controlla che tutte le mesh del corpo siano "solo ombra" e che si veda il braccio con l'oggetto, e che in isometrica tutto torni visibile) |
+| `tools/e2e_fps.gd` | OK, con due controlli nuovi: pugni → due braccia; piccone → un braccio con l'attrezzo |
+| Suite e2e completa (prima persona, sessione, aggancio, combattimento, touch, sandbox, passo, oggetti a terra, armeria, nuoto, opzioni e opzioni sul telefono, movimenti) | OK, nessun errore di script (corsa completa con la versione "solo mano"; dopo braccia e braccia dritte, che cambiano solo `FirstPersonView`, rifatti test ed `e2e_fps`) |
+| Export Android debug 0.17.0-m5 (versionCode 19) + `apksigner verify` | OK; mai installato su un telefono |
+
 ## 30/09/2026 — D-037: via tutto il sistema di magia, camera in prima persona
 
 Tolta la magia in ogni sua parte (codice, interfaccia, pergamene, statistiche, pose, audio,

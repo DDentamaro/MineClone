@@ -41,7 +41,8 @@ pezzi con i confronti. Un'armeria con tutte le armi è accanto al punto di parte
 Combattimento: J colpo (o clic sul mondo in esplorazione), K forte (tenuto = carica), L o Maiusc
 capriola, R o clic centrale aggancia/sgancia il bersaglio, H editor dell'eroe, M rimette
 i manichini davanti, P pausa; J tenuto continua la catena. In prima persona si guarda
-trascinando (dito o mouse), lo stick cammina dove si guarda e i colpi partono verso il mirino.
+trascinando (dito o mouse), lo stick cammina dove si guarda, i colpi partono verso il mirino e
+del corpo si vedono solo le braccia dritte e la mano con l'oggetto impugnato (D-038).
 
 ## Struttura
 

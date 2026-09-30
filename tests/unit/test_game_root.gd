@@ -213,7 +213,8 @@ func test_ricette_predefinite_e_appunti() -> void:
 	check(AvatarRecipe.from_json("{\"v\":9}") == null, "versione sconosciuta")
 
 
-## D-037: in prima persona la testa sparisce, il mirino compare, il corpo guarda
+## D-037: in prima persona il corpo sparisce (resta l'ombra), si vede solo la
+## mano con l'oggetto, il mirino compare, il corpo guarda
 ## dove guarda la camera e il colpo parte lungo lo sguardo anche camminando di lato.
 func test_prima_persona_nel_gioco() -> void:
 	var g := _scene()
@@ -222,7 +223,11 @@ func test_prima_persona_nel_gioco() -> void:
 	for i in 20:
 		g._process(1.0 / 60.0)
 		g._physics_process(1.0 / 60.0)
-	check(not (g._avatar.rig.bones[&"head"] as Node3D).visible, "testa nascosta")
+	for gi in g._avatar.rig._instances:
+		if gi.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY:
+			check(false, "corpo invisibile alla camera (solo ombra): %s" % gi.name)
+			break
+	check(g._fpv.visible and g._fpv.grip_count() == 1, "si vede solo la mano con l'oggetto")
 	check(g._touch.crosshair, "mirino")
 	check(absf(wrapf(g._avatar.facing - 1.2, -PI, PI)) < 0.05, "l'eroe guarda dove guarda la camera (%.2f)" % g._avatar.facing)
 	g._refresh_labels()
@@ -233,5 +238,9 @@ func test_prima_persona_nel_gioco() -> void:
 	check(absf(wrapf(g.combat.facing - 1.2, -PI, PI)) < 1e-4, "colpo lungo lo sguardo, non verso lo stick")
 	g._camera_rig.set_mode(CameraRig.Mode.ISO)
 	g._process(1.0 / 60.0)
-	check((g._avatar.rig.bones[&"head"] as Node3D).visible and not g._touch.crosshair, "in isometrica torna la testa")
+	check(not g._touch.crosshair and not g._fpv.visible, "in isometrica niente mirino ne' mano")
+	for gi in g._avatar.rig._instances:
+		if gi.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_ON:
+			check(false, "in isometrica il corpo torna visibile: %s" % gi.name)
+			break
 	g.free()

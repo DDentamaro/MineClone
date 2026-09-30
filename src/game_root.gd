@@ -67,6 +67,8 @@ var combat: CombatController
 ## Aggancio del bersaglio (D-035) e il suo triangolo rosso.
 var lock := LockOn.new()
 var _lock_marker: LockMarker
+## Prima persona (D-037): la sola mano con l'oggetto, figlia della camera.
+var _fpv: FirstPersonView
 ## Camminata laterale col Lock: un po' piu' lenta della corsa libera.
 const STRAFE_SPEED := 0.78
 var _texts: FloatingText
@@ -143,6 +145,10 @@ func _ready() -> void:
 	_lock_marker = LockMarker.new()
 	_lock_marker.name = "LockMarker"
 	_grains.get_parent().add_child(_lock_marker)
+	_fpv = FirstPersonView.new()
+	_fpv.name = "FirstPersonView"
+	_fpv.visible = false
+	_camera_rig.camera.add_child(_fpv)
 	sandbox.grains = _grains
 	if saved.is_empty():
 		items.starter_kit()
@@ -451,8 +457,10 @@ func _update_camera_context(dt: float) -> void:
 	var tps := _camera_rig.mode == CameraRig.Mode.TPS
 	var fps := _camera_rig.mode == CameraRig.Mode.FPS
 	_day.tps_sky = _camera_rig.is_persp()
-	# Prima persona: niente testa davanti alla camera, mirino al centro.
-	_avatar.rig.set_head_visible(not fps)
+	# Prima persona: il corpo sparisce (resta l'ombra), si vede solo la mano
+	# con l'oggetto; mirino al centro; niente scia della lama del corpo.
+	_avatar.rig.set_first_person(fps)
+	_avatar.trail.visible = not fps
 	_touch.crosshair = fps
 	_camera_rig.sun_dir = _day.state.get("dir", Vector3(-0.3, 0.93, 0.22))
 	if _touch.hidden_ids.get(&"tps_auto", false) != (not tps):
@@ -522,6 +530,18 @@ func _handle_combat_events() -> void:
 	combat.events.clear()
 
 
+## Mano in prima persona: copie delle mesh della mano e dell'oggetto dell'eroe,
+## animate dallo stato del combattimento (fuori dalla prima persona e
+## nell'editor dell'eroe resta nascosta).
+func _update_first_person(dt: float) -> void:
+	var on := _camera_rig.mode == CameraRig.Mode.FPS and not _touch.hero_open
+	_fpv.visible = on
+	if not on:
+		return
+	_fpv.sync_from(_avatar.rig)
+	_fpv.update(dt, combat, Vector2(motor.velocity.x, motor.velocity.z).length(), _avatar.mining, _avatar.anim_state.reach)
+
+
 func _process(dt: float) -> void:
 	if motor == null:
 		return
@@ -544,8 +564,10 @@ func _process(dt: float) -> void:
 	_lock_marker.update(dt)
 	var lt := TrainingGround._light_at(world, p + Vector3(0, 1.1, 0))
 	_avatar.set_light(lt.x, lt.y)
+	_fpv.set_light(lt.x, lt.y)
 	_dummies.sync_views(combat.lock_target if combat.is_busy() else null)
 	_camera_rig.update_camera(dt, p)
+	_update_first_person(dt)
 	var grass_r := 0.0
 	if _camera_rig.mode == CameraRig.Mode.TPS:
 		grass_r = 46.0 + _camera_rig.tps_dist * 1.2

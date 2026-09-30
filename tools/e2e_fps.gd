@@ -110,7 +110,7 @@ func _process(dt: float) -> bool:
 				_tap(&"camera")
 			if _frame == 20:
 				_expect(cam.mode == CameraRig.Mode.FPS, "due tocchi su camera: prima persona")
-				_expect(g._touch.crosshair and not (g._avatar.rig.bones[&"head"] as Node3D).visible, "mirino e testa nascosta")
+				_expect(g._touch.crosshair and g._fpv.visible and g._fpv.grip_count() == 1 and g._avatar.rig.first_person, "mirino, solo la mano con l'oggetto, corpo invisibile")
 				_expect(g._touch.labels.get(&"camera", "") == "1ª p.", "pulsante: 1ª p.")
 				_shot("inizio")
 				_yaw0 = cam.yaw
@@ -162,7 +162,7 @@ func _process(dt: float) -> bool:
 				_touch(2, _drag_at, true)
 				_next()
 		5:
-			# Sguardo in basso: si vedono il corpo e l'arma.
+			# Sguardo in basso: il corpo non si vede, solo la mano con l'arma.
 			if _frame <= 10:
 				_drag(2, _drag_at + Vector2(0, 16.0 * _frame), Vector2(0, 16))
 			if _frame == 11:
@@ -170,9 +170,24 @@ func _process(dt: float) -> bool:
 			if _frame == 20:
 				_expect(cam.fps_pitch < -0.3, "trascinare in giu' guarda in basso (%.2f)" % cam.fps_pitch)
 				_shot("in_basso")
+				cam.fps_pitch = 0.0
+				g.select_weapon(0)
+				_next()
+		6:
+			# Mani libere: si vedono i due pugni; poi un piccone in mano.
+			if _t > 1.2 and not _shots.has("pugni"):
+				_expect(g._fpv.grip_count() == 2, "pugni: due mani (%d)" % g._fpv.grip_count())
+				_shot("pugni")
+				g.items.inv.set_slot(1, ItemStack.new(&"pick_iron"))
+				g.items.select(1)
+			if _t > 2.6:
+				_expect(g._fpv.grip_count() == 1 and g._avatar.rig.held_mesh != null, "piccone: una mano con l'attrezzo")
+				_shot("piccone")
 				_tap(&"camera")
-			if _frame == 28:
-				_expect(cam.mode == CameraRig.Mode.ISO and (g._avatar.rig.bones[&"head"] as Node3D).visible and not g._touch.crosshair, "terzo tocco: isometrica con la testa")
+				_next()
+		7:
+			if _frame == 8:
+				_expect(cam.mode == CameraRig.Mode.ISO and not g._avatar.rig.first_person and not g._fpv.visible and not g._touch.crosshair, "terzo tocco: isometrica, corpo di nuovo visibile")
 				for l in _log:
 					print(l)
 				print("e2e prima persona %s" % ("OK" if _ok else "FALLITO"))

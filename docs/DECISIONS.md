@@ -704,3 +704,22 @@ implementare una camera in prima persona.
   (`CombatController.aim_view`). Col Lock la vista gira da sola sul petto del bersaglio. Niente
   raggi X in prima persona; cielo, sole ed erba come in terza persona. L'editor dell'eroe passa
   in terza persona e torna in prima alla chiusura. Avvio diretto con `--cam=fps`.
+
+## D-038 — Prima persona: si vedono solo le braccia dritte e la mano con l'oggetto
+Richiesta del proprietario: in prima persona nessuna parte del corpo nella visuale, solo la mano
+con l'oggetto equipaggiato; poi (stessa sessione) anche le braccia devono vedersi, e dritte.
+- **Corpo invisibile alla camera:** in prima persona tutte le mesh dell'eroe (corpo, testa,
+  armatura, arma nella mano del rig) passano a "solo ombra" (`AvatarRig.set_first_person`): la
+  camera non le vede, l'ombra per terra resta, e il rig continua ad animarsi e a muovere le
+  hitbox, quindi i colpi restano quelli veri (D-028). Anche la scia della lama del rig è spenta.
+  Riapplicato dopo ogni ricostruzione del rig (cambio d'arma, armatura, ricetta).
+- **Braccio della vista** (`FirstPersonView`, figlio della camera): copie delle mesh del braccio
+  destro (omero e avambraccio con la manica, in linea: braccio dritto), della mano e di quello
+  che impugna (arma, attrezzo, blocco); con i pugni le due braccia coi guanti. Il braccio entra dal
+  bordo in basso a destra, la spalla resta fuori dallo schermo. Scala 0,46. Versioni scartate
+  nella stessa sessione: solo la mano (avambraccio tagliato al polso) e braccio piegato al gomito.
+- **Animazione del braccio**, dallo stato del combattimento: guardia in basso a destra; fendenti
+  da un lato all'altro (specchiati per il rovescio) passando davanti al mirino; affondi in avanti;
+  colpi dall'alto e urti ad area; montanti; con i pugni il braccio che colpisce (sinistro nel
+  diretto e nel gancio); carica che trema; scavo come colpo dall'alto ripetuto; capriola; cambio
+  d'arma con la mano che scende fuori vista; oscillazione del passo.

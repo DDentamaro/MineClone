@@ -174,6 +174,7 @@ func build(r: AvatarRecipe) -> void:
 	_armor.clear()
 	for slot_name: String in _armor_colors:
 		_add_armor(slot_name, _armor_colors[slot_name])
+	_apply_first_person()
 
 
 func _mesh_node(bone: StringName, m: ArrayMesh) -> MeshInstance3D:
@@ -220,13 +221,27 @@ func set_weapon(w: WeaponDefinition, mesh_override: ArrayMesh = null) -> void:
 		socket.add_child(mi)
 		_weapon_nodes.append(mi)
 	_instances.append_array(_weapon_nodes)
+	_apply_first_person()
 
 
-## Prima persona (D-037): la testa (capelli, cappello, elmo) si nasconde perche'
-## la camera sta negli occhi; braccia, arma e corpo restano visibili.
-func set_head_visible(on: bool) -> void:
-	if bones.has(&"head"):
-		(bones[&"head"] as Node3D).visible = on
+## Prima persona (D-037): tutto l'eroe diventa invisibile alla camera ma
+## continua a fare ombra (e a muovere le hitbox dei colpi); la mano con
+## l'oggetto la mostra `FirstPersonView`.
+var first_person := false
+
+
+func set_first_person(on: bool) -> void:
+	if on == first_person:
+		return
+	first_person = on
+	_apply_first_person()
+
+
+func _apply_first_person() -> void:
+	var mode := GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY if first_person else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	for gi in _instances:
+		if is_instance_valid(gi):
+			gi.cast_shadow = mode
 
 
 ## Applica una posa: osso -> rotazione (radianti); "body_pos" sposta il corpo.
