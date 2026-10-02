@@ -43,6 +43,9 @@ static func for_item(d: ItemDefinition) -> ArrayMesh:
 
 ## `mat` colora le parti "di metallo" col materiale dell'oggetto (legno, pietra, rame...).
 static func build(kind: WeaponDefinition.Kind, mat: Color = Color(0, 0, 0, 0)) -> ArrayMesh:
+	var model := modeled(kind, mat)
+	if model != null:
+		return model
 	_set_material(mat)
 	var k := MeshKit.new()
 	match kind:
@@ -174,3 +177,73 @@ static func build_tool(tool_type: String, mat: Color) -> ArrayMesh:
 	rows.append("....D....")
 	_sprite(k, rows, 3)
 	return k.commit()
+
+
+
+# --- armi modellate (D-052): mesh da Higgsfield convertite da
+# tools/weapons/glb_to_weapon.py in data/weapons/<arma>.json, nello stesso
+# spazio arma e con le stesse lunghezze delle armi a cubetti. Se il file
+# manca resta l'arma a cubetti.
+
+const MODEL_DIR := "res://data/weapons/"
+const MODEL_NAMES := {WeaponDefinition.Kind.SWORD: "sword", WeaponDefinition.Kind.SPEAR: "spear",
+	WeaponDefinition.Kind.HAMMER: "hammer", WeaponDefinition.Kind.GREATSWORD: "greatsword"}
+static var _model_data := {}
+static var _model_cache := {}
+
+
+static func model_data(kind: WeaponDefinition.Kind) -> Dictionary:
+	if not MODEL_NAMES.has(kind):
+		return {}
+	if not _model_data.has(kind):
+		var path: String = MODEL_DIR + MODEL_NAMES[kind] + ".json"
+		var d: Variant = null
+		if FileAccess.file_exists(path):
+			d = JSON.parse_string(FileAccess.get_file_as_string(path))
+		_model_data[kind] = d if d is Dictionary else {}
+	return _model_data[kind]
+
+
+## Mesh modellata, o null. Col materiale dell'oggetto le parti di metallo
+## (grigie, poco sature) prendono il suo colore; cuoio, legno e ottone restano.
+static func modeled(kind: WeaponDefinition.Kind, mat: Color = Color(0, 0, 0, 0)) -> ArrayMesh:
+	var d := model_data(kind)
+	if d.is_empty():
+		return null
+	var key := "%d|%s" % [kind, mat.to_html()]
+	if _model_cache.has(key):
+		return _model_cache[key]
+	var V: Array = d["vertices"]
+	var N: Array = d["normals"]
+	var C: Array = d["colors"]
+	var I: Array = d["indices"]
+	var pos := PackedVector3Array()
+	var nor := PackedVector3Array()
+	var col := PackedColorArray()
+	for i in V.size() / 3:
+		pos.append(Vector3(V[i * 3], V[i * 3 + 1], V[i * 3 + 2]))
+		nor.append(Vector3(N[i * 3], N[i * 3 + 1], N[i * 3 + 2]))
+		var c := Color(C[i * 3], C[i * 3 + 1], C[i * 3 + 2])
+		if mat.a > 0.0 and c.s < 0.18 and c.v > 0.25:
+			c = mat * (0.55 + 0.6 * c.v)
+			c.a = 1.0
+		col.append(c)
+	var idx := PackedInt32Array()
+	for j in range(0, I.size(), 3):
+		# Da antiorario (glTF) al fronte orario di Godot.
+		idx.append(int(I[j]))
+		idx.append(int(I[j + 2]))
+		idx.append(int(I[j + 1]))
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = pos
+	arr[Mesh.ARRAY_NORMAL] = nor
+	arr[Mesh.ARRAY_COLOR] = col
+	arr[Mesh.ARRAY_INDEX] = idx
+	var m := ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	if _model_cache.size() > 24:
+		_model_cache.clear()
+	_model_cache[key] = m
+	return m
+
