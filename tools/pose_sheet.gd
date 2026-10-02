@@ -53,9 +53,8 @@ func _setup() -> void:
 	var cols := 0
 	for row: Array in cells:
 		cols = maxi(cols, row.size())
-	# D-043: eroe alto due blocchi.
-	var sx := 2.6
-	var sy := 2.9
+	var sx := 1.9
+	var sy := 2.2
 	var dir := Vector3(0.5, 0.6, 0.5).normalized() if _iso else Vector3(0.62, 0.32, -0.72).normalized()
 	if _dir != Vector3.ZERO:
 		dir = _dir

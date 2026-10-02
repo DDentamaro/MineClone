@@ -1,9 +1,10 @@
 class_name AvatarRig
 extends Node3D
 ## Scheletro a pezzi rigidi dell'eroe. Ogni osso e' un Node3D; l'animazione
-## imposta solo le rotazioni (e lo spostamento di `body`). Da D-028 le mesh sono
-## quelle dell'eroe del prototipo (CHARGEN, `HeroChargen`); da D-043 con le
-## proporzioni di un eroe snello alto ~1,76 m (prima chibi, testa grande; D-044). Le gambe le muove `GaitLegs` (piedi piantati, IK).
+## imposta solo le rotazioni (e lo spostamento di `body`). Da D-028 le misure e
+## le mesh sono quelle dell'eroe del prototipo (CHARGEN, `HeroChargen`): anca
+## .32, collo .80, omero .21, avambraccio+mano .28, coscia .15, stinco+piede
+## .185, testa grande. Le gambe le muove `GaitLegs` (piedi piantati, IK).
 ##
 ## Assi (il personaggio guarda -Z, la sua destra e' +X):
 ## - braccia e gambe pendono lungo -Y; X positivo le porta in avanti/in alto;
@@ -19,21 +20,19 @@ const BONES: Array[StringName] = [&"body", &"hips", &"spine", &"chest", &"head",
 const PARENT := {&"hips": &"body", &"spine": &"hips", &"chest": &"spine", &"head": &"chest",
 	&"arm_l": &"chest", &"fore_l": &"arm_l", &"hand_l": &"fore_l", &"arm_r": &"chest", &"fore_r": &"arm_r",
 	&"hand_r": &"fore_r", &"leg_l": &"hips", &"shin_l": &"leg_l", &"leg_r": &"hips", &"shin_r": &"leg_r"}
-# D-043/D-044: eroe snello alto ~1,76 m (misure in `HeroChargen`): anca .83,
-# gambe .39 + .405 (+ piede .035), omero .30, avambraccio .26, spalla a
-# ±.246 (mezzo busto .18 + mezzo braccio .05), petto 1,11, collo 1,42.
-const HIP_Y := 0.83
-const HIP_W := 0.08
-const THIGH := 0.39
-const SHIN := 0.405
-const UPPER_ARM := 0.30
-const FOREARM := 0.26
-const HAND := 0.052
-const SHOULDER := Vector3(0.246, 0.22, 0.0)
-const SPINE := 0.07
-const CHEST := 0.21
-## Altezza della testa senza capelli (collo 1,42 + testa .28).
-const HEIGHT := 1.70
+# D-045: arti un poco piu' lunghi a parita' d'altezza (vedi `HeroChargen`).
+const HIP_Y := 0.37
+const HIP_W := 0.10
+const THIGH := 0.175
+const SHIN := 0.175
+const UPPER_ARM := 0.24
+const FOREARM := 0.22
+const HAND := 0.045
+const SHOULDER := Vector3(0.40, 0.18, 0.0)
+const SPINE := 0.05
+const CHEST := 0.14
+## Altezza della testa senza capelli (collo .80 + testa .58).
+const HEIGHT := 1.38
 ## Armi a voxel (D-039): cubetti di pixel come i blocchi del mondo, a questa
 ## scala la spada e' lunga ~1,3 m nella mano dell'eroe (si legge anche dal telefono).
 const WEAPON_SCALE := 1.2

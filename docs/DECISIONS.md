@@ -828,3 +828,13 @@ persona), camere puntate a 0,9 m, punti dei raggi X fino a 1,62, cadenza e passi
 chibi e quelli di D-043, distanze degli affondi ×1,2 rispetto al chibi (erano ×1,35), prima
 persona scala 0,34 con oggetto ×1,16, anteprima dello zaino riquadrata. Limite dei piedi nella
 prova dei movimenti 0,9 m.
+
+## D-045 — Ritorno all'eroe basso, arti un poco più lunghi
+Richiesta del proprietario: tornare all'altezza dell'eroe basso di prima (quello del prototipo,
+~1,5 m coi capelli, testa grande) e allungare solo leggermente gli arti. D-043 e D-044 sono
+annullati per il corpo: tornano scale, collisione (1,4 m), occhi, camere, raggi X, passo, pose,
+prima persona, anteprima dello zaino e distanze dei colpi di D-042. Restano di quei giri gli
+strumenti e le prove (`tools/spear_probe.gd`, controllo del Lock dopo 1,5 s in `e2e_fps`).
+Arti ~+15% a parità d'altezza: omero .21 → .24, avambraccio .19 → .22 (con la mano .28 → .32),
+coscia .15 → .175, stinco .15 → .175 (con il piede .185 → .21); l'anca sale da .32 a .37 e il
+busto si accorcia (petto più basso di .03) per tenere il collo a .80 e la testa dov'era.

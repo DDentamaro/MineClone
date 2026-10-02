@@ -57,23 +57,18 @@ const BOOTS := ["#4b3623", "#2a2f24", "#5e4636", "#1f1a17"]
 const ACCENTS := ["#d9a441", "#b3321f", "#2f8f8a", "#d8d2bd", "#4a3a6b", "#6b7a2a"]
 const EYE_COLS := ["#297e7b", "#343434", "#3b5fa8", "#6b4a1f", "#5d8a3a", "#9a2d2d"]
 
-## Misure del rig. D-043/D-044: eroe snello e slanciato, alto ~1,76 m coi
-## capelli (prima il chibi del prototipo, CHARGEN.rig: anca .32, collo .80,
-## testa ×.54, alto ~1,5; in D-043 due blocchi, troppo alto): anca .83, collo
-## 1,42, testa ×.26 (0,28 m, cima 1,70), omero .30, avambraccio+mano .385,
-## coscia .39, stinco+piede .44; busto largo 0,37, braccia e gambe sottili
-## (scale di larghezza separate).
-const S := 0.35
-const HEAD_S := 0.26
-const ARM_S := 0.25
-const LEG_SX := 0.28
-const LEG_SZ := 0.30
-const HIP_Y := 0.83
-const NECK_Y := 1.42
-const UPPER := 0.30
-const FORE_HAND := 0.385
-const THIGH := 0.39
-const SHIN_FOOT := 0.44
+## Misure del rig (CHARGEN.rig: anca .32, collo .80, omero .21,
+## avambraccio+mano .28, coscia .15, stinco+piede .185; testa ×.54).
+## D-045: stessa altezza e testa grande del prototipo, arti un poco piu'
+## lunghi (~+15%): omero .24, avambraccio+mano .32, coscia .175, stinco+piede
+## .21; l'anca sale a .37 e il busto si accorcia per tenere il collo a .80.
+const S := 0.54
+const HIP_Y := 0.37
+const NECK_Y := 0.80
+const UPPER := 0.24
+const FORE_HAND := 0.32
+const THIGH := 0.175
+const SHIN_FOOT := 0.21
 
 
 static func preset(i: int) -> Dictionary:
@@ -1002,17 +997,17 @@ static func slots() -> Dictionary:
 	var L: Dictionary = BODY["leg"]
 	var neck: float = BODY["neck"]
 	var d := {
-		"head": {"bone": &"head", "o": Vector3(0, neck, 0), "s": Vector3(HEAD_S, HEAD_S, HEAD_S), "arm": 0},
+		"head": {"bone": &"head", "o": Vector3(0, neck, 0), "s": Vector3(S, S, S), "arm": 0},
 		"torso": {"bone": &"chest", "o": Vector3(0, .74, 0), "s": Vector3(S, (NECK_Y - HIP_Y) / (neck - .74), S), "arm": 0},
 	}
 	for sg in [1, -1]:
 		var m := "L" if sg > 0 else "R"
 		# +X del modello e' la sinistra anatomica: nel rig (guarda -Z) e' il lato _l.
 		var side := "l" if sg > 0 else "r"
-		d["arm" + m + "U"] = {"bone": StringName("arm_" + side), "o": Vector3(sg * .54, 1.34, -.01), "s": Vector3(ARM_S, UPPER / (A["elbow"] - .54), ARM_S), "arm": sg}
-		d["arm" + m + "F"] = {"bone": StringName("fore_" + side), "o": Vector3(sg * A["elbow"], 1.34, -.03), "s": Vector3(ARM_S, FORE_HAND / (A["x1"] - A["elbow"]), ARM_S), "arm": sg}
-		d["leg" + m + "U"] = {"bone": StringName("leg_" + side), "o": Vector3(sg * .2545, L["y"][1], 0), "s": Vector3(LEG_SX, THIGH / (L["y"][1] - L["knee"]), LEG_SZ), "arm": 0}
-		d["leg" + m + "F"] = {"bone": StringName("shin_" + side), "o": Vector3(sg * .2545, L["knee"], 0), "s": Vector3(LEG_SX, SHIN_FOOT / L["knee"], LEG_SZ), "arm": 0}
+		d["arm" + m + "U"] = {"bone": StringName("arm_" + side), "o": Vector3(sg * .54, 1.34, -.01), "s": Vector3(S, UPPER / (A["elbow"] - .54), S), "arm": sg}
+		d["arm" + m + "F"] = {"bone": StringName("fore_" + side), "o": Vector3(sg * A["elbow"], 1.34, -.03), "s": Vector3(S, FORE_HAND / (A["x1"] - A["elbow"]), S), "arm": sg}
+		d["leg" + m + "U"] = {"bone": StringName("leg_" + side), "o": Vector3(sg * .2545, L["y"][1], 0), "s": Vector3(.42, THIGH / (L["y"][1] - L["knee"]), S * .9), "arm": 0}
+		d["leg" + m + "F"] = {"bone": StringName("shin_" + side), "o": Vector3(sg * .2545, L["knee"], 0), "s": Vector3(.42, SHIN_FOOT / L["knee"], S * .9), "arm": 0}
 	return d
 
 

@@ -554,7 +554,7 @@ func _process(dt: float) -> void:
 		save_game()
 	_lock_marker.set_target(lock.target if lock.active() else null)
 	_lock_marker.update(dt)
-	var lt := TrainingGround._light_at(world, p + Vector3(0, 1.3, 0))
+	var lt := TrainingGround._light_at(world, p + Vector3(0, 1.1, 0))
 	_avatar.set_light(lt.x, lt.y)
 	_fpv.set_light(lt.x, lt.y)
 	_dummies.sync_views(combat.lock_target if combat.is_busy() else null)
@@ -1394,11 +1394,10 @@ func debug_dig(hit: VoxelQuery.VoxelHit) -> bool:
 var rt_height := 360
 var _occl := 0.0
 
-## Punti del corpo usati per stimare quanto il giocatore e' coperto (BODY, riga
-## 7928; D-043/D-044 in altezza per l'eroe di ~1,76 m).
-const BODY: Array[Vector3] = [Vector3(0, .18, 0), Vector3(0, .6, 0), Vector3(0, 1.05, 0), Vector3(0, 1.4, 0),
-	Vector3(.2, .5, .15), Vector3(-.2, .5, -.15), Vector3(.2, 1.1, -.15), Vector3(-.2, 1.1, .15), Vector3(0, 1.62, 0),
-	Vector3(.2, .75, 0), Vector3(-.2, .75, 0), Vector3(0, .35, .2)]
+## Punti del corpo usati per stimare quanto il giocatore e' coperto (BODY, riga 7928).
+const BODY: Array[Vector3] = [Vector3(0, .15, 0), Vector3(0, .5, 0), Vector3(0, .85, 0), Vector3(0, 1.15, 0),
+	Vector3(.2, .4, .2), Vector3(-.2, .4, -.2), Vector3(.2, .9, -.2), Vector3(-.2, .9, .2), Vector3(0, 1.3, 0),
+	Vector3(.22, .6, 0), Vector3(-.22, .6, 0), Vector3(0, .3, .22)]
 
 
 ## Il render target ha un pixel di bordo per lato: l'immagine viene spostata
@@ -1471,7 +1470,7 @@ func _update_xray(dt: float, p: Vector3) -> void:
 	var cam := _camera_rig.camera
 	var vs := Vector2(_view.size)
 	var feet := p + Vector3(0, 0.1, 0)
-	var head := p + Vector3(0, 1.62, 0)
+	var head := p + Vector3(0, 1.35, 0)
 	var rs := RenderingServer
 	rs.global_shader_parameter_set(&"xray_amt", _occl)
 	rs.global_shader_parameter_set(&"xray_a", cam.unproject_position(feet) / vs)

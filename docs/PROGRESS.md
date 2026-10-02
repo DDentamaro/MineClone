@@ -1,5 +1,19 @@
 # Avanzamento
 
+## 02/10/2026 — D-045: ritorno all'eroe basso, arti un poco più lunghi
+
+Tornati altezza e testa grande dell'eroe del prototipo (~1,5 m coi capelli); braccia e gambe
+~15% più lunghe a parità d'altezza (busto un poco più corto). Annullate per il corpo le versioni
+snelle D-043 e D-044.
+
+### Test realmente eseguiti (D-045)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 190/190 PASS, log pulito (altezza col ciuffo sotto 1,56 m, collo a .80) |
+| Suite e2e completa (movimenti, passo, nuoto, terza persona, prima persona, combattimento, aggancio, sessione, touch, sandbox, oggetti a terra, armeria, opzioni e opzioni sul telefono) | OK, nessun errore di script; tutti i colpi del primo giro di ogni arma a segno |
+| Tavola delle pose della spada | controllata a occhio: proporzioni del prototipo, arti appena più lunghi |
+| Export Android debug 0.24.0-m5 (versionCode 26) + `apksigner verify` + `aapt2 dump badging` | OK; mai installato su un telefono |
+
 ## 30/09/2026 — D-044: eroe snello a metà strada, ~1,76 m
 
 Con D-043 l'eroe era troppo alto: stesse proporzioni snelle, misure ×0,875, alto ~1,76 m coi

@@ -182,9 +182,8 @@ func _process(dt: float) -> bool:
 					if float(_stag[k]) < 0.04:
 						_log.append("   NO   %s senza passo" % k)
 						_ok = false
-					elif float(_stag[k]) > 0.9:
-						# D-043/D-044: gambe da 0,8 m (prima 0,3 m e limite 0,55).
-						_log.append("   NO   %s piedi troppo larghi (gambe da 0,8 m)" % k)
+					elif float(_stag[k]) > 0.55:
+						_log.append("   NO   %s piedi troppo larghi (gambe da 0,3 m)" % k)
 						_ok = false
 				# Il primo giro della catena deve andare tutto a segno (dopo il colpo
 				# finale il manichino e' lontano: e' voluto).

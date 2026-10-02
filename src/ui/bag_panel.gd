@@ -324,10 +324,9 @@ func refresh_preview() -> void:
 		_pv.add_child(sun)
 		_pv_cam = Camera3D.new()
 		_pv_cam.projection = Camera3D.PROJECTION_ORTHOGONAL
-		# D-043/D-044: eroe snello di ~1,76 m, inquadratura piu' alta.
-		_pv_cam.size = 2.1
+		_pv_cam.size = 1.95
 		_pv.add_child(_pv_cam)
-		_pv_cam.look_at_from_position(Vector3(0, 1.6, 4.0), Vector3(0, 0.9, 0), Vector3.UP)
+		_pv_cam.look_at_from_position(Vector3(0, 1.3, 4.0), Vector3(0, 0.72, 0), Vector3.UP)
 		_pv_cam.current = true
 		_pv_rig = AvatarRig.new()
 		_pv.add_child(_pv_rig)
