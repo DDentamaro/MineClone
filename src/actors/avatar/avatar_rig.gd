@@ -62,28 +62,29 @@ static func chest_offset() -> Vector3:
 ## capelli sopra, il cappello e le orecchie spariscono (come i cappelli del
 ## prototipo); le facce del corpo dentro i pezzi d'armatura non si costruiscono,
 ## cosi' capelli, busto e gambe non attraversano elmo, corazza e schinieri.
-static func body_parts(r: AvatarRecipe, armor: Dictionary) -> Array:
+## `styles`: forma del pezzo per slot (D-051), vedi `armor_boxes_for`.
+static func body_parts(r: AvatarRecipe, armor: Dictionary, styles: Dictionary = {}) -> Array:
 	var dna := r.dna.duplicate()
 	if (armor.get("head", Color(0, 0, 0, 0)) as Color).a > 0.0:
 		dna["helm"] = true
 	var parts := HeroChargen.build(dna, HeroChargen.hair_lib())
-	HeroChargen.cull_inside(parts, armor_boxes(armor))
+	HeroChargen.cull_inside(parts, armor_boxes(armor, styles))
 	return parts
 
 
-static func _key(r: AvatarRecipe, armor: Dictionary) -> String:
+static func _key(r: AvatarRecipe, armor: Dictionary, styles: Dictionary = {}) -> String:
 	var worn: Array[String] = []
 	for k in Equipment.SLOTS:
 		if (armor.get(k, Color(0, 0, 0, 0)) as Color).a > 0.0:
-			worn.append(k)
+			worn.append(k + ":" + String(styles.get(k, "")))
 	return r.to_json() + "|" + ",".join(worn)
 
 
 ## Mesh con occlusione cotta, calcolate subito (test, strumenti).
-static func hero_meshes(r: AvatarRecipe, armor: Dictionary = {}) -> Dictionary:
-	var key := _key(r, armor)
+static func hero_meshes(r: AvatarRecipe, armor: Dictionary = {}, styles: Dictionary = {}) -> Dictionary:
+	var key := _key(r, armor, styles)
 	if not _mesh_cache.has(key):
-		var parts := body_parts(r, armor)
+		var parts := body_parts(r, armor, styles)
 		HeroChargen.bake_ao(parts)
 		_store(key, HeroChargen.to_rig(parts, {&"chest": chest_offset()}))
 	return _mesh_cache[key]
@@ -123,13 +124,13 @@ func _exit_tree() -> void:
 ## Mesh da mostrare ora: con occlusione se pronte, altrimenti senza (e parte
 ## il calcolo dell'occlusione su un thread).
 func _meshes_now(r: AvatarRecipe) -> Dictionary:
-	var key := _key(r, _armor_colors)
+	var key := _key(r, _armor_colors, _armor_styles)
 	if _mesh_cache.has(key) or sync_ao or not is_inside_tree():
-		return hero_meshes(r, _armor_colors)
-	var parts := body_parts(r, _armor_colors)
+		return hero_meshes(r, _armor_colors, _armor_styles)
+	var parts := body_parts(r, _armor_colors, _armor_styles)
 	if _ao_task < 0:
 		_ao_key = key
-		var ao_parts := body_parts(r, _armor_colors)
+		var ao_parts := body_parts(r, _armor_colors, _armor_styles)
 		_ao_parts = ao_parts
 		_ao_task = WorkerThreadPool.add_task(func() -> void: HeroChargen.bake_ao(ao_parts), false, "occlusione eroe")
 	return HeroChargen.to_rig(parts, {&"chest": chest_offset()})
@@ -317,6 +318,9 @@ var _armor := {}
 
 
 var _armor_colors := {}
+## Forma per slot (D-051): "" = metallo (D-030); "leather", e per la testa
+## "leather_cap" (cuffia) o "leather_hood" (cappuccio).
+var _armor_styles := {}
 
 
 ## Un pezzo d'armatura: colore del materiale, trasparente = slot vuoto. Se
@@ -327,20 +331,24 @@ func set_armor(slot: String, mat: Color) -> void:
 	set_armor_all(all)
 
 
-func set_armor_all(colors: Dictionary) -> void:
-	var before := _key(recipe, _armor_colors)
+func set_armor_all(colors: Dictionary, styles: Dictionary = {}) -> void:
+	var before := _key(recipe, _armor_colors, _armor_styles)
 	_armor_colors = colors.duplicate()
+	_armor_styles = styles.duplicate()
 	if bones.is_empty():
 		return
-	if _key(recipe, _armor_colors) != before:
+	if _key(recipe, _armor_colors, _armor_styles) != before:
 		build(recipe)
 		return
 	for slot_name: String in _armor_colors:
 		_add_armor(slot_name, _armor_colors[slot_name])
 
 
-## Pezzi d'armatura nelle unita' del modello CHARGEN: [nome, osso, min, max, raggio, colore].
-static func armor_boxes_for(slot: String, mat: Color) -> Array:
+## Pezzi d'armatura nelle unita' del modello CHARGEN: [nome, osso, min, max,
+## raggio, colore] e, facoltativo, una deformazione (`HeroChargen.rot_t`).
+static func armor_boxes_for(slot: String, mat: Color, style: String = "") -> Array:
+	if style.begins_with("leather"):
+		return LeatherArmor.boxes(slot, mat, style)
 	var out := []
 	var band := mat.darkened(0.3)
 	var hi := mat.lightened(0.18)
@@ -381,12 +389,15 @@ static func armor_boxes_for(slot: String, mat: Color) -> Array:
 
 
 ## Volumi coperti dall'armatura indossata: osso -> [AABB] (unita' del modello).
-static func armor_boxes(colors: Dictionary) -> Dictionary:
+static func armor_boxes(colors: Dictionary, styles: Dictionary = {}) -> Dictionary:
 	var out := {}
 	for slot: String in colors:
 		if (colors[slot] as Color).a <= 0.0:
 			continue
-		for b: Array in armor_boxes_for(slot, colors[slot]):
+		for b: Array in armor_boxes_for(slot, colors[slot], String(styles.get(slot, ""))):
+			# Le decorazioni sottili (cuciture, cinghie) non nascondono il corpo.
+			if b.size() > 6 or minf((b[3] - b[2]).x, minf((b[3] - b[2]).y, (b[3] - b[2]).z)) < 0.06:
+				continue
 			if not out.has(b[1]):
 				out[b[1]] = []
 			out[b[1]].append(AABB(b[2], (b[3] as Vector3) - (b[2] as Vector3)))
@@ -403,8 +414,8 @@ func _add_armor(slot: String, mat: Color) -> void:
 	if mat.a <= 0.0 or bones.is_empty():
 		return
 	var W := HeroChargen.Builder.new()
-	for b: Array in armor_boxes_for(slot, mat):
-		W.add(b[0], b[1], HeroChargen.rbox(b[2], b[3], b[4], b[5]))
+	for b: Array in armor_boxes_for(slot, mat, String(_armor_styles.get(slot, ""))):
+		W.add(b[0], b[1], HeroChargen.rbox(b[2], b[3], b[4], b[5], {}, b[6] if b.size() > 6 else Callable()))
 	var meshes := HeroChargen.to_rig(W.parts, {&"chest": chest_offset()})
 	var list: Array = []
 	for bn: StringName in meshes:

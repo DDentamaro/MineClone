@@ -1063,6 +1063,9 @@ static func to_rig(parts: Array, offsets: Dictionary = {}) -> Dictionary:
 				idx.append(I[j] + base)
 				idx.append(I[j + 2] + base)
 				idx.append(I[j + 1] + base)
+		# Tutto nascosto dall'armatura (D-051: il cappuccio copre i capelli).
+		if idx.is_empty():
+			continue
 		var bn: StringName = T["bone"]
 		if not out.has(bn):
 			out[bn] = []
