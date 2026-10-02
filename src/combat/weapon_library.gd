@@ -338,13 +338,9 @@ static func _sword() -> WeaponDefinition:
 		_with(TUCK, {"arm_r": [172, 0, 10], "fore_r": [20, 0, 0], "hand_r": [-20, 0, 0], "chest": [10, 0, 0]}),
 		_with(SQUAT, {"arm_r": [22, 0, 0], "fore_r": [0, 0, 0], "hand_r": [-112, 0, 0], "chest": [-32, 0, 0]}),
 		_with(SQUAT, {"arm_r": [30, 0, 6], "fore_r": [10, 0, 0], "hand_r": [-100, 0, 0], "chest": [-20, 0, 0]}))
-	# D-046: colpi ricavati dai video di riferimento (Higgsfield + tools/mocap).
-	# Dopo il giro la catena leggera continua col rovescio orizzontale del
-	# video e torna al fendente; il forte dal rovescio e' il fendente saltato.
-	(w.attacks[&"whirl"] as AttackDefinition).next_light = &"m_cross"
-	_mocap(w, "m_cross", "sword_cross", {"chain_at": 0.15, "shape": AttackDefinition.Shape.ARC, "arc_from": 80.0, "arc_to": -80.0,
-		"reach_min": 0.3, "reach": 2.05, "damage": 11.0, "knockback": 2.5, "hitstop": 0.08, "shake": 0.16, "lunge": 0.8,
-		"step_foot": 1.0, "next_light": "slash", "next_heavy": "m_leap"}, STANCE, LUNGE, STANCE)
+	# D-046: colpo ricavato dal video di riferimento (Higgsfield + tools/mocap):
+	# il fendente saltato, forte dopo la calata. Il rovescio orizzontale dopo il
+	# giro (`m_cross`) e' stato tolto (D-050): la catena leggera finisce col giro.
 	_mocap(w, "m_leap", "sword_leap", {"chain_at": 0.3, "shape": AttackDefinition.Shape.THRUST, "reach_min": 0.3, "reach": 2.2,
 		"width": 0.6, "damage": 17.0, "knockback": 5.0, "hitstop": 0.12, "shake": 0.45, "lunge": 1.2, "fx": "dust",
 		"move_scale": 0.0, "next_light": "slash"}, STANCE, SQUAT, SQUAT)

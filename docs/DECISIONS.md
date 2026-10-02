@@ -913,3 +913,11 @@ Sostituito da `smash`, disegnato a mano:
 Le pose `hammer_smash` restano in `MocapMoves` ma non sono più usate.
 Pose controllate con `tools/pose_sheet.gd --weapon=hammer`: la prima versione della carica teneva il
 martello appeso dietro la schiena, corretta prima della consegna.
+
+## D-050 — Spada: via il quinto colpo dopo il giro
+Richiesta del proprietario: togliere il quinto colpo della spada dopo la spazzata larga (il giro).
+Era il rovescio orizzontale preso dal video (`m_cross`, D-046). Tolto del tutto: la catena leggera
+della spada torna a quattro colpi (fendente → rovescio → calata → giro), poi si riparte dal
+fendente. Il fendente saltato dal video (`m_leap`) resta come forte dopo la calata. Le pose
+`sword_cross` restano in `MocapMoves` ma non sono più usate.
+

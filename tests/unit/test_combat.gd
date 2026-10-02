@@ -368,21 +368,22 @@ func test_attrezzo_ripete_lo_stesso_colpo() -> void:
 ## D-046: colpi dai video di riferimento collegati alle catene.
 func test_colpi_dai_video_nelle_catene() -> void:
 	var sw := WeaponLibrary.by_id(&"sword")
-	check_eq(sw.attack(&"whirl").next_light, &"m_cross", "dopo il giro il rovescio dal video")
-	check_eq(sw.attack(&"m_cross").next_light, &"slash", "poi si torna al fendente")
-	check_eq(sw.attack(&"m_cross").next_heavy, &"m_leap", "forte: fendente saltato dal video")
+	# D-050: il rovescio dal video dopo il giro e' tolto, la catena finisce col giro.
+	check_eq(sw.attack(&"whirl").next_light, &"", "dopo il giro la catena finisce")
+	check(sw.attack(&"m_cross") == null, "rovescio dal video tolto")
+	check_eq(sw.attack(&"cleave").next_heavy, &"m_leap", "forte: fendente saltato dal video")
 	check_eq(WeaponLibrary.by_id(&"hammer").attack(&"upswing").next_heavy, &"smash", "martello: colpo a terra caricato (D-049)")
-	for id in [&"m_cross", &"m_leap"]:
+	for id in [&"m_leap"]:
 		var a := sw.attack(id)
 		check(a.key_wind.has(&"arm_r") and a.key_strike.has(&"chest"), "%s con le pose del video" % id)
 		check(a.total() > 0.3 and a.total() < 1.6, "%s durata %.2f" % [id, a.total()])
-	# Catena leggera completa: 4 colpi, il rovescio dal video, di nuovo il fendente.
+	# Catena leggera completa: 4 colpi, poi si riparte dal fendente.
 	var r := Rig.new(&"sword")
 	for i in 6:
 		r.combat.press_light()
 		r.step(int(0.5 / DT))
 	r.settle()
-	check_eq(r.started, [&"slash", &"backhand", &"cleave", &"whirl", &"m_cross", &"slash"] as Array[StringName], "catena leggera con il colpo dal video")
+	check_eq(r.started, [&"slash", &"backhand", &"cleave", &"whirl", &"slash", &"backhand"] as Array[StringName], "catena leggera di quattro colpi, poi da capo")
 
 
 ## D-047: stili di combattimento per arma. Catena leggera e forte diverso per
@@ -390,7 +391,7 @@ func test_colpi_dai_video_nelle_catene() -> void:
 func test_catene_per_stile() -> void:
 	var chains := {
 		&"fists": [[&"jab", &"palm"], [&"cross", &"elbow"], [&"hook", &"lift"], [&"upper", &"rocket"], [&"flurry", &"rocket"]],
-		&"sword": [[&"slash", &"rise"], [&"backhand", &"pierce"], [&"cleave", &"m_leap"], [&"whirl", &"pierce"], [&"m_cross", &"m_leap"]],
+		&"sword": [[&"slash", &"rise"], [&"backhand", &"pierce"], [&"cleave", &"m_leap"], [&"whirl", &"pierce"]],
 		&"spear": [[&"thrust", &"retreat"], [&"thrust2", &"drive"], [&"rise", &"charge"], [&"impale", &"charge"]],
 		&"hammer": [[&"swing", &"quake"], [&"upswing", &"smash"], [&"slam", &"aftershock"]],
 		&"greatsword": [[&"sweep", &"cleave"], [&"return", &"cyclone"], [&"sweep2", &"finale"]],

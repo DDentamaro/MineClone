@@ -1,5 +1,17 @@
 # Avanzamento
 
+## 02/10/2026 — D-050: spada, via il quinto colpo dopo il giro
+
+La catena leggera della spada torna a quattro colpi (fendente → rovescio → calata → giro), poi da
+capo. Tolto il rovescio orizzontale preso dal video.
+
+### Test realmente eseguiti (D-050)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 196/196 PASS, log pulito. Aggiornati: dopo il giro la catena finisce e riparte dal fendente; tabella dei forti della spada a quattro punti |
+| Suite e2e completa (movimenti, passo, nuoto, terza e prima persona, combattimento, aggancio, sessione, touch, sandbox, oggetti a terra, armeria, opzioni e opzioni sul telefono) | OK, nessun errore di script. Movimenti: catena della spada fendente, rovescio, calata, giro, di nuovo fendente, tutti a segno |
+| Export Android debug 0.29.0-m5 (versionCode 31) + `apksigner verify` + `aapt2 dump badging` | OK; non provato sul telefono |
+
 ## 02/10/2026 — D-049: martello, Leggero-Leggero-Forte come colpo pesante caricato
 
 Il forte dopo il montante del martello non viene più dal video: carica alta col busto inarcato

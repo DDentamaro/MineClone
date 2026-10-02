@@ -49,7 +49,7 @@ colpisce solo di punta; i colpi hanno un ritmo più calmo e la camera non balla 
 La lancia affonda dritta anche in terza persona e ferisce solo con la punta; durante il gioco
 non ci sono più riquadri in alto, il Diario è in Menu > Diario (D-041). La terza persona è fissa
 come l'isometrica (ruota e zooma solo l'utente, i muri si aprono coi raggi X); spadone e martello
-colpiscono più pesanti (D-042). L'eroe ha l'altezza e la testa grande del prototipo, con arti un poco più lunghi (D-045). Tre colpi vengono da video di riferimento (D-046).
+colpiscono più pesanti (D-042). L'eroe ha l'altezza e la testa grande del prototipo, con arti un poco più lunghi (D-045). Il fendente saltato della spada viene da un video di riferimento (D-046; gli altri due colpi dai video sono stati sostituiti o tolti in D-049 e D-050).
 Ogni arma ha il suo stile di combo: pugni rissa, spada equilibrio, lancia distanza, martello
 distruzione, spadone slancio; ogni punto della catena leggera ha il suo colpo forte (D-047). In curva il corpo resta dritto (D-048). Il forte del martello dopo il montante è un colpo a terra caricato (D-049).
 
