@@ -133,6 +133,30 @@ func _collect() -> void:
 	pass
 
 
+var _mocap_ids: Array[StringName] = []
+var _mi := 0
+
+
+func _start_mocap() -> void:
+	_mocap_ids.clear()
+	_mi = 0
+	for id: StringName in _game.combat.weapon.attacks:
+		if String(id).begins_with("m_"):
+			_mocap_ids.append(id)
+	if _mocap_ids.is_empty():
+		_w += 1
+		_phase = 1
+		return
+	_run_mocap()
+
+
+func _run_mocap() -> void:
+	_setup(1.5, 0.0)
+	_game.combat._start_attack(_mocap_ids[_mi], _game.motor, _game._dummies.dummies, Vector2.ZERO)
+	_t = 0.0
+	_phase = 7
+
+
 func _process(dt: float) -> bool:
 	var g := _game
 	if _phase > 0:
@@ -192,6 +216,11 @@ func _process(dt: float) -> bool:
 					if first.has(id):
 						break
 					first.append(id)
+					# Dopo un colpo che sbalza lontano (giro, finale) il manichino non e'
+					# piu' a portata: il giro si ferma li' (D-046).
+					var at := g.combat.weapon.attack(StringName(id))
+					if at != null and at.knockback >= 8.0:
+						break
 				for id in first:
 					if not _hits.has(id):
 						_log.append("   NO   %s non colpisce (primo giro)" % id)
@@ -236,8 +265,7 @@ func _process(dt: float) -> bool:
 					g.combat._start_attack(&"impale", g.motor, g._dummies.dummies, Vector2.ZERO)
 					_phase = 6
 				else:
-					_w += 1
-					_phase = 1
+					_start_mocap()
 		6:
 			_t += dt
 			if g.combat.attack != null and g.combat.phase() == 1:
@@ -250,6 +278,27 @@ func _process(dt: float) -> bool:
 				if hs.size() < 2 or hs[0] < 1 or hs[1] < 1:
 					_log.append("   NO   l'infilzata non trapassa")
 					_ok = false
-				_w += 1
-				_phase = 1
+				_start_mocap()
+		7:
+			# D-046: ogni colpo ricavato dai video (id "m_...") parte da solo su un
+			# manichino a 1,5 m e deve andare a segno con le hitbox vere.
+			_t += dt
+			var a3 := g.combat.attack
+			if a3 != null and g.combat.phase() == 1:
+				_shot("%s_%s" % [GameRoot.WEAPONS[_w], a3.id])
+			if _t > 1.6:
+				var id: StringName = _mocap_ids[_mi]
+				var n := 0
+				for d in g._dummies.dummies:
+					n += d.hits
+				_log.append("%s %s (dal video): colpi %d" % [GameRoot.WEAPONS[_w], id, n])
+				if n < 1:
+					_log.append("   NO   %s non colpisce" % id)
+					_ok = false
+				_mi += 1
+				if _mi < _mocap_ids.size():
+					_run_mocap()
+				else:
+					_w += 1
+					_phase = 1
 	return false

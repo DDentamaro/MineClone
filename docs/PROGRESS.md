@@ -1,5 +1,22 @@
 # Avanzamento
 
+## 02/10/2026 — D-046: prova pilota Higgsfield, colpi dai video di riferimento
+
+Catena `tools/mocap` (MediaPipe + adattamento sul rig vero) e tre colpi nuovi presi dai video:
+rovescio orizzontale della spada dopo il giro, fendente saltato come forte dal rovescio, colpo a
+terra del martello col sollevamento lento come forte dopo il montante. Il proprietario ha provato
+l'APK e lo tiene.
+
+### Test realmente eseguiti (D-046)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 191/191 PASS, log pulito. Nuovo: colpi dai video collegati alle catene (giro → rovescio → fendente; rovescio forte → fendente saltato; montante forte → colpo a terra) |
+| `fit_poses.gd --selftest` | andata e ritorno sulle pose esistenti: 1–5° (un caso 16° sul busto) |
+| Suite e2e completa (movimenti, passo, nuoto, terza e prima persona, combattimento, aggancio, sessione, touch, sandbox, oggetti a terra, armeria, opzioni e opzioni sul telefono) | OK, nessun errore di script. Movimenti: la prima corsa segnalava il rovescio dopo il giro "a vuoto" (il giro sbalza lontano il manichino); il primo giro della catena ora si ferma ai colpi che sbalzano (spinta ≥ 8) e la prova rifatta è OK; i tre colpi dai video lanciati da soli vanno a segno con le hitbox vere |
+| Export Android debug 0.25.0-m5 (versionCode 27) + `apksigner verify` + `aapt2 dump badging` | OK; provato dal proprietario |
+
+Crediti Higgsfield spesi: ~16 (4 video umani, 3 immagini dell'eroe, 1 video con l'eroe).
+
 ## 02/10/2026 — D-045: ritorno all'eroe basso, arti un poco più lunghi
 
 Tornati altezza e testa grande dell'eroe del prototipo (~1,5 m coi capelli); braccia e gambe

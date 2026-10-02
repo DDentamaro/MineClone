@@ -838,3 +838,33 @@ strumenti e le prove (`tools/spear_probe.gd`, controllo del Lock dopo 1,5 s in `
 Arti ~+15% a parità d'altezza: omero .21 → .24, avambraccio .19 → .22 (con la mano .28 → .32),
 coscia .15 → .175, stinco .15 → .175 (con il piede .185 → .21); l'anca sale da .32 a .37 e il
 busto si accorcia (petto più basso di .03) per tenere il collo a .80 e la testa dov'era.
+
+## D-046 — Prova pilota Higgsfield: colpi delle combo dai video di riferimento
+Richiesta del proprietario: provare Higgsfield solo per i movimenti delle combo delle armi.
+- **Video:** 4 clip da 6 s generati con Seedance 2.0 Mini (3 crediti l'uno; Seedance 2.5 richiede
+  il piano Plus): spada combo leggera, spada combo pesante, lancia, martello. Il dominio dei video
+  è bloccato dalla rete dell'ambiente: i file li ha caricati il proprietario.
+- **Catena di strumenti** (`tools/mocap`, fuori dal gioco, Python + Godot): `extract_pose.py`
+  (MediaPipe, 33 punti per fotogramma e foglio con lo scheletro; il modello `.task` non è nel
+  repository), `keyframes.py` (gesti separati dai punti lenti del polso destro; carica = inizio
+  del tratto veloce, colpo = fine, seguito = punto lento seguente; tempi veri), `fit_poses.gd`
+  (angoli del rig cercati sull'eroe vero: direzioni dei segmenti, mani fuori dalla testa grande,
+  continuità fra le pose, punta dell'arma sopra terra, busto al massimo 50° in avanti e 15° di
+  lato; la mano gira la lama lungo la linea spalla-mano perché il video non vede la lama),
+  `render_fit.gd` (tavola di controllo), `emit_gd.py` (scrive `src/combat/mocap_moves.gd`).
+- **Cosa entra nel gioco** (solo i colpi che reggono il controllo a occhio e coi numeri): spada,
+  rovescio orizzontale dopo il giro della catena leggera (`m_cross`, poi si torna al fendente) e
+  fendente saltato come forte dal rovescio (`m_leap`); martello, colpo a terra col sollevamento
+  lento come forte dopo il montante (`m_smash`). Busto, braccia e mano libera dal video; gambe
+  dalle pose d'appoggio del gioco e dal passo; tempi del video nella scala del gioco.
+- **Scartati:** il fendente obliquo e la spazzata della spada (la lama non si può orientare come
+  nel video con le braccia corte dell'eroe: 40–72° di scarto), i colpi girati di schiena (destra
+  e sinistra si scambiano), la lancia (nessun colpo diverso da quelli che ha già).
+- **Video col nostro eroe come riferimento** (immagine dell'eroe generata su Higgsfield, perché il
+  caricamento è bloccato dalla rete): il rilevatore di pose umano trova la posa in 67 fotogrammi
+  su 145 e sbaglia spalle e gomiti sul corpo a blocchi; il video stesso muove poco. Strada
+  abbandonata: i crediti non si spendono più per ricavare movimenti in automatico.
+- **Limiti onesti:** la lama non si misura; le braccia corte e la testa grande dell'eroe chibi
+  obbligano a correggere le pose umane (fino a ~30–50° sul fendente saltato); il bacino non si
+  misura (coordinate centrate lì). Il guadagno vero è nei tempi e nel coinvolgimento del busto e
+  della mano libera.

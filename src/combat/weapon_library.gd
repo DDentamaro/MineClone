@@ -145,6 +145,16 @@ static func _weight(w: WeaponDefinition) -> void:
 		a.shake *= WEIGHT_SHAKE
 
 
+## Colpo con le pose chiave di un video di riferimento (`MocapMoves`, D-046):
+## busto e braccia dal video, gambe dalle pose d'appoggio del gioco; i tempi del
+## video portati nella scala del gioco (il ritmo generale lo applica `_pace`).
+static func _mocap(w: WeaponDefinition, id: String, move: String, props: Dictionary, legs_w: Dictionary, legs_s: Dictionary, legs_f: Dictionary) -> AttackDefinition:
+	var m: Dictionary = MocapMoves.MOVES[move]
+	var t: Array = m["time"]
+	var timing := {"windup": clampf(t[0], 0.1, 0.4), "active": clampf(t[1] * 0.5, 0.08, 0.16), "recovery": clampf(t[2], 0.2, 0.42)}
+	return _atk(w, id, _with(timing, props), _with(legs_w, m["wind"]), _with(legs_s, m["strike"]), _with(legs_f, m["follow"]))
+
+
 static func _with(a: Dictionary, b: Dictionary) -> Dictionary:
 	var out := a.duplicate()
 	out.merge(b, true)
@@ -303,6 +313,16 @@ static func _sword() -> WeaponDefinition:
 		_with(TUCK, {"arm_r": [172, 0, 10], "fore_r": [20, 0, 0], "hand_r": [-20, 0, 0], "chest": [10, 0, 0]}),
 		_with(SQUAT, {"arm_r": [22, 0, 0], "fore_r": [0, 0, 0], "hand_r": [-112, 0, 0], "chest": [-32, 0, 0]}),
 		_with(SQUAT, {"arm_r": [30, 0, 6], "fore_r": [10, 0, 0], "hand_r": [-100, 0, 0], "chest": [-20, 0, 0]}))
+	# D-046: colpi ricavati dai video di riferimento (Higgsfield + tools/mocap).
+	# Dopo il giro la catena leggera continua col rovescio orizzontale del
+	# video e torna al fendente; il forte dal rovescio e' il fendente saltato.
+	(w.attacks[&"whirl"] as AttackDefinition).next_light = &"m_cross"
+	_mocap(w, "m_cross", "sword_cross", {"chain_at": 0.15, "shape": AttackDefinition.Shape.ARC, "arc_from": 80.0, "arc_to": -80.0,
+		"reach_min": 0.3, "reach": 2.05, "damage": 11.0, "knockback": 2.5, "hitstop": 0.08, "shake": 0.16, "lunge": 0.8,
+		"step_foot": 1.0, "next_light": "slash", "next_heavy": "m_leap"}, STANCE, LUNGE, STANCE)
+	_mocap(w, "m_leap", "sword_leap", {"chain_at": 0.3, "shape": AttackDefinition.Shape.THRUST, "reach_min": 0.3, "reach": 2.2,
+		"width": 0.6, "damage": 17.0, "knockback": 5.0, "hitstop": 0.12, "shake": 0.45, "lunge": 1.2, "fx": "dust",
+		"move_scale": 0.0, "next_light": "slash"}, STANCE, SQUAT, SQUAT)
 	return w
 
 
@@ -421,6 +441,12 @@ static func _hammer() -> WeaponDefinition:
 		_with(TUCK, {"arm_r": [176, 0, 10], "fore_r": [30, 0, 0], "hand_r": [-30, 0, 0], "chest": [16, 0, 0]}),
 		_with(SQUAT, {"arm_r": [96, 0, 4], "fore_r": [0, 0, 0], "hand_r": [-110, 0, 0], "chest": [-40, 0, 0]}),
 		_with(SQUAT, {"arm_r": [90, 0, 6], "fore_r": [4, 0, 0], "hand_r": [-104, 0, 0], "chest": [-30, 0, 0]}))
+	# D-046: dal video di riferimento, sollevamento lento sopra la testa e
+	# colpo a terra piegandosi in avanti; e' il forte dopo il montante.
+	(w.attacks[&"upswing"] as AttackDefinition).next_heavy = &"m_smash"
+	_mocap(w, "m_smash", "hammer_smash", {"chain_at": 0.0, "shape": AttackDefinition.Shape.RADIAL, "radial_ahead": 1.4,
+		"radial": 2.6, "damage": 24.0, "knockback": 10.0, "launch": 7.0, "hitstop": 0.15, "shake": 0.6, "lunge": 0.6,
+		"fx": "dust", "move_scale": 0.0, "next_light": "swing"}, STANCE, SQUAT, SQUAT)
 	_tempo(w, 1.35)
 	return w
 

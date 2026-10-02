@@ -363,3 +363,23 @@ func test_attrezzo_ripete_lo_stesso_colpo() -> void:
 	r.combat.release_heavy()
 	r.settle()
 	check_eq(r.started, [&"chop", &"chop", &"chop", &"chop"] as Array[StringName], "leggero e forte ripetono il colpo")
+
+
+## D-046: colpi dai video di riferimento collegati alle catene.
+func test_colpi_dai_video_nelle_catene() -> void:
+	var sw := WeaponLibrary.by_id(&"sword")
+	check_eq(sw.attack(&"whirl").next_light, &"m_cross", "dopo il giro il rovescio dal video")
+	check_eq(sw.attack(&"m_cross").next_light, &"slash", "poi si torna al fendente")
+	check_eq(sw.attack(&"m_cross").next_heavy, &"m_leap", "forte: fendente saltato dal video")
+	check_eq(WeaponLibrary.by_id(&"hammer").attack(&"upswing").next_heavy, &"m_smash", "martello: colpo a terra dal video")
+	for id in [&"m_cross", &"m_leap"]:
+		var a := sw.attack(id)
+		check(a.key_wind.has(&"arm_r") and a.key_strike.has(&"chest"), "%s con le pose del video" % id)
+		check(a.total() > 0.3 and a.total() < 1.6, "%s durata %.2f" % [id, a.total()])
+	# Catena leggera completa: 4 colpi, il rovescio dal video, di nuovo il fendente.
+	var r := Rig.new(&"sword")
+	for i in 6:
+		r.combat.press_light()
+		r.step(int(0.5 / DT))
+	r.settle()
+	check_eq(r.started, [&"slash", &"backhand", &"cleave", &"whirl", &"m_cross", &"slash"] as Array[StringName], "catena leggera con il colpo dal video")
