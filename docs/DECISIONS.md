@@ -868,3 +868,26 @@ Richiesta del proprietario: provare Higgsfield solo per i movimenti delle combo 
   obbligano a correggere le pose umane (fino a ~30–50° sul fendente saltato); il bacino non si
   misura (coordinate centrate lì). Il guadagno vero è nei tempi e nel coinvolgimento del busto e
   della mano libera.
+
+## D-047 — Catene di combo per stile d'arma
+Richiesta del proprietario: catene di combo diverse per arma, per avere stili di combattimento
+diversi (base per le statistiche alla Elden Ring e poi per i colpi speciali). Regola comune: ogni
+colpo della catena leggera ha il suo forte (Leggero-Forte, Leggero-Leggero-Forte… danno mosse
+diverse); il forte tenuto resta la carica; corsa e aria come prima.
+- **Pugni — rissa** (veloci, tanti colpi): diretto → diretto → gancio → montante → raffica (nuova,
+  colpi ripetuti ogni 0,07 s). Forti: spinta col palmo (nuova, allontana), gomitata girata
+  (nuova), montante alto che solleva (nuovo), pugno a razzo (dopo montante e raffica).
+- **Spada — equilibrio**: fendente → rovescio → calata → giro → rovescio orizzontale (D-046) → di
+  nuovo fendente. Forti: montante, affondo perforante, fendente saltato (D-046), affondo.
+- **Lancia — distanza**: stoccata → stoccata → stoccata alta → infilzata. Forti: passo indietro
+  e stoccata (nuova, `backstep` 0,9 m nella prima parte della carica), affondo in avanzata,
+  carica lunga, carica lunga.
+- **Martello — distruzione**: spazzata → montante → colpo a terra. Forti: terremoto, colpo a
+  terra col sollevamento lento (D-046), secondo colpo a terra più forte con onda larga 3,6 m (nuovo).
+- **Spadone — slancio**: spazzata → ritorno → spazzata → ritorno… senza fine; ogni leggero
+  concatenato aggiunge +10% di danno fino a +30% (`momentum_step`, `momentum_max`), il forte dalla
+  catena lo usa, una catena nuova lo azzera. Forti: fendente dall'alto, tornado, calata finale
+  (nuova, 26 di danno base, usa tutto lo slancio).
+- Correzione dopo l'e2e: la raffica partiva da troppo lontano e il montante sollevava il manichino
+  sopra i pugni. Raffica con più avanzamento (1,0) e busto girato in avanti, braccia un poco più
+  alte; il montante solleva meno (launch 7 → 4), così la raffica lo raggiunge ancora.

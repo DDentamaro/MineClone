@@ -383,3 +383,64 @@ func test_colpi_dai_video_nelle_catene() -> void:
 		r.step(int(0.5 / DT))
 	r.settle()
 	check_eq(r.started, [&"slash", &"backhand", &"cleave", &"whirl", &"m_cross", &"slash"] as Array[StringName], "catena leggera con il colpo dal video")
+
+
+## D-047: stili di combattimento per arma. Catena leggera e forte diverso per
+## ogni punto della catena.
+func test_catene_per_stile() -> void:
+	var chains := {
+		&"fists": [[&"jab", &"palm"], [&"cross", &"elbow"], [&"hook", &"lift"], [&"upper", &"rocket"], [&"flurry", &"rocket"]],
+		&"sword": [[&"slash", &"rise"], [&"backhand", &"pierce"], [&"cleave", &"m_leap"], [&"whirl", &"pierce"], [&"m_cross", &"m_leap"]],
+		&"spear": [[&"thrust", &"retreat"], [&"thrust2", &"drive"], [&"rise", &"charge"], [&"impale", &"charge"]],
+		&"hammer": [[&"swing", &"quake"], [&"upswing", &"m_smash"], [&"slam", &"aftershock"]],
+		&"greatsword": [[&"sweep", &"cleave"], [&"return", &"cyclone"], [&"sweep2", &"finale"]],
+	}
+	for wid: StringName in chains:
+		var w := WeaponLibrary.by_id(wid)
+		var steps: Array = chains[wid]
+		check_eq(w.light_start, steps[0][0], "%s: inizio della catena" % wid)
+		for i in steps.size():
+			var a := w.attack(steps[i][0])
+			check(a != null, "%s.%s esiste" % [wid, steps[i][0]])
+			if a == null:
+				continue
+			check_eq(a.next_heavy, steps[i][1], "%s.%s: forte" % [wid, steps[i][0]])
+			if i + 1 < steps.size():
+				check_eq(a.next_light, steps[i + 1][0], "%s.%s: leggero seguente" % [wid, steps[i][0]])
+			if steps[i][1] != &"":
+				check(w.attack(steps[i][1]) != null, "%s.%s esiste" % [wid, steps[i][1]])
+	# Spadone: la catena leggera gira (sweep2 -> return).
+	check_eq(WeaponLibrary.by_id(&"greatsword").attack(&"sweep2").next_light, &"return", "spadone: catena infinita")
+
+
+## D-047: slancio dello spadone, +10% a colpo concatenato fino a +30%.
+func test_slancio_dello_spadone() -> void:
+	var r := Rig.new(&"greatsword")
+	for i in 5:
+		r.combat.press_light()
+		r.step(int(0.6 / DT))
+	check_eq(r.started, [&"sweep", &"return", &"sweep2", &"return", &"sweep2"] as Array[StringName], "catena che gira")
+	check_eq(r.combat.momentum, 3, "slancio al massimo")
+	r.combat.press_heavy()
+	r.combat.release_heavy()
+	r.step(int(0.6 / DT))
+	check_eq(r.started[-1], &"finale", "forte dalla seconda spazzata: calata finale")
+	check_eq(r.combat.momentum, 3, "la calata usa lo slancio")
+	r.settle()
+	r.combat.press_light()
+	r.step(2)
+	check_eq(r.combat.momentum, 0, "catena nuova: slancio azzerato")
+
+
+## D-047: la lancia dal primo colpo fa un passo indietro e colpisce da lontano.
+func test_passo_indietro_della_lancia() -> void:
+	var r := Rig.new(&"spear")
+	r.combat.press_light()
+	r.step(int(0.3 / DT))
+	var z0 := r.motor.position.z
+	r.combat.press_heavy()
+	r.combat.release_heavy()
+	r.step(int(0.25 / DT))
+	check_eq(r.started[-1], &"retreat", "forte dopo la stoccata")
+	# facing 0 = avanti verso -Z: indietro e' +Z.
+	check(r.motor.position.z > z0 + 0.3, "passo indietro (%.2f m)" % (r.motor.position.z - z0))

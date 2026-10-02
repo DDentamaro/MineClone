@@ -1,5 +1,18 @@
 # Avanzamento
 
+## 02/10/2026 — D-047: catene di combo per stile d'arma
+
+Ogni arma ha uno stile: pugni rissa (raffica), spada equilibrio, lancia distanza (passo indietro e
+stoccata), martello distruzione (onda larga), spadone slancio (+10% per leggero concatenato, fino
+a +30%). Ogni punto della catena leggera ha il suo forte. Base per le statistiche alla Elden Ring.
+
+### Test realmente eseguiti (D-047)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 194/194 PASS, log pulito. Nuovi: tabella catena leggera e forte per punto per ogni arma; slancio dello spadone (sale a 3, il finale lo usa, una catena nuova lo azzera); passo indietro della lancia |
+| Suite e2e completa (movimenti, passo, nuoto, terza e prima persona, combattimento, aggancio, sessione, touch, sandbox, oggetti a terra, armeria, opzioni e opzioni sul telefono) | Prima corsa: tutto OK tranne movimenti: la raffica dei pugni lanciata da sola non colpiva. Corretta (vedi D-047); seconda corsa di movimenti: la raffica colpiva da sola ma non dopo il montante (manichino sollevato), e il tornado dello spadone non è andato a segno (nella prima corsa, codice dello spadone identico, aveva colpito 4 volte: prova sensibile al tempo dei fotogrammi). Dopo la seconda correzione: movimenti OK (raffica nella catena e da sola 3 colpi, tornado 3 colpi, tutti i colpi nuovi a segno con le hitbox vere); combattimento e aggancio rifatti OK |
+| Export Android debug 0.26.0-m5 (versionCode 28) + `apksigner verify` + `aapt2 dump badging` | OK; non provato sul telefono |
+
 ## 02/10/2026 — D-046: prova pilota Higgsfield, colpi dai video di riferimento
 
 Catena `tools/mocap` (MediaPipe + adattamento sul rig vero) e tre colpi nuovi presi dai video:

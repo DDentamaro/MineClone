@@ -137,12 +137,19 @@ var _mocap_ids: Array[StringName] = []
 var _mi := 0
 
 
+## D-047: forti per punto della catena e colpi nuovi degli stili, provati uno a uno.
+const EXTRA := {&"fists": [&"palm", &"elbow", &"lift", &"flurry"], &"spear": [&"retreat"],
+	&"hammer": [&"aftershock"], &"greatsword": [&"sweep2", &"finale"]}
+
+
 func _start_mocap() -> void:
 	_mocap_ids.clear()
 	_mi = 0
 	for id: StringName in _game.combat.weapon.attacks:
 		if String(id).begins_with("m_"):
 			_mocap_ids.append(id)
+	for id: StringName in EXTRA.get(GameRoot.WEAPONS[_w], []):
+		_mocap_ids.append(id)
 	if _mocap_ids.is_empty():
 		_w += 1
 		_phase = 1
@@ -291,7 +298,7 @@ func _process(dt: float) -> bool:
 				var n := 0
 				for d in g._dummies.dummies:
 					n += d.hits
-				_log.append("%s %s (dal video): colpi %d" % [GameRoot.WEAPONS[_w], id, n])
+				_log.append("%s %s (da solo): colpi %d" % [GameRoot.WEAPONS[_w], id, n])
 				if n < 1:
 					_log.append("   NO   %s non colpisce" % id)
 					_ok = false

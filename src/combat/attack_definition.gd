@@ -46,6 +46,9 @@ enum Shape { ARC, THRUST, RADIAL }
 ## Piede che fa il passo d'attacco (-1 sinistro, +1 destro, 0 = nessun passo:
 ## giri e picchiate); l'altro resta piantato finche' il corpo non lo trascina.
 @export var step_foot := -1.0
+## Passo indietro (m) nella prima parte della carica, prima del colpo (D-047,
+## lancia: tenere la distanza).
+@export var backstep := 0.0
 @export var next_light: StringName = &""
 @export var next_heavy: StringName = &""
 ## > 0: lo stesso bersaglio puo' essere ricolpito dopo questo intervallo.

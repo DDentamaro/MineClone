@@ -26,6 +26,11 @@ enum Kind { FISTS, SWORD, SPEAR, HAMMER, GREATSWORD }
 ## lo prende in pieno (D-033): l'affondo porta qui, non piu' oltre.
 @export var strike_dist := 1.1
 @export var guard := {}
+## Slancio (D-047, spadone): ogni colpo leggero concatenato aggiunge questo
+## al moltiplicatore del danno, fino a `momentum_max` passi; il forte dalla
+## catena lo usa tutto; una catena nuova riparte da zero.
+@export var momentum_step := 0.0
+@export var momentum_max := 3
 ## Posa rilassata (fuori combattimento dopo 2,5 s di calma).
 @export var relaxed := {}
 @export var attacks := {}

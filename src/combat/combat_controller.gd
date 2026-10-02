@@ -81,6 +81,9 @@ var opaque := PackedByteArray()
 ## Statistiche dell'equipaggiamento (M5): moltiplicatore del danno e critico (×1,5).
 var damage_mult := 1.0
 var crit_chance := 0.0
+## Slancio accumulato nella catena (D-047, armi con `momentum_step`).
+var momentum := 0
+var _via_chain := &""
 var rng := RandomNumberGenerator.new()
 ## Cambio d'arma in corso (secondi): gli attacchi aspettano.
 var draw_t := 0.0
@@ -246,6 +249,14 @@ func _start_attack(id: StringName, motor: PlayerMotor, targets: Array, stick: Ve
 	buffer = &""
 	if a == null:
 		return
+	# Slancio: sale coi leggeri concatenati, il forte dalla catena lo usa, ogni
+	# altro inizio (catena nuova, corsa, aria) lo azzera.
+	if weapon.momentum_step > 0.0:
+		if _via_chain == &"light":
+			momentum = mini(weapon.momentum_max, momentum + 1)
+		elif _via_chain != &"heavy":
+			momentum = 0
+	_via_chain = &""
 	attack = a
 	state = State.ATTACK
 	t = 0.0
@@ -361,7 +372,11 @@ func _step_attack(dt: float, motor: PlayerMotor, targets: Array, stick: Vector2)
 	# Lo scatto finisce presto nel colpo: la lama spazza a distanza giusta.
 	var ls := a.windup * 0.4
 	var le := a.windup + a.active
-	if t >= ls and t <= a.windup + a.active * 0.35 and _lunge_speed > 0.0 and not a.plunge:
+	if a.backstep > 0.0 and t < ls and not a.plunge:
+		# Passo indietro prima del colpo (lancia).
+		drive_on = true
+		drive = -forward(facing) * (a.backstep / maxf(ls, 1e-3))
+	elif t >= ls and t <= a.windup + a.active * 0.35 and _lunge_speed > 0.0 and not a.plunge:
 		drive_on = true
 		drive = forward(facing) * _lunge_speed
 	elif a.plunge and t >= a.windup and not _impact_done:
@@ -409,6 +424,7 @@ func _step_attack(dt: float, motor: PlayerMotor, targets: Array, stick: Vector2)
 		elif buffer == &"heavy":
 			next = a.next_heavy if a.next_heavy != &"" else weapon.heavy_start
 		if next != &"" and motor.on_ground:
+			_via_chain = buffer
 			_start_attack(next, motor, targets, stick)
 			return
 	if t >= a.total():
@@ -601,7 +617,7 @@ func _hit(tg: CombatTarget, dir: Vector2, from: Vector3, at: Vector3 = Vector3.I
 	var cf := charge_fraction()
 	var mult := 1.0 + cf * attack.charge_bonus
 	var crit := rng.randf() < crit_chance
-	var dmg := attack.damage * mult * damage_mult * (1.5 if crit else 1.0)
+	var dmg := attack.damage * mult * damage_mult * (1.5 if crit else 1.0) * (1.0 + weapon.momentum_step * momentum)
 	var imp := Vector3(dir.x, 0, dir.y) * attack.knockback * (1.0 + cf * 0.5)
 	imp.y = attack.launch * (1.0 + cf * 0.3)
 	tg.take_hit(imp, dmg)
