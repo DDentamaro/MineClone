@@ -139,7 +139,7 @@ var _mi := 0
 
 ## D-047: forti per punto della catena e colpi nuovi degli stili, provati uno a uno.
 const EXTRA := {&"fists": [&"palm", &"elbow", &"lift", &"flurry"], &"spear": [&"retreat"],
-	&"hammer": [&"aftershock"], &"greatsword": [&"sweep2", &"finale"]}
+	&"hammer": [&"smash", &"aftershock"], &"greatsword": [&"sweep2", &"finale"]}
 
 
 func _start_mocap() -> void:

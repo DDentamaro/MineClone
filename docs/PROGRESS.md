@@ -1,5 +1,18 @@
 # Avanzamento
 
+## 02/10/2026 — D-049: martello, Leggero-Leggero-Forte come colpo pesante caricato
+
+Il forte dopo il montante del martello non viene più dal video: carica alta col busto inarcato
+indietro (caricabile tenendo premuto), colpo secco a terra vicino ai piedi, busto poco chinato.
+
+### Test realmente eseguiti (D-049)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 196/196 PASS, log pulito. Nuovo: il colpo si carica, martello sopra la testa e busto indietro nella carica, busto chinato meno di 30° nel colpo, poca spinta, carica più lunga del colpo a terra leggero. La prima versione durava 1,64 s (limite 1,6): rientro accorciato |
+| `tools/pose_sheet.gd --weapon=hammer` | Prima versione: nella carica il martello pendeva dietro la schiena; corretta in due passi fino al martello alto dietro la testa |
+| Suite e2e completa (movimenti, passo, nuoto, terza e prima persona, combattimento, aggancio, sessione, touch, sandbox, oggetti a terra, armeria, opzioni e opzioni sul telefono) | OK, nessun errore di script (sulla prima versione delle pose). Dopo la correzione delle pose rifatti movimenti (colpo nuovo da solo a segno) e combattimento: OK |
+| Export Android debug 0.28.0-m5 (versionCode 30) + `apksigner verify` + `aapt2 dump badging` | OK; non provato sul telefono |
+
 ## 02/10/2026 — D-048: via l'inclinazione laterale in curva
 
 Girando con l'analogico il corpo non si inclina più di lato (era invertito e troppo marcato).

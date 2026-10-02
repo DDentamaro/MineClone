@@ -897,3 +897,19 @@ Richiesta del proprietario: spostando l'analogico a destra o a sinistra il corpo
 lato in modo invertito e troppo marcato. L'inclinazione veniva dalla velocità di rotazione
 (`AvatarAnimator`, fino a 20° sul corpo in corsa). Tolta del tutto: in curva il corpo resta
 dritto. Restano il leggero ondeggiamento del passo e l'inclinazione in avanti della corsa.
+
+## D-049 — Martello: Leggero-Leggero-Forte come vero colpo pesante caricato
+Richiesta del proprietario: nel forte dopo il montante del martello (spazzata → montante → Forte)
+martello e corpo finivano troppo in avanti; deve sembrare un colpo pesante caricato. Le pose
+venivano dal video (`m_smash`, D-046): busto chinato di 36° già nella carica e di 50° nel colpo.
+Sostituito da `smash`, disegnato a mano:
+- carica: martello alto dietro la testa (circa 45° sopra l'orizzontale) con entrambe le braccia, busto
+  inarcato indietro (+26°),
+  corpo sollevato; tenendo premuto Forte si carica (fino a 1 s, danno fino a ×2) come il terremoto;
+- colpo: secco a terra poco davanti ai piedi (braccia più basse del colpo a terra leggero), busto
+  chinato solo di 20°, spinta in avanti ridotta
+  (0,6 → 0,3 m), si resta piantati;
+- durata senza carica sotto 1,6 s come gli altri colpi.
+Le pose `hammer_smash` restano in `MocapMoves` ma non sono più usate.
+Pose controllate con `tools/pose_sheet.gd --weapon=hammer`: la prima versione della carica teneva il
+martello appeso dietro la schiena, corretta prima della consegna.

@@ -371,7 +371,7 @@ func test_colpi_dai_video_nelle_catene() -> void:
 	check_eq(sw.attack(&"whirl").next_light, &"m_cross", "dopo il giro il rovescio dal video")
 	check_eq(sw.attack(&"m_cross").next_light, &"slash", "poi si torna al fendente")
 	check_eq(sw.attack(&"m_cross").next_heavy, &"m_leap", "forte: fendente saltato dal video")
-	check_eq(WeaponLibrary.by_id(&"hammer").attack(&"upswing").next_heavy, &"m_smash", "martello: colpo a terra dal video")
+	check_eq(WeaponLibrary.by_id(&"hammer").attack(&"upswing").next_heavy, &"smash", "martello: colpo a terra caricato (D-049)")
 	for id in [&"m_cross", &"m_leap"]:
 		var a := sw.attack(id)
 		check(a.key_wind.has(&"arm_r") and a.key_strike.has(&"chest"), "%s con le pose del video" % id)
@@ -392,7 +392,7 @@ func test_catene_per_stile() -> void:
 		&"fists": [[&"jab", &"palm"], [&"cross", &"elbow"], [&"hook", &"lift"], [&"upper", &"rocket"], [&"flurry", &"rocket"]],
 		&"sword": [[&"slash", &"rise"], [&"backhand", &"pierce"], [&"cleave", &"m_leap"], [&"whirl", &"pierce"], [&"m_cross", &"m_leap"]],
 		&"spear": [[&"thrust", &"retreat"], [&"thrust2", &"drive"], [&"rise", &"charge"], [&"impale", &"charge"]],
-		&"hammer": [[&"swing", &"quake"], [&"upswing", &"m_smash"], [&"slam", &"aftershock"]],
+		&"hammer": [[&"swing", &"quake"], [&"upswing", &"smash"], [&"slam", &"aftershock"]],
 		&"greatsword": [[&"sweep", &"cleave"], [&"return", &"cyclone"], [&"sweep2", &"finale"]],
 	}
 	for wid: StringName in chains:
@@ -444,3 +444,17 @@ func test_passo_indietro_della_lancia() -> void:
 	check_eq(r.started[-1], &"retreat", "forte dopo la stoccata")
 	# facing 0 = avanti verso -Z: indietro e' +Z.
 	check(r.motor.position.z > z0 + 0.3, "passo indietro (%.2f m)" % (r.motor.position.z - z0))
+
+
+## D-049: il forte del martello dopo il montante e' un colpo pesante caricato:
+## martello alto e busto indietro nella carica, busto appena chinato nel colpo.
+func test_colpo_a_terra_caricato_del_martello() -> void:
+	var a := WeaponLibrary.by_id(&"hammer").attack(&"smash")
+	check(a != null, "colpo presente")
+	check(a.charge_max > 0.0, "si carica tenendo premuto")
+	check(rad_to_deg((a.key_wind[&"chest"] as Vector3).x) > 15.0, "busto inarcato indietro nella carica")
+	check(rad_to_deg((a.key_wind[&"arm_r"] as Vector3).x) > 170.0, "martello sopra la testa")
+	check(rad_to_deg((a.key_strike[&"chest"] as Vector3).x) > -30.0, "busto non troppo in avanti nel colpo")
+	check(a.lunge <= 0.4, "poca spinta in avanti (%.2f)" % a.lunge)
+	check(a.windup > WeaponLibrary.by_id(&"hammer").attack(&"slam").windup, "carica piu' lunga del colpo a terra leggero")
+

@@ -470,12 +470,21 @@ static func _hammer() -> WeaponDefinition:
 		_with(TUCK, {"arm_r": [176, 0, 10], "fore_r": [30, 0, 0], "hand_r": [-30, 0, 0], "chest": [16, 0, 0]}),
 		_with(SQUAT, {"arm_r": [96, 0, 4], "fore_r": [0, 0, 0], "hand_r": [-110, 0, 0], "chest": [-40, 0, 0]}),
 		_with(SQUAT, {"arm_r": [90, 0, 6], "fore_r": [4, 0, 0], "hand_r": [-104, 0, 0], "chest": [-30, 0, 0]}))
-	# D-046: dal video di riferimento, sollevamento lento sopra la testa e
-	# colpo a terra piegandosi in avanti; e' il forte dopo il montante.
-	(w.attacks[&"upswing"] as AttackDefinition).next_heavy = &"m_smash"
-	_mocap(w, "m_smash", "hammer_smash", {"chain_at": 0.0, "shape": AttackDefinition.Shape.RADIAL, "radial_ahead": 1.4,
-		"radial": 2.6, "damage": 24.0, "knockback": 10.0, "launch": 7.0, "hitstop": 0.15, "shake": 0.6, "lunge": 0.6,
-		"fx": "dust", "move_scale": 0.0, "next_light": "swing"}, STANCE, SQUAT, SQUAT)
+	# Forte dopo il montante. D-046 lo prendeva dal video (`m_smash`), ma busto
+	# e martello finivano troppo in avanti; D-049: colpo pesante disegnato a mano.
+	# Carica lunga col martello alto dietro la testa e il busto inarcato
+	# indietro (tenendo premuto si carica), poi colpo secco a terra poco davanti
+	# ai piedi col busto appena chinato, e si resta piantati.
+	(w.attacks[&"upswing"] as AttackDefinition).next_heavy = &"smash"
+	_atk(w, "smash", {"windup": 0.44, "active": 0.06, "recovery": 0.44, "chain_at": 0.0, "shape": AttackDefinition.Shape.RADIAL,
+		"radial_ahead": 1.1, "radial": 2.8, "damage": 24.0, "knockback": 10.0, "launch": 7.0, "hitstop": 0.16, "shake": 0.65,
+		"lunge": 0.3, "charge_max": 1.0, "charge_bonus": 1.0, "fx": "dust", "move_scale": 0.0, "next_light": "swing"},
+		_with(STANCE, {"arm_r": [172, 0, 10], "fore_r": [4, 0, 0], "hand_r": [-56, 0, 0], "arm_l": [165, 0, -10], "fore_l": [10, 0, 0],
+			"chest": [26, 0, 0], "head": [-10, 0, 0], "body_pos": [0, 0.08, 0]}),
+		_with(SQUAT, {"arm_r": [78, 0, 4], "fore_r": [0, 0, 0], "hand_r": [-96, 0, 0], "arm_l": [72, 0, -6], "fore_l": [10, 0, 0],
+			"chest": [-20, 0, 0]}),
+		_with(SQUAT, {"arm_r": [72, 0, 6], "fore_r": [4, 0, 0], "hand_r": [-92, 0, 0], "arm_l": [64, 0, -6], "fore_l": [20, 0, 0],
+			"chest": [-16, 0, 0]}))
 	# D-047, stile "distruzione": dopo il colpo a terra il forte e' un secondo
 	# colpo a terra piu' forte, con l'onda che arriva lontano.
 	_atk(w, "aftershock", {"windup": 0.36, "active": 0.06, "recovery": 0.55, "shape": AttackDefinition.Shape.RADIAL,

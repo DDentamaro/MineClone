@@ -51,7 +51,7 @@ non ci sono più riquadri in alto, il Diario è in Menu > Diario (D-041). La ter
 come l'isometrica (ruota e zooma solo l'utente, i muri si aprono coi raggi X); spadone e martello
 colpiscono più pesanti (D-042). L'eroe ha l'altezza e la testa grande del prototipo, con arti un poco più lunghi (D-045). Tre colpi vengono da video di riferimento (D-046).
 Ogni arma ha il suo stile di combo: pugni rissa, spada equilibrio, lancia distanza, martello
-distruzione, spadone slancio; ogni punto della catena leggera ha il suo colpo forte (D-047). In curva il corpo resta dritto (D-048).
+distruzione, spadone slancio; ogni punto della catena leggera ha il suo colpo forte (D-047). In curva il corpo resta dritto (D-048). Il forte del martello dopo il montante è un colpo a terra caricato (D-049).
 
 ## Struttura
 
