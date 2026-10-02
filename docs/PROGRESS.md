@@ -1,5 +1,16 @@
 # Avanzamento
 
+## 02/10/2026 — D-048: via l'inclinazione laterale in curva
+
+Girando con l'analogico il corpo non si inclina più di lato (era invertito e troppo marcato).
+
+### Test realmente eseguiti (D-048)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 195/195 PASS, log pulito. Nuovo: in corsa il corpo ha la stessa inclinazione laterale con rotazione nulla, a destra e a sinistra |
+| Suite e2e completa (movimenti, passo, nuoto, terza e prima persona, combattimento, aggancio, sessione, touch, sandbox, oggetti a terra, armeria, opzioni e opzioni sul telefono) | OK al primo colpo, nessun errore di script |
+| Export Android debug 0.27.0-m5 (versionCode 29) + `apksigner verify` + `aapt2 dump badging` | OK; non provato sul telefono |
+
 ## 02/10/2026 — D-047: catene di combo per stile d'arma
 
 Ogni arma ha uno stile: pugni rissa (raffica), spada equilibrio, lancia distanza (passo indietro e

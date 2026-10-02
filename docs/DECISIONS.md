@@ -891,3 +891,9 @@ diverse); il forte tenuto resta la carica; corsa e aria come prima.
 - Correzione dopo l'e2e: la raffica partiva da troppo lontano e il montante sollevava il manichino
   sopra i pugni. Raffica con più avanzamento (1,0) e busto girato in avanti, braccia un poco più
   alte; il montante solleva meno (launch 7 → 4), così la raffica lo raggiunge ancora.
+
+## D-048 — Via l'inclinazione laterale in curva
+Richiesta del proprietario: spostando l'analogico a destra o a sinistra il corpo si inclinava di
+lato in modo invertito e troppo marcato. L'inclinazione veniva dalla velocità di rotazione
+(`AvatarAnimator`, fino a 20° sul corpo in corsa). Tolta del tutto: in curva il corpo resta
+dritto. Restano il leggero ondeggiamento del passo e l'inclinazione in avanti della corsa.

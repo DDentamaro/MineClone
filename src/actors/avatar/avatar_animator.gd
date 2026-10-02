@@ -49,7 +49,6 @@ var _w_run := 0.0
 var _w_air := 0.0
 var _w_swim := 0.0
 var _w_wade := 0.0
-var _lean := 0.0
 var _roll := 0.0
 var _up := 0.0
 
@@ -101,7 +100,6 @@ func target_pose(dt: float, s: State) -> Dictionary:
 	_w_air += ((0.0 if s.on_ground or s.swimming else 1.0) - _w_air) * (1.0 - exp(-dt * 14.0))
 	_w_swim += ((1.0 if s.swimming else 0.0) - _w_swim) * (1.0 - exp(-dt * 6.0))
 	_w_wade += (clampf(s.wade * 2.0, 0.0, 1.0) - _w_wade) * k
-	_lean += (clampf(s.turn * 0.12, -0.35, 0.35) - _lean) * k
 	if not gait:
 		stride_phase = fmod(stride_phase + s.speed * dt / STRIDE * TAU, TAU)
 
@@ -147,7 +145,8 @@ func target_pose(dt: float, s: State) -> Dictionary:
 	p[&"arm_r"] += d(sn * 30.0 * r * free_r)
 	p[&"chest"] += d(0, sn * 9.0 * r)
 	p[&"hips"] += d(0, -sn * 7.0 * r)
-	p[&"body"] += d(-9.0 * r, 0, -rad_to_deg(_lean) * r)
+	# Niente inclinazione laterale in curva (D-048): era invertita e troppo marcata.
+	p[&"body"] += d(-9.0 * r)
 	p[&"head"] += d(5.0 * r)
 	if not gait:
 		p[&"body_pos"] += Vector3(0, (0.045 * (1.0 - absf(sn)) - 0.03) * r, 0)

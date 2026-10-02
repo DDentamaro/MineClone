@@ -73,6 +73,21 @@ func test_animazione_finita_e_nuoto_prono() -> void:
 	check((an.pose[&"body"] as Vector3).x < deg_to_rad(-55.0), "corpo prono nel nuoto (%f)" % (an.pose[&"body"] as Vector3).x)
 
 
+## D-048: girando in corsa (analogico a destra o sinistra) il corpo non si inclina di lato.
+func test_nessuna_inclinazione_in_curva() -> void:
+	var rolls := []
+	for turn in [0.0, 4.0, -4.0]:
+		var an := AvatarAnimator.new()
+		var s := AvatarAnimator.State.new()
+		s.weapon = WeaponLibrary.by_id(&"sword")
+		s.speed = 5.5
+		s.turn = turn
+		for i in 60:
+			an.update(1.0 / 60.0, s)
+		rolls.append((an.pose[&"body"] as Vector3).z)
+	check(is_equal_approx(rolls[0], rolls[1]) and is_equal_approx(rolls[0], rolls[2]), "corpo dritto in curva %s" % [rolls])
+
+
 func test_il_colpo_segue_le_pose_chiave() -> void:
 	var w := WeaponLibrary.by_id(&"sword")
 	var a := w.attack(&"slash")
