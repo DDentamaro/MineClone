@@ -2,7 +2,7 @@ extends SceneTree
 ## Anteprima nel gioco vero (D-051): l'eroe allo spawn con un set d'armatura,
 ## con la luce del mondo, girato davanti, di lato e dietro. Serve a giudicare
 ## un set prima di metterlo tra gli oggetti.
-## Uso: xvfb-run -a godot --path . --script res://tools/armor_preview.gd -- --out=/tmp/anteprima.png [--iso] [--set=leather|iron]
+## Uso: xvfb-run -a godot --path . --script res://tools/armor_preview.gd -- --out=/tmp/anteprima.png [--iso] [--set=leather|iron|none] [--weapon=sword]
 ## Salva un'immagine per set e vista: _casco_davanti, _cappuccio_dietro, ...
 
 var _game: GameRoot
@@ -17,7 +17,10 @@ var _face0 := 0.0
 const SETS := {
 	"leather": [["casco", Color(0.55, 0.33, 0.19), "leather_cap", "leather"], ["cappuccio", Color(0.55, 0.33, 0.19), "leather_hood", "leather"]],
 	"iron": [["ferro", Color(0.56, 0.57, 0.59), "iron", "iron"]],
+	"none": [["senza", Color(0, 0, 0, 0), "", ""]],
 }
+## --weapon=sword (D-052): l'eroe impugna quell'arma invece dei pugni.
+var _weapon := &"fists"
 var _sets: Array = SETS["leather"]
 const VIEWS := [["davanti", 0.45], ["lato", PI * 0.5], ["dietro", PI + 0.45]]
 
@@ -32,6 +35,8 @@ func _initialize() -> void:
 			_out = a.substr(6)
 		elif a == "--iso":
 			_iso = true
+		elif a.begins_with("--weapon="):
+			_weapon = StringName(a.substr(9))
 		elif a.begins_with("--set="):
 			_sets = SETS[a.substr(6)]
 	_game = (load("res://scenes/main.tscn") as PackedScene).instantiate()
@@ -66,7 +71,7 @@ func _process(_dt: float) -> bool:
 			if _frame == 1:
 				var e: Array = _sets[set_i]
 				var st := {"head": e[2], "chest": e[3], "legs": e[3], "feet": e[3]}
-				g._avatar.rig.set_weapon(WeaponLibrary.by_id(&"fists"))
+				g._avatar.rig.set_weapon(WeaponLibrary.by_id(_weapon))
 				g._avatar.rig.set_armor_all({"head": e[1], "chest": e[1], "legs": e[1], "feet": e[1]}, st)
 				g._avatar.facing = _face0 + float(VIEWS[view_i][1])
 				g._avatar.rotation.y = g._avatar.facing

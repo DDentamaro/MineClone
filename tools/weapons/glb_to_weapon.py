@@ -29,8 +29,6 @@ TARGET = {
 	"hammer": (-0.3575, 1.2375),
 	"greatsword": (-0.3575, 1.4575),
 }
-# La sezione piu' larga sta in basso (guardia) o in alto (testa)?
-WIDE_LOW = {"sword": True, "greatsword": True, "spear": False, "hammer": False}
 
 
 def load(path: str) -> trimesh.Trimesh:
@@ -53,21 +51,11 @@ def colors_of(m: trimesh.Trimesh) -> np.ndarray:
 	return c
 
 
-def slice_width(v: np.ndarray, axis: int, others: list, n: int = 24) -> np.ndarray:
-	lo, hi = v[:, axis].min(), v[:, axis].max()
-	edges = np.linspace(lo, hi, n + 1)
-	w = np.zeros(n)
-	for i in range(n):
-		sel = (v[:, axis] >= edges[i]) & (v[:, axis] <= edges[i + 1])
-		if sel.any():
-			w[i] = max(np.ptp(v[sel][:, others[0]]), np.ptp(v[sel][:, others[1]]))
-	return w
-
-
 def main() -> int:
 	ap = argparse.ArgumentParser()
 	ap.add_argument("--kind", required=True, choices=list(TARGET))
 	ap.add_argument("--faces", type=int, default=1800)
+	ap.add_argument("--flip", action="store_true", help="capovolge la punta (se la regola automatica sbaglia)")
 	ap.add_argument("src")
 	ap.add_argument("dst")
 	a = ap.parse_args()
@@ -89,10 +77,14 @@ def main() -> int:
 	wide = rest[1] if thin == rest[0] else rest[0]
 	v = v[:, [wide, long_ax, thin]]
 
-	# Punta in alto: la sezione piu' larga dove deve stare.
-	w = slice_width(v, 1, [0, 2])
-	widest_low = int(np.argmax(w)) < len(w) // 2
-	if widest_low != WIDE_LOW[a.kind]:
+	# Punta in alto: l'estremita' d'acciaio (grigia, poco satura) e' la punta o
+	# la testa; l'altra e' cuoio, legno o ottone (impugnatura, pomo, calcio).
+	mx, mn_ = col.max(axis=1), col.min(axis=1)
+	sat = np.where(mx > 1e-6, (mx - mn_) / np.maximum(mx, 1e-6), 0.0)
+	lo, hi = v[:, 1].min(), v[:, 1].max()
+	top = v[:, 1] > hi - 0.15 * (hi - lo)
+	bot = v[:, 1] < lo + 0.15 * (hi - lo)
+	if (sat[top].mean() > sat[bot].mean()) != a.flip:
 		v[:, 1] *= -1.0
 		v[:, 0] *= -1.0  # rotazione di 180 gradi attorno a Z, niente specchio
 
@@ -111,7 +103,8 @@ def main() -> int:
 		_, idx = cKDTree(v).query(v2)
 		col = col[idx]
 		v, f = np.asarray(v2, dtype=np.float64), np.asarray(f2, dtype=np.int64)
-	out = trimesh.Trimesh(vertices=v, faces=f, vertex_colors=np.column_stack([col, np.ones(len(col))]) * 255.0, process=True)
+	rgba = np.clip(np.column_stack([col, np.ones(len(col))]) * 255.0, 0, 255).astype(np.uint8)
+	out = trimesh.Trimesh(vertices=v, faces=f, vertex_colors=rgba, process=True)
 	out.fix_normals()
 	if a.dst.endswith(".json"):
 		c = np.asarray(out.visual.vertex_colors, dtype=np.float64)[:, :3] / 255.0
