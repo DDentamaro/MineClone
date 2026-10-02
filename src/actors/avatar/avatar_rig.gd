@@ -318,8 +318,8 @@ var _armor := {}
 
 
 var _armor_colors := {}
-## Forma per slot (D-051): "" = metallo (D-030); "leather", e per la testa
-## "leather_cap" (cuffia) o "leather_hood" (cappuccio).
+## Forma per slot (D-051): "" = metallo (D-030); "iron" (cavaliere);
+## "leather", e per la testa "leather_cap" (casco) o "leather_hood" (cappuccio).
 var _armor_styles := {}
 
 
@@ -349,6 +349,8 @@ func set_armor_all(colors: Dictionary, styles: Dictionary = {}) -> void:
 static func armor_boxes_for(slot: String, mat: Color, style: String = "") -> Array:
 	if style.begins_with("leather"):
 		return LeatherArmor.boxes(slot, mat, style)
+	if style == "iron":
+		return IronArmor.boxes(slot, mat)
 	var out := []
 	var band := mat.darkened(0.3)
 	var hi := mat.lightened(0.18)

@@ -2,8 +2,8 @@ extends SceneTree
 ## Anteprima nel gioco vero (D-051): l'eroe allo spawn con un set d'armatura,
 ## con la luce del mondo, girato davanti, di lato e dietro. Serve a giudicare
 ## un set prima di metterlo tra gli oggetti.
-## Uso: xvfb-run -a godot --path . --script res://tools/armor_preview.gd -- --out=/tmp/anteprima.png [--iso]
-## Salva un'immagine per set e vista: _cuffia_davanti, _cappuccio_dietro, ...
+## Uso: xvfb-run -a godot --path . --script res://tools/armor_preview.gd -- --out=/tmp/anteprima.png [--iso] [--set=leather|iron]
+## Salva un'immagine per set e vista: _casco_davanti, _cappuccio_dietro, ...
 
 var _game: GameRoot
 var _frame := 0
@@ -13,8 +13,12 @@ var _iso := false
 var _i := 0
 var _face0 := 0.0
 
-const CUOIO := Color(0.55, 0.33, 0.19)
-const SETS := [["cuffia", "leather_cap"], ["cappuccio", "leather_hood"]]
+## [nome, colore, forma della testa, forma del resto] per ogni set.
+const SETS := {
+	"leather": [["casco", Color(0.55, 0.33, 0.19), "leather_cap", "leather"], ["cappuccio", Color(0.55, 0.33, 0.19), "leather_hood", "leather"]],
+	"iron": [["ferro", Color(0.56, 0.57, 0.59), "iron", "iron"]],
+}
+var _sets: Array = SETS["leather"]
 const VIEWS := [["davanti", 0.45], ["lato", PI * 0.5], ["dietro", PI + 0.45]]
 
 
@@ -28,6 +32,8 @@ func _initialize() -> void:
 			_out = a.substr(6)
 		elif a == "--iso":
 			_iso = true
+		elif a.begins_with("--set="):
+			_sets = SETS[a.substr(6)]
 	_game = (load("res://scenes/main.tscn") as PackedScene).instantiate()
 	root.add_child(_game)
 
@@ -58,18 +64,19 @@ func _process(_dt: float) -> bool:
 			var set_i := _i / VIEWS.size()
 			var view_i := _i % VIEWS.size()
 			if _frame == 1:
-				var st := {"head": SETS[set_i][1], "chest": "leather", "legs": "leather", "feet": "leather"}
+				var e: Array = _sets[set_i]
+				var st := {"head": e[2], "chest": e[3], "legs": e[3], "feet": e[3]}
 				g._avatar.rig.set_weapon(WeaponLibrary.by_id(&"fists"))
-				g._avatar.rig.set_armor_all({"head": CUOIO, "chest": CUOIO, "legs": CUOIO, "feet": CUOIO}, st)
+				g._avatar.rig.set_armor_all({"head": e[1], "chest": e[1], "legs": e[1], "feet": e[1]}, st)
 				g._avatar.facing = _face0 + float(VIEWS[view_i][1])
 				g._avatar.rotation.y = g._avatar.facing
 			if _frame == 40:
-				var path := _out.replace(".png", "_%s_%s.png" % [SETS[set_i][0], VIEWS[view_i][0]])
+				var path := _out.replace(".png", "_%s_%s.png" % [_sets[set_i][0], VIEWS[view_i][0]])
 				var img := root.get_texture().get_image()
 				img.save_png(path)
 				print("anteprima " + path)
 				_i += 1
 				_frame = 0
-				if _i >= SETS.size() * VIEWS.size():
+				if _i >= _sets.size() * VIEWS.size():
 					return true
 	return false

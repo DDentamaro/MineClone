@@ -3,7 +3,7 @@ extends RefCounted
 ## Armatura di cuoio (D-051), dalle tavole di concept Higgsfield approvate dal
 ## proprietario: quattro pezzi a blocchi smussati nello stile dell'eroe, tre
 ## toni (cuoio, cinghie scure, ottone) e cuciture color crema a trattini.
-## - testa: cuffia (calotta, paraorecchie, sottogola) o cappuccio a punta
+## - testa: casco unico (guscio fino alla mascella, sottogola) o cappuccio a punta
 ##   (incornicia il viso, mantellina sulle spalle);
 ## - busto, spalle e braccia in un solo pezzo: giubba col colletto, cinghie
 ##   incrociate con fibbia, falda corta, maniche, spallacci a due lamelle,
@@ -57,28 +57,30 @@ static func _stitch(out: Array, bone: String, a: Vector3, b: Vector3, n: int, t:
 # ---------------------------------------------------------------- testa
 
 static func _cap(out: Array, mat: Color, dark: Color, lite: Color) -> void:
-	# Calotta sopra la testa (fronte libera sotto le sopracciglia alte).
-	# Calotta tonda e aderente (smusso largo, niente tesa).
-	_b(out, "cuffia", "head", Vector3(-.60, 2.22, -.48), Vector3(.60, 2.70, .60), .24, mat)
-	# Cuciture: dalla fronte alla nuca e due ai lati, piu' il bordo davanti.
-	_stitch(out, "head", Vector3(0, 2.71, .42), Vector3(0, 2.71, -.30), 5)
-	_stitch(out, "head", Vector3(-.44, 2.30, .615), Vector3(.44, 2.30, .615), 6)
+	# D-051: casco unico, senza parti scoperte. Un guscio tondo copre sopra,
+	# lati, orecchie e nuca fino alla mascella; davanti una fascia sulla fronte
+	# e due guanciali lasciano libero solo il viso.
+	_b(out, "casco", "head", Vector3(-.63, 1.54, -.54), Vector3(.63, 2.72, .42), .24, mat)
+	_b(out, "casco", "head", Vector3(-.63, 2.24, .36), Vector3(.63, 2.72, .62), .16, mat)
 	for s in [1, -1]:
-		_stitch(out, "head", Vector3(s * .36, 2.67, .48), Vector3(s * .36, 2.67, -.34), 4)
-		# Paraorecchie con il bordo cucito.
-		var x0 := .52 if s > 0 else -.68
-		var x1 := .68 if s > 0 else -.52
-		_b(out, "cuffia", "head", Vector3(x0, 1.74, -.14), Vector3(x1, 2.30, .34), .07, mat)
-		_stitch(out, "head", Vector3(s * .685, 1.80, .10), Vector3(s * .685, 2.22, .10), 3)
-	# Paranuca.
-	_b(out, "cuffia", "head", Vector3(-.60, 1.92, -.56), Vector3(.60, 2.30, -.40), .06, mat)
+		var x0 := .44 if s > 0 else -.63
+		var x1 := .63 if s > 0 else -.44
+		_b(out, "casco", "head", Vector3(x0, 1.70, .36), Vector3(x1, 2.30, .62), .08, mat)
+		# Costole cucite ai lati della calotta e sui guanciali.
+		_stitch(out, "head", Vector3(s * .36, 2.735, .50), Vector3(s * .36, 2.735, -.40), 5)
+		_stitch(out, "head", Vector3(s * .645, 1.70, -.30), Vector3(s * .645, 2.56, -.30), 5)
+		_stitch(out, "head", Vector3(s * .535, 1.78, .635), Vector3(s * .535, 2.22, .635), 3)
+	_stitch(out, "head", Vector3(0, 2.735, .50), Vector3(0, 2.735, -.40), 5)
+	_stitch(out, "head", Vector3(-.40, 2.30, .635), Vector3(.40, 2.30, .635), 5)
+	# Bordo scuro in basso tutto attorno.
+	_b(out, "casco", "head", Vector3(-.645, 1.52, -.555), Vector3(.645, 1.62, .435), .04, dark)
 	# Sottogola scuro con la fibbia d'ottone sul lato sinistro.
-	_b(out, "cuffia", "head", Vector3(-.60, 1.44, .14), Vector3(.60, 1.52, .26), .02, dark)
+	_b(out, "casco", "head", Vector3(-.58, 1.44, .14), Vector3(.58, 1.52, .26), .02, dark)
 	for s in [1, -1]:
-		var x0 := .55 if s > 0 else -.62
-		var x1 := .62 if s > 0 else -.55
-		_b(out, "cuffia", "head", Vector3(x0, 1.46, .14), Vector3(x1, 1.80, .26), .02, dark)
-	_b(out, "cuffia", "head", Vector3(.56, 1.46, .12), Vector3(.68, 1.58, .28), .02, BRASS)
+		var x0 := .52 if s > 0 else -.60
+		var x1 := .60 if s > 0 else -.52
+		_b(out, "casco", "head", Vector3(x0, 1.46, .14), Vector3(x1, 1.74, .26), .02, dark)
+	_b(out, "casco", "head", Vector3(.54, 1.46, .12), Vector3(.66, 1.58, .28), .02, BRASS)
 
 
 static func _hood(out: Array, mat: Color, dark: Color) -> void:
