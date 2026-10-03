@@ -387,8 +387,13 @@ func _step_attack(dt: float, motor: PlayerMotor, targets: Array, stick: Vector2)
 		move_scale = a.move_scale if t < le else lerpf(a.move_scale, 0.7, clampf((t - le) / maxf(a.recovery, 1e-3), 0.0, 1.0))
 	# Colpi.
 	var ph := phase()
-	var blade := not hitboxes.is_empty() and a.shape != AttackDefinition.Shape.RADIAL and not a.plunge
-	if blade:
+	var blade := not hitboxes.is_empty() and a.shape != AttackDefinition.Shape.RADIAL and not a.plunge and a.cast == ""
+	if a.cast != "":
+		# D-055: magia, il proiettile lo crea il gioco (`MagicSystem`).
+		if ph >= 1 and not _impact_done:
+			_impact_done = true
+			events.append({"type": "cast", "attack": a, "charge": charge_fraction(), "target": lock_target, "facing": _attack_facing})
+	elif blade:
 		if ph == 1 or (ph == 2 and phase_u() <= FOLLOW):
 			_blade_hits(motor.position, targets, dt)
 		# Affondo perforante: oltre la lama, la striscia prende tutta la fila.

@@ -25,7 +25,7 @@ const HERO_BUTTONS := [[&"hero_skin", "skin"], [&"hero_hair", "hair"], [&"hero_h
 	[&"hero_copy", ""], [&"hero_paste", ""], [&"hero_close", ""]]
 const HERO_LABELS := {&"hero_preset": "Eroe 1/2", &"hero_random": "Casuale", &"hero_copy": "Copia ricetta",
 	&"hero_paste": "Incolla ricetta", &"hero_close": "Chiudi"}
-const WEAPONS: Array[StringName] = [&"fists", &"sword", &"spear", &"hammer", &"greatsword"]
+const WEAPONS: Array[StringName] = [&"fists", &"sword", &"spear", &"hammer", &"greatsword", &"staff"]
 
 @onready var _status: Label = %Status
 @onready var _view: SubViewport = $WorldView
@@ -72,6 +72,9 @@ var _fpv: FirstPersonView
 ## Camminata laterale col Lock: un po' piu' lenta della corsa libera.
 const STRAFE_SPEED := 0.78
 var _texts: FloatingText
+## Magia del fuoco del bastone (D-055).
+var magic: FireMagic
+var _pending_casts: Array = []
 var _light_key := false
 var paused := false
 var show_hitboxes := false
@@ -160,6 +163,10 @@ func _ready() -> void:
 	_texts = FloatingText.new()
 	_texts.name = "Texts"
 	_view.add_child(_texts)
+	magic = FireMagic.new()
+	magic.name = "Magic"
+	_view.add_child(magic)
+	magic.grains = _grains
 	_hitbox_lines = DebugLines.new()
 	_view.add_child(_hitbox_lines)
 	_cursor_lines = DebugLines.new()
@@ -296,6 +303,8 @@ func _swap_world(w: WorldData) -> void:
 	combat.opaque = catalog.opaque_table()
 	_dummies.setup(world)
 	_place_dummies()
+	magic.world = world
+	magic.clear()
 	_objects.world = world
 	_objects.clear()
 	ground.world = world
@@ -369,9 +378,21 @@ func _physics_process(dt: float) -> void:
 			_avatar.face_towards(Vector2(motor.velocity.x, motor.velocity.z), dt)
 	for d in _dummies.step(0.0 if frozen else dt):
 		fx.broke(d)
+	# D-055: proiettili di fuoco e palla che si forma sulla gemma nella carica.
+	magic.step(0.0 if frozen else dt, targets)
+	var ca := combat.attack if combat.state == CombatController.State.ATTACK else null
+	if ca != null and ca.cast == "ball" and combat.phase() == 0:
+		var cf := maxf(combat.charge_fraction(), combat.t / maxf(ca.windup, 0.01) * 0.35)
+		var fw := CombatController.forward(combat.facing)
+		magic.charging(true, _staff_gem(), Vector3(fw.x, 0, fw.y), cf)
+	else:
+		magic.charging(false, Vector3.ZERO, Vector3.FORWARD, 0.0)
 	# Posa dell'eroe al passo della fisica (D-028): la lama che ferisce e' quella
 	# che si vede, anche quando piu' passi di fisica cadono in un fotogramma.
 	_avatar.animate(0.0 if combat.hitstop > 0.0 else dt, motor, combat)
+	for c: Array in _pending_casts:
+		magic.cast(c[0], _staff_gem(), c[1], c[2], c[3], combat.damage_mult)
+	_pending_casts.clear()
 
 
 ## Riquadri dei colpi (Hitbox) e cubo del cursore di costruzione.
@@ -522,7 +543,33 @@ func _handle_combat_events() -> void:
 			"dodge":
 				journal.record("dodge")
 				fx.dodge(motor.position, combat.dodge_dir)
+			"cast":
+				var a: AttackDefinition = e["attack"]
+				var f := CombatController.forward(float(e["facing"]))
+				var tg: CombatTarget = e.get("target")
+				# Il lancio parte dalla gemma nella posa del colpo: si fa dopo
+				# l'animazione di questo passo (vedi _physics_process).
+				_pending_casts.append([a, Vector3(f.x, 0, f.y), float(e["charge"]), tg])
 	combat.events.clear()
+	for e in magic.events:
+		match String(e["type"]):
+			"spell_hit":
+				journal.record("hit")
+				_camera_rig.shake(float(e["shake"]))
+				_texts.spawn((e["p"] as Vector3) + Vector3(0, 0.4, 0), str(roundi(float(e["damage"]))), Color(1.0, 0.62, 0.22), 34)
+			"burn":
+				_texts.spawn((e["p"] as Vector3) + Vector3(randf_range(-0.2, 0.2), 0.5, 0), str(roundi(float(e["damage"]))), Color(1.0, 0.45, 0.15), 24)
+			"blast":
+				_camera_rig.shake(float(e["shake"]))
+	magic.events.clear()
+
+
+## Gemma del bastone in mano (punto da cui parte la magia), o la mano.
+func _staff_gem() -> Vector3:
+	var rig := _avatar.rig
+	if rig.socket != null and rig.weapon != null and rig.weapon.kind == WeaponDefinition.Kind.STAFF:
+		return rig.socket.global_transform * Vector3(0, WeaponMeshes.STAFF_GEM_Y, 0)
+	return motor.position + Vector3(0, 1.0, 0)
 
 
 ## Mano in prima persona: copie delle mesh della mano e dell'oggetto dell'eroe,

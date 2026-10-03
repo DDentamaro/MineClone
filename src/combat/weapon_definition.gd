@@ -3,7 +3,7 @@ extends Resource
 ## Arma (M4): attacchi, catena di partenza, posa di guardia e geometria usata
 ## per la scia. La mesh e' costruita da `WeaponMeshes` a partire da `kind`.
 
-enum Kind { FISTS, SWORD, SPEAR, HAMMER, GREATSWORD }
+enum Kind { FISTS, SWORD, SPEAR, HAMMER, GREATSWORD, STAFF }
 
 @export var id: StringName
 @export var display_name := ""

@@ -989,3 +989,30 @@ e i due set d'armatura.
 - Menu > "Nuova partita": due tocchi entro 4 s, cancella il salvataggio e ricarica la scena;
   niente salvataggi automatici durante la ricarica.
 
+## D-055 — Bastone magico e magia del fuoco
+Richiesta del proprietario: le gemme legate agli elementi (piu' una legata all'anima di chi
+gioca), bastoni magici come armi che usano la magia, con un bastone sul modello di quelli di
+Frieren; si comincia dal fuoco. Riferimenti generati su Higgsfield e approvati dal proprietario:
+tavola del bastone (asta d'avorio, fasce d'argento, impugnatura di cuoio, mezzaluna d'argento con
+volute e gemma rossa; sei gemme: fuoco, acqua, terra, vento, fulmine, anima) e l'eroe che lancia
+una palla di fuoco a cubetti attraverso un cerchio di rune arancio.
+- Arma nuova `Kind.STAFF` (`staff`, "Bastone", dal legno all'oro), costruita nel codice dalla
+  tavola (`WeaponMeshes._staff`, gemma a `STAFF_GEM_Y`); esposta nell'armeria (cinque posti).
+- `AttackDefinition.cast` ("bolt"/"ball"): niente colpi corpo a corpo; all'inizio della fase
+  attiva il controller manda l'evento `cast`. Il gioco lancia dalla gemma nella posa del colpo
+  (dopo l'animazione del passo, non prima).
+- Leggero: dardo di fuoco, catena di tre (il terzo piu' forte). Veloce, segue un poco il
+  bersaglio agganciato, al contatto 9/14 di danno e bruciatura.
+- Forte (anche in coda a ogni dardo): palla di fuoco caricabile fino a 1,2 s. Si forma sulla
+  gemma durante la carica (piu' grande con la carica, cerchio di rune che gira, braci risucchiate);
+  lenta, esplode al contatto, a terra o a fine corsa: 22 di danno (+80% a carica piena), raggio
+  1,9-3 m con calo verso il bordo, spinta e sollevamento.
+- Bruciatura: 2 di danno ogni 0,5 s per 3 s, fiammelle che salgono dal colpito.
+- Effetti (`FireMagic`): fiamma a cubetti (nucleo giallo, corpo arancio, lingue rosse, braci),
+  scia di grani di fuoco e fumo, cerchio di rune additivo al lancio, guscio di cubi pieni che si
+  espande nell'esplosione (in additivo sul marmo bianco diventava bianco), luce arancio
+  sul proiettile e nell'esplosione, numeri del danno arancio.
+- Ancora da fare: le gemme come oggetti (per ora il bastone ha sempre quella del fuoco) e gli
+  altri elementi. "Etrha", indicato come riferimento per la magia, non si trova: per ora lo stile
+  segue le tavole approvate.
+

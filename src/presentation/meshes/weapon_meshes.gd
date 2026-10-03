@@ -54,6 +54,8 @@ static func build(kind: WeaponDefinition.Kind, mat: Color = Color(0, 0, 0, 0)) -
 			_hammer(k)
 		WeaponDefinition.Kind.GREATSWORD:
 			_greatsword(k)
+		WeaponDefinition.Kind.STAFF:
+			_staff(k, GEM_FIRE)
 		_:
 			_wraps(k)
 	return k.commit()
@@ -105,6 +107,48 @@ static func _spear(k: MeshKit) -> void:
 	k.blade(1.35, 1.44, 0.07, 0.07, 0.0, _steel, _edge, Transform3D.IDENTITY, 0.16)
 	k.blade(1.44, 1.47, 0.16, 0.08, 0.155, _steel, _edge)
 	k.box(Vector3(0, 1.47, 0), Vector3(0.02, 0.22, 0.07), _dark, 0.004)
+
+
+## Colori delle gemme degli elementi (D-055, tavola di riferimento).
+const GEM_FIRE := Color(0.92, 0.16, 0.10)
+const IVORY := Color(0.90, 0.86, 0.76)
+const SILVER := Color(0.74, 0.76, 0.80)
+
+## Altezza (spazio arma) del centro della gemma: da qui parte la magia.
+const STAFF_GEM_Y := 1.24
+
+
+## Bastone magico (D-055), dalla tavola Higgsfield ispirata a Frieren: asta
+## d'avorio con fasce d'argento, impugnatura di cuoio, puntale; in cima una
+## mezzaluna d'argento aperta in alto con due volute ai lati che tiene sospesa
+## la gemma sfaccettata dell'elemento. Il materiale colora l'argento.
+static func _staff(k: MeshKit, gem: Color) -> void:
+	var silver := SILVER if _steel == STEEL else _steel
+	k.prism(Vector3.ZERO, -0.80, 1.00, 0.030, 0.028, 8, IVORY)
+	k.prism(Vector3.ZERO, -0.13, 0.13, 0.037, 0.037, 8, LEATHER)
+	for y in [-0.16, 0.16, 0.42, 0.90]:
+		k.prism(Vector3.ZERO, y - 0.018, y + 0.018, 0.040, 0.040, 8, silver)
+	k.box(Vector3(0, -0.83, 0), Vector3(0.075, 0.07, 0.075), silver, 0.02, 0.7)
+	k.prism(Vector3.ZERO, 0.97, 1.05, 0.048, 0.042, 8, silver)
+	k.prism(Vector3.ZERO, 1.05, 1.09, 0.036, 0.036, 8, silver.darkened(0.2))
+	# Mezzaluna: segmenti lungo un cerchio nel piano XY, aperta in alto.
+	var c := Vector3(0, STAFF_GEM_Y, 0)
+	var r := 0.17
+	var a := 115.0
+	while a <= 425.0:
+		var t := deg_to_rad(a)
+		var p := c + Vector3(cos(t) * r, sin(t) * r, 0)
+		var xf := MeshKit.rot_about(Vector3(0, 0, 1), t, p)
+		k.box(p, Vector3(0.065, 0.062, 0.05), silver if a < 400.0 and a > 140.0 else silver.lightened(0.1), 0.012, 1.0, xf)
+		a += 15.0
+	# Volute ai lati della mezzaluna.
+	for sx in [-1.0, 1.0]:
+		var vp := c + Vector3(sx * 0.225, -0.02, 0)
+		k.box(vp, Vector3(0.06, 0.05, 0.04), silver, 0.015, 1.0, MeshKit.rot_about(Vector3(0, 0, 1), sx * 0.5, vp))
+		k.box(vp + Vector3(sx * 0.035, 0.035, 0), Vector3(0.035, 0.035, 0.035), silver.lightened(0.08), 0.01)
+	# Gemma sfaccettata: due tronchi di cono a otto facce.
+	k.prism(c, -0.085, 0.0, 0.025, 0.075, 8, gem.darkened(0.15), Transform3D.IDENTITY, 0.2)
+	k.prism(c, 0.0, 0.085, 0.075, 0.025, 8, gem.lightened(0.15), Transform3D.IDENTITY, 0.2)
 
 
 ## Martello da guerra: testa d'acciaio squadrata con le facce scure e due

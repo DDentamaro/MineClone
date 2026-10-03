@@ -1,5 +1,19 @@
 # Avanzamento
 
+## 03/10/2026 — D-055: bastone magico e magia del fuoco
+
+Bastone sul modello di Frieren (dalla tavola Higgsfield), dardi di fuoco col leggero e palla di
+fuoco caricabile col forte, con esplosione e bruciatura.
+
+### Test realmente eseguiti (D-055)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 200/200 PASS. Aggiornato: l'armeria espone cinque armi |
+| `tools/magic_preview.gd` (nuovo: dardo, carica, palla, esplosione, bruciatura sul manichino dell'arena) | Guardate a occhio. Corretti: la palla partiva dalla posa del passo prima (bastone alzato dietro), l'esplosione additiva sul marmo era bianca. Dardo 14 di danno con la bruciatura, palla caricata 63 con la bruciatura |
+| Export Android debug 0.33.0-m5 (versionCode 35) + `apksigner verify` + `aapt2 dump badging` | OK; non provato sul telefono |
+
+Su richiesta del proprietario niente suite e2e completa questa volta.
+
 ## 03/10/2026 — D-051, D-052, D-053: armature in anteprima, armi dai modelli Higgsfield, martello a terra
 
 Armature di cuoio (casco o cappuccio) e di ferro da cavaliere con forma propria, per ora solo in

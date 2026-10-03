@@ -194,6 +194,10 @@ func _process(dt: float) -> bool:
 				print("e2e movimenti %s" % ("OK" if _ok else "FALLITO"))
 				quit(0 if _ok else 1)
 				return false
+			# D-055: il bastone lancia magie, niente colpi di mischia da provare qui.
+			if WeaponLibrary.by_id(GameRoot.WEAPONS[_w]).kind == WeaponDefinition.Kind.STAFF:
+				_w += 1
+				return false
 			g.select_weapon(_w)
 			_phase = 2
 			_t = 0.0

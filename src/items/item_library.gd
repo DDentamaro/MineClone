@@ -12,7 +12,7 @@ const TIERS := [
 	{"key": "gold", "name": "oro", "adj": "d'oro", "tier": 5, "color": Color(0.95, 0.78, 0.30), "speed": 9.0, "dur": 90, "dmg": 1.2, "mat": &"gold_ingot", "mods": {}},
 ]
 const TOOLS := {"pick": "Piccone", "axe": "Ascia", "shovel": "Pala"}
-const WEAPONS := {"sword": "Spada", "spear": "Lancia", "hammer": "Martello", "greatsword": "Spadone"}
+const WEAPONS := {"sword": "Spada", "spear": "Lancia", "hammer": "Martello", "greatsword": "Spadone", "staff": "Bastone"}
 ## Difesa per pezzo di armatura e per materiale (solo metalli).
 const ARMOR := {"head": ["Elmo", 1.0], "chest": ["Corazza", 2.0], "legs": ["Gambali", 1.5], "feet": ["Stivali", 0.8]}
 const ARMOR_TIER := {"copper": 1.0, "iron": 1.6, "gold": 1.2}

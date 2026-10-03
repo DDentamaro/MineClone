@@ -8,7 +8,7 @@ extends Node3D
 const TYPES := ["workbench", "furnace", "chest", "campfire", "treasure", "armory", "armor_stand"]
 ## Contenuto dell'armeria: un'arma per tipo e gli attrezzi, di ferro (D-029).
 ## Dal D-054 le armature stanno sugli espositori.
-const ARMORY_ITEMS: Array[StringName] = [&"sword_iron", &"spear_iron", &"hammer_iron", &"greatsword_iron",
+const ARMORY_ITEMS: Array[StringName] = [&"sword_iron", &"spear_iron", &"hammer_iron", &"greatsword_iron", &"staff_iron",
 	&"pick_iron", &"axe_iron", &"shovel_iron"]
 ## Espositori delle armature dell'arena (D-054): cuoio (con i due copricapo) e ferro.
 const STAND_SETS := {
@@ -88,7 +88,7 @@ func _watch(o: Obj) -> void:
 
 ## D-054: rastrelliera larga, armi ben distanziate (una ogni mezzo metro).
 const RACK_STEP := 0.5
-const RACK_SLOTS := 4
+const RACK_SLOTS := 5
 
 
 ## Armi dell'armeria in piedi sulla rastrelliera, una per posto e ben

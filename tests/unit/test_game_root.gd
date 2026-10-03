@@ -72,7 +72,7 @@ func test_avvio_allo_spawn() -> void:
 		var o: WorldObjects.Obj = arm[0]
 		check_eq(o.cell, g.world.arena, "armeria al centro dell'arena")
 		check_eq(o.inv.total_items(), WorldObjects.ARMORY_ITEMS.size(), "armeria piena")
-		check_eq(o.shown.size(), 4, "le quattro armi esposte, ben separate")
+		check_eq(o.shown.size(), 5, "le cinque armi esposte (col bastone), ben separate")
 	var stands := g._objects.list.filter(func(o: WorldObjects.Obj) -> bool: return o.type == "armor_stand")
 	check_eq(stands.size(), 2, "espositori del cuoio e del ferro")
 	for st: WorldObjects.Obj in stands:

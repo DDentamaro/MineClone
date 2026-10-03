@@ -62,6 +62,9 @@ enum Shape { ARC, THRUST, RADIAL }
 @export var charge_bonus := 1.0
 ## "spark" (metallo), "dust" (urto a terra), "punch".
 @export var fx := "spark"
+## Magia (D-055): "bolt" (dardo) o "ball" (palla); niente colpi di mischia,
+## all'inizio della fase attiva parte il proiettile (evento "cast").
+@export var cast := ""
 @export var trail := true
 @export var key_wind := {}
 @export var key_strike := {}

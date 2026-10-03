@@ -30,7 +30,7 @@ static var _cache: Array[WeaponDefinition] = []
 
 static func all() -> Array[WeaponDefinition]:
 	if _cache.is_empty():
-		_cache = [_fists(), _sword(), _spear(), _hammer(), _greatsword(), _tool()]
+		_cache = [_fists(), _sword(), _spear(), _hammer(), _greatsword(), _staff(), _tool()]
 		for w in _cache:
 			if w.id != &"tool":
 				# Spadone e martello erano gia' lenti (D-034): meta' dell'effetto.
@@ -493,6 +493,46 @@ static func _hammer() -> WeaponDefinition:
 		_with(SQUAT, {"arm_r": [100, 0, 4], "fore_r": [0, 0, 0], "hand_r": [-110, 0, 0], "chest": [-44, 0, 0]}),
 		_with(SQUAT, {"arm_r": [94, 0, 6], "fore_r": [4, 0, 0], "hand_r": [-106, 0, 0], "chest": [-34, 0, 0]}))
 	_tempo(w, 1.35)
+	return w
+
+
+## Bastone magico (D-055): il colpo lancia un dardo di fuoco (catena di tre,
+## il terzo piu' forte), il forte tenuto carica una palla di fuoco che esplode.
+## Le pose puntano la gemma verso il bersaglio come l'affondo della lancia.
+static func _staff() -> WeaponDefinition:
+	var w := WeaponDefinition.new()
+	w.id = &"staff"
+	w.display_name = "Bastone"
+	w.kind = WeaponDefinition.Kind.STAFF
+	w.light_start = &"fire_bolt"
+	w.heavy_start = &"fireball"
+	w.dash_attack = &"fire_bolt"
+	w.air_attack = &"fire_bolt"
+	w.trail_from = 1.1
+	w.trail_to = 1.4
+	w.hit_from = 1.1
+	w.strike_dist = 6.0
+	w.move_mult = 1.0
+	w.relaxed = pose({"arm_r": [10, 0, 10], "fore_r": [70, 0, 0], "hand_r": [0, 0, 0], "arm_l": [4, 0, -6], "fore_l": [14, 0, 0]})
+	w.guard = pose({"arm_r": [20, 0, 12], "fore_r": [80, 0, 0], "hand_r": [-40, 0, 0], "chest": [0, -12, 0], "head": [0, 10, 0]})
+	var bolt := {"windup": 0.14, "active": 0.06, "recovery": 0.26, "chain_at": 0.25, "shape": AttackDefinition.Shape.THRUST,
+		"reach_min": 0.0, "reach": 0.0, "width": 0.0, "damage": 9.0, "knockback": 2.0, "hitstop": 0.05, "shake": 0.08, "lunge": 0.0,
+		"move_scale": 0.6, "cast": "bolt", "trail": false, "fx": "fire"}
+	var wind := _with(STANCE, {"arm_r": [40, 30, 12], "fore_r": [90, 0, 0], "hand_r": [-40, 0, 0], "chest": [0, -30, 0], "head": [0, 25, 0]})
+	var strike := _with(STANCE, {"arm_r": [84, -6, 2], "fore_r": [8, 0, 0], "hand_r": [-82, 0, 0], "chest": [-6, 12, 0], "head": [0, -12, 0]})
+	var follow := _with(STANCE, {"arm_r": [60, 0, 6], "fore_r": [40, 0, 0], "hand_r": [-70, 0, 0], "chest": [-4, 0, 0]})
+	_atk(w, "fire_bolt", _with(bolt, {"next_light": "fire_bolt2", "next_heavy": "fireball"}), wind, strike, follow)
+	_atk(w, "fire_bolt2", _with(bolt, {"next_light": "fire_bolt3", "next_heavy": "fireball"}),
+		_with(STANCE, {"arm_r": [40, -20, 12], "fore_r": [90, 0, 0], "hand_r": [-40, 0, 0], "chest": [0, 20, 0], "head": [0, -15, 0]}), strike, follow)
+	_atk(w, "fire_bolt3", _with(bolt, {"windup": 0.2, "damage": 14.0, "knockback": 4.0, "shake": 0.14, "next_light": "fire_bolt", "next_heavy": "fireball"}),
+		_with(STANCE, {"arm_r": [150, 0, 10], "fore_r": [40, 0, 0], "hand_r": [-30, 0, 0], "chest": [10, 0, 0]}), strike, follow)
+	_atk(w, "fireball", {"windup": 0.36, "active": 0.08, "recovery": 0.4, "chain_at": 0.3, "shape": AttackDefinition.Shape.THRUST,
+		"reach_min": 0.0, "reach": 0.0, "width": 0.0, "damage": 22.0, "knockback": 9.0, "launch": 4.0, "hitstop": 0.12, "shake": 0.45,
+		"lunge": 0.0, "move_scale": 0.2, "charge_max": 1.2, "charge_bonus": 0.8, "cast": "ball", "trail": false, "fx": "fire",
+		"next_light": "fire_bolt"},
+		_with(STANCE, {"arm_r": [160, 10, 12], "fore_r": [30, 0, 0], "hand_r": [-20, 0, 0], "arm_l": [120, -10, -10], "fore_l": [40, 0, 0], "chest": [12, 0, 0], "head": [-8, 0, 0]}),
+		_with(LUNGE, {"arm_r": [96, -4, 2], "fore_r": [4, 0, 0], "hand_r": [-40, 0, 0], "arm_l": [80, 10, -10], "fore_l": [20, 0, 0], "chest": [-10, 10, 0], "head": [0, -10, 0]}),
+		follow)
 	return w
 
 
