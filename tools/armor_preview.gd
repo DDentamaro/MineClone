@@ -21,6 +21,8 @@ const SETS := {
 }
 ## --weapon=sword (D-052): l'eroe impugna quell'arma invece dei pugni.
 var _weapon := &"fists"
+## --zoom=0.7 (D-054): zoom della camera (isometrica o terza persona).
+var _zoom := -1.0
 var _sets: Array = SETS["leather"]
 const VIEWS := [["davanti", 0.45], ["lato", PI * 0.5], ["dietro", PI + 0.45]]
 
@@ -35,6 +37,8 @@ func _initialize() -> void:
 			_out = a.substr(6)
 		elif a == "--iso":
 			_iso = true
+		elif a.begins_with("--zoom="):
+			_zoom = float(a.substr(7))
 		elif a.begins_with("--weapon="):
 			_weapon = StringName(a.substr(9))
 		elif a.begins_with("--set="):
@@ -57,6 +61,8 @@ func _process(_dt: float) -> bool:
 					g._camera_rig.tps_user_pitch = 0.22
 				else:
 					g._camera_rig.set_zoom(2.4)
+				if _zoom > 0.0:
+					g._camera_rig.set_zoom(_zoom)
 				# Niente interfaccia sopra l'eroe.
 				for n: Node in root.find_children("*", "CanvasLayer", true, false):
 					(n as CanvasLayer).visible = false

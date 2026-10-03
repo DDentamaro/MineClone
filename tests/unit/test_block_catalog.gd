@@ -11,7 +11,11 @@ func test_catalogo_coincide_con_prototipo() -> void:
 		return
 	var m: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(MANIFEST))
 	var ids: Dictionary = m["block_ids"]
-	check_eq(cat.count(), 16, "numero di blocchi, aria inclusa")
+	# I 16 del prototipo piu' il marmo dell'arena (D-054).
+	check_eq(cat.count(), 17, "numero di blocchi, aria inclusa")
+	var marble := cat.get_def(BlockCatalog.MARBLE)
+	check(marble != null and marble.solid and marble.opaque and marble.key == &"marble", "marmo dell'arena")
+	check(not Harvest.INFO.has(BlockCatalog.MARBLE), "marmo indistruttibile")
 	for key: String in ids:
 		var id := int(ids[key])
 		var def := cat.get_def(id)

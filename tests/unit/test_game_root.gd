@@ -59,16 +59,26 @@ func _hold(g: GameRoot, id: StringName, n: int = 1) -> void:
 func test_avvio_allo_spawn() -> void:
 	var g := _scene()
 	check(g.world != null, "mondo caricato")
-	check_eq(g.motor.position, Vector3(96.5, 28, 96.5), "giocatore allo spawn")
+	# D-054: partita nuova nell'arena, sul ring a sud dell'armeria.
+	check(Arena.has(g.world), "arena nel mondo")
+	check_eq(g.motor.position, g.world.spawn_point(), "giocatore allo spawn")
+	check_eq(g.motor.position, Arena.spawn_in(g.world), "spawn sul ring")
+	check_eq(g.world.get_block_xyz(floori(g.motor.position.x), floori(g.motor.position.y) - 1, floori(g.motor.position.z)), BlockCatalog.MARBLE, "in piedi sul marmo")
 	check_eq(g.items.inv.get_slot(0).id, &"sword_wood", "spada di legno iniziale")
 	check_eq(g._objects.list.filter(func(o: WorldObjects.Obj) -> bool: return o.type == "treasure").size(), 10, "forzieri del tesoro nel mondo")
 	var arm := g._objects.list.filter(func(o: WorldObjects.Obj) -> bool: return o.type == "armory")
 	check_eq(arm.size(), 1, "armeria")
 	if arm.size() == 1:
 		var o: WorldObjects.Obj = arm[0]
-		check(Vector3(o.cell).distance_to(g.motor.position) < 8.0, "armeria vicino allo spawn")
+		check_eq(o.cell, g.world.arena, "armeria al centro dell'arena")
 		check_eq(o.inv.total_items(), WorldObjects.ARMORY_ITEMS.size(), "armeria piena")
-		check_eq(o.shown.size(), 7, "armi e attrezzi esposti")
+		check_eq(o.shown.size(), 4, "le quattro armi esposte, ben separate")
+	var stands := g._objects.list.filter(func(o: WorldObjects.Obj) -> bool: return o.type == "armor_stand")
+	check_eq(stands.size(), 2, "espositori del cuoio e del ferro")
+	for st: WorldObjects.Obj in stands:
+		check(st.rig != null, "manichino sull'espositore")
+		check(st.inv.total_items() >= 4, "set completo sull'espositore")
+	check_eq(g._dummies.dummies.size(), 1, "un avversario nell'arena")
 	g.free()
 
 

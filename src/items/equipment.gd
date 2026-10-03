@@ -82,8 +82,21 @@ func colors() -> Dictionary:
 	var out := {}
 	for k in SLOTS:
 		var st: ItemStack = slots[k]
-		out[k] = ItemLibrary.TIERS[st.def().tier - 1]["color"] if st != null else Color(0, 0, 0, 0)
+		out[k] = color_of(st.def()) if st != null else Color(0, 0, 0, 0)
 	return out
+
+
+## Forma di ogni pezzo indossato (D-054), per `AvatarRig.set_armor_all`.
+func styles() -> Dictionary:
+	var out := {}
+	for k in SLOTS:
+		var st: ItemStack = slots[k]
+		out[k] = st.def().armor_style if st != null else ""
+	return out
+
+
+static func color_of(d: ItemDefinition) -> Color:
+	return d.armor_color if d.armor_color.a > 0.0 else ItemLibrary.TIERS[d.tier - 1]["color"]
 
 
 func to_dict() -> Dictionary:

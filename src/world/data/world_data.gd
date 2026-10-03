@@ -170,9 +170,20 @@ func chunk_version(chunk: Vector3i) -> int:
 	return chunk_versions[chunk_index(chunk)]
 
 
+## Centro dell'arena di partenza (D-054, `Arena.stamp`), -1 se non c'e'.
+var arena := Vector3i(-1, -1, -1)
+
+
 ## Porting di ISO_CORE.spawnPoint: centro della mappa, primo punto libero
 ## (due celle d'aria) sopra la superficie. Restituisce il punto dei piedi.
+## Con l'arena (D-054) si nasce sul ring.
 func spawn_point() -> Vector3:
+	if arena.x >= 0:
+		var p := Arena.spawn_in(self)
+		var ay := int(p.y)
+		while is_solid_at(int(p.x), ay, int(p.z)) or is_solid_at(int(p.x), ay + 1, int(p.z)):
+			ay += 1
+		return Vector3(p.x, ay, p.z)
 	var x := size_x >> 1
 	var z := size_z >> 1
 	var y := surface_height(x, z) + 1

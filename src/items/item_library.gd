@@ -16,6 +16,8 @@ const WEAPONS := {"sword": "Spada", "spear": "Lancia", "hammer": "Martello", "gr
 ## Difesa per pezzo di armatura e per materiale (solo metalli).
 const ARMOR := {"head": ["Elmo", 1.0], "chest": ["Corazza", 2.0], "legs": ["Gambali", 1.5], "feet": ["Stivali", 0.8]}
 const ARMOR_TIER := {"copper": 1.0, "iron": 1.6, "gold": 1.2}
+## Colore del cuoio (D-054).
+const LEATHER := Color(0.55, 0.33, 0.19)
 
 static var _items := {}
 
@@ -88,6 +90,21 @@ static func _build() -> void:
 				d.defense = snappedf(float(a[1]) * float(ARMOR_TIER[t["key"]]), 0.1)
 				d.material = t["key"]
 				d.base_mods = t["mods"]
+				# D-054: il ferro e' l'armatura da cavaliere.
+				if t["key"] == "iron":
+					d.armor_style = "iron"
+					d.armor_color = Color(0.60, 0.61, 0.64)
+	# D-054: armatura di cuoio, leggera (difesa al 70% del rame), due copricapo.
+	for a: Array in [[&"head_leather", "Casco di cuoio", "head", "leather_cap"], [&"head_leather_hood", "Cappuccio di cuoio", "head", "leather_hood"],
+			[&"chest_leather", "Giubba di cuoio", "chest", "leather"], [&"legs_leather", "Gambali di cuoio", "legs", "leather"],
+			[&"feet_leather", "Stivali di cuoio", "feet", "leather"]]:
+		var d := _mk(a[0], a[1], ItemDefinition.Kind.ARMOR, LEATHER, String(a[1]).substr(0, 2))
+		d.slot = a[2]
+		d.tier = 1
+		d.defense = snappedf(float(ARMOR[a[2]][1]) * 0.7, 0.1)
+		d.material = "leather"
+		d.armor_style = a[3]
+		d.armor_color = LEATHER
 	for st in [[&"workbench", "Banco da lavoro", "workbench", Color(0.66, 0.48, 0.28), "Bn"], [&"furnace", "Fornace", "furnace", Color(0.45, 0.44, 0.46), "Fo"],
 			[&"chest", "Forziere", "chest", Color(0.72, 0.52, 0.26), "Fz"], [&"campfire", "Falò", "campfire", Color(0.95, 0.55, 0.20), "Fa"]]:
 		var d := _mk(st[0], st[1], ItemDefinition.Kind.STATION, st[3], st[4])

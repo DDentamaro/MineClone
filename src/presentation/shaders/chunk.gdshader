@@ -24,6 +24,19 @@ varying float v_emissive;
 varying vec2 v_sp;
 varying vec3 v_n;
 
+// D-054: marmo dell'arena (come il ring del torneo di Cell): piastrelle chiare
+// di 2x2 blocchi con le fughe scure e una leggera variazione per piastrella.
+vec3 marble_color(vec2 sp, int face) {
+	vec2 q = sp * 0.5;
+	vec2 f = fract(q);
+	float seam = (f.x < 0.035 || f.y < 0.035) ? 1.0 : 0.0;
+	if (face != 2) seam = (fract(sp.y) < 0.06) ? 1.0 : 0.0;
+	float k = hash21(floor(q) + vec2(5.0, 11.0));
+	vec3 base = mix(vec3(0.78, 0.77, 0.73), vec3(0.86, 0.85, 0.80), k);
+	base *= 0.97 + 0.06 * vnoise(sp * 2.3 + vec2(1.0, 4.0));
+	return mix(base, vec3(0.42, 0.42, 0.42), seam * 0.75);
+}
+
 void vertex() {
 	vec4 d = round(CUSTOM0 * 255.0);
 	v_tile = d.x;
@@ -68,6 +81,7 @@ void fragment() {
 		else if (tile == 14.0) { col = tone == 0 ? vec3(0.205, 0.200, 0.200) : (tone == 1 ? vec3(0.250, 0.240, 0.230) : vec3(0.300, 0.280, 0.260)); S = vec3(0.40, 0.44, 0.66); bands = 4.0; }
 		else if (tile == 4.0) { col = tone == 0 ? vec3(0.520, 0.455, 0.265) : (tone == 1 ? vec3(0.580, 0.515, 0.305) : vec3(0.635, 0.570, 0.355)); S = vec3(0.62, 0.50, 0.58); }
 		else if (tile == 13.0) { float st = floor(sp.y * 16.0); float k = hash21(vec2(st, 3.0)); col = k < 0.34 ? vec3(0.415, 0.375, 0.190) : (k < 0.67 ? vec3(0.470, 0.430, 0.215) : vec3(0.520, 0.480, 0.250)); S = vec3(0.60, 0.48, 0.56); }
+		else if (tile == 16.0) { col = marble_color(sp, face); S = vec3(0.46, 0.48, 0.62); bands = 4.0; }
 		else { col = tex; S = shade_tint(tex); if (tile >= 5.0 && tile <= 7.0 && lum > 0.55 && th > 0.80) col *= 1.35; }
 	} else {
 		float speck = hash21(floor(sp * 4.0));
@@ -79,6 +93,7 @@ void fragment() {
 		else if (tile == 14.0) { col = mix(vec3(0.245, 0.225, 0.195), vec3(0.30, 0.27, 0.24), vnoise(sp * 0.6 + vec2(3.0, 9.0))); }
 		else if (tile == 4.0) { col = vec3(0.56, 0.50, 0.30) * (0.9 + 0.18 * vnoise(sp * 0.5)); }
 		else if (tile == 13.0) { col = vec3(0.445, 0.415, 0.205) * (0.86 + 0.2 * vnoise(vec2(sp.x * 0.3, sp.y * 1.4))); }
+		else if (tile == 16.0) { col = marble_color(sp, face); }
 		else col = tex;
 		col *= 0.92 + 0.16 * (lum - 0.5) + 0.04 * speck;
 	}

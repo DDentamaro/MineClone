@@ -128,6 +128,9 @@ func _ready() -> void:
 	if w == null:
 		_status.text = "Fixture NON valida"
 		return
+	# D-054: partita nuova nell'arena (un salvataggio ce l'ha gia' nei blocchi).
+	if saved.is_empty():
+		Arena.stamp(w, catalog)
 	get_viewport().size_changed.connect(_fit_view)
 	_fit_view()
 	_runtime.initial_build_finished.connect(_on_initial_build)
@@ -292,13 +295,13 @@ func _swap_world(w: WorldData) -> void:
 	combat.world = world
 	combat.opaque = catalog.opaque_table()
 	_dummies.setup(world)
-	_dummies.place_around(motor.position, _avatar.facing)
+	_place_dummies()
 	_objects.world = world
 	_objects.clear()
 	ground.world = world
 	ground.clear()
 	_objects.scatter_treasure(world.world_seed, world.spawn_point())
-	_objects.place_armory(world.spawn_point())
+	_place_armory()
 	sandbox.setup(world, edits, catalog, motor, _objects, _vegetation)
 	if combat != null:
 		combat.cancel()
@@ -656,6 +659,15 @@ func _session_action(id: StringName) -> void:
 			_session.open(String(id))
 		&"save":
 			save_game()
+		&"new_game":
+			# D-054: due tocchi entro 4 s; il salvataggio si cancella e si riparte
+			# da zero nell'arena.
+			var now := Time.get_ticks_msec()
+			if now - _new_game_armed > 4000:
+				_new_game_armed = now
+				_session.notify("Tocca di nuovo \"Nuova partita\": il mondo salvato verra' cancellato.")
+			else:
+				start_new_game()
 		&"quality":
 			_on_button(&"dev_res")
 		&"motion":
@@ -719,7 +731,7 @@ func _update_session_hud() -> void:
 	_session.clock_text = "%02d:%02d" % [minutes / 60, minutes % 60]
 	_session.mining = sandbox.harvester.progress if _hold_active and sandbox.harvester.target != null else -1.0
 	var nearby := sandbox.nearest_usable() if not paused and not _bag.is_open() else null
-	var names := {"chest": "Apri forziere", "treasure": "Apri tesoro", "armory": "Apri armeria", "workbench": "Crea al banco", "furnace": "Usa fornace", "campfire": "Riposa al falò"}
+	var names := {"chest": "Apri forziere", "treasure": "Apri tesoro", "armory": "Apri armeria", "armor_stand": "Guarda l'armatura", "workbench": "Crea al banco", "furnace": "Usa fornace", "campfire": "Riposa al falò"}
 	# Il tasto F ha senso solo con la tastiera; su telefono resta l'azione.
 	var key := "" if DisplayServer.is_touchscreen_available() else "F / "
 	_session.context_text = (key + String(names.get(nearby.type, "Interagisci"))) if nearby != null else ""
@@ -924,7 +936,7 @@ func _on_button(id: StringName) -> void:
 		&"dodge":
 			combat.press_dodge()
 		&"dev_dummies":
-			_dummies.place_around(motor.position, _avatar.facing)
+			_place_dummies()
 			last_edit = "manichini davanti al giocatore"
 		&"hero":
 			set_hero_editor(not _touch.hero_open)
@@ -980,7 +992,7 @@ func _refresh_armor() -> void:
 	if key == _armor_key:
 		return
 	_armor_key = key
-	_avatar.rig.set_armor_all(items.equipment.colors())
+	_avatar.rig.set_armor_all(items.equipment.colors(), items.equipment.styles())
 
 
 func _refresh_hotbar() -> void:
@@ -1063,8 +1075,15 @@ func _world_from_save(st: Dictionary) -> WorldData:
 	var ws: Dictionary = st.get("world", {})
 	var seed_value := int(ws.get("seed", 1931))
 	var w := WorldFactory.from_fixture(catalog) if seed_value == 1931 else WorldFactory.generate(seed_value, catalog)
-	if w == null or not SaveService.apply_world_state(w, ws, catalog):
+	if w == null:
 		return null
+	# D-054: dove sta l'arena (i blocchi veri vengono dal salvataggio).
+	var c := Arena.locate(w)
+	if not SaveService.apply_world_state(w, ws, catalog):
+		return null
+	var mid := w.surface_height(c.x, c.y)
+	if w.get_block_xyz(c.x, mid, c.y) == BlockCatalog.MARBLE:
+		w.arena = Vector3i(c.x, mid + 1, c.y)
 	return w
 
 
@@ -1075,7 +1094,24 @@ func make_save_state() -> Dictionary:
 		"checkpoint": checkpoint, "time": _day.time, "journal": journal.to_dict()}
 
 
+## Tocco di conferma di "Nuova partita" (ms), -1 se non armato.
+var _new_game_armed := -100000
+## Vero dopo "Nuova partita": niente salvataggi automatici mentre si ricarica.
+var _no_save := false
+
+
+## D-054: cancella il salvataggio e ricarica la scena: senza salvataggio si
+## parte dal mondo nuovo con l'arena, la spada di legno e il diario vuoto.
+func start_new_game() -> void:
+	_no_save = true
+	SaveService.delete_all()
+	get_tree().paused = false
+	get_tree().reload_current_scene()
+
+
 func save_game() -> bool:
+	if _no_save:
+		return false
 	var ok := SaveService.save(make_save_state())
 	_autosave_t = 0.0
 	last_edit = "partita salvata" if ok else "salvataggio NON riuscito"
@@ -1096,11 +1132,11 @@ func _restore(st: Dictionary) -> void:
 	items.load_dict(st.get("items", {}))
 	_objects.load_array(st.get("objects", []))
 	# Salvataggi di prima dell'armeria: la si aggiunge accanto allo spawn.
-	_objects.place_armory(world.spawn_point())
+	_place_armory()
 	ground.load_array(st.get("ground", []))
 	checkpoint = st.get("checkpoint", Vector3.INF)
 	_day.time = float(st.get("time", _day.time))
-	_dummies.place_around(motor.position, _avatar.facing)
+	_place_dummies()
 	# Gli alberi si costruiscono su un thread: si abbattono appena pronti.
 	_pending_dead_trees = st.get("dead_trees", [])
 	if not _vegetation.spots.is_empty():
@@ -1161,7 +1197,7 @@ func _notification(what: int) -> void:
 				_reset_gameplay_input()
 			else:
 				set_paused(true)
-	if (what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED) and world != null and not _args.has("screenshot"):
+	if (what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED) and world != null and not _args.has("screenshot") and not _no_save:
 		save_game()
 
 
@@ -1175,6 +1211,26 @@ func give_test_kit() -> void:
 	last_edit = "kit di prova nello zaino"
 
 
+## Armeria: nell'arena al centro con gli espositori delle armature (D-054),
+## altrimenti vicino allo spawn come prima.
+func _place_armory() -> void:
+	if Arena.has(world):
+		_objects.place_arena(world.arena)
+	else:
+		_objects.place_armory(world.spawn_point())
+
+
+## Manichini: nell'arena uno a forma di personaggio a nord del centro, girato
+## verso lo spawn (D-054); altrimenti tre di paglia davanti al giocatore.
+func _place_dummies() -> void:
+	if Arena.has(world):
+		_dummies.setup(world)
+		var p := Vector3(world.arena.x + 0.5, world.arena.y, world.arena.z - 4.5)
+		_dummies.add_dummy(p, true, PI)
+	else:
+		_dummies.place_around(motor.position, _avatar.facing)
+
+
 ## Apre l'interfaccia dell'oggetto toccato.
 func _open_object(o: WorldObjects.Obj) -> void:
 	if not sandbox.can_use(o):
@@ -1183,7 +1239,7 @@ func _open_object(o: WorldObjects.Obj) -> void:
 	if o.type == "treasure":
 		journal.record("treasure")
 	match o.type:
-		"chest", "treasure", "armory":
+		"chest", "treasure", "armory", "armor_stand":
 			open_bag(o, "chest")
 		"workbench", "furnace":
 			open_bag(null, "craft")
@@ -1321,7 +1377,9 @@ func regenerate(seed_value: int) -> void:
 	_gen_seed = seed_value
 	var cat := catalog
 	_gen_task = WorkerThreadPool.add_task(func() -> void:
-		_gen_result = WorldFactory.generate(seed_value, cat))
+		var nw := WorldFactory.generate(seed_value, cat)
+		Arena.stamp(nw, cat)
+		_gen_result = nw)
 	last_edit = "generazione mondo, seme %d…" % seed_value
 
 

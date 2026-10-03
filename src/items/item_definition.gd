@@ -33,6 +33,11 @@ var base_mods := {}
 var station := ""
 ## Materiale per il colore delle mesh (armature, armi).
 var material := ""
+## Forma dell'armatura sull'eroe (D-054, `AvatarRig.armor_boxes_for`): "" metallo,
+## "iron" cavaliere, "leather", "leather_cap", "leather_hood".
+var armor_style := ""
+## Colore del pezzo sull'eroe (trasparente = quello del materiale).
+var armor_color := Color(0, 0, 0, 0)
 
 
 func is_equipment() -> bool:

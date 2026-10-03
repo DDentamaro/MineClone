@@ -136,7 +136,8 @@ func _draw_menu(s: Vector2) -> void:
 		_button(Rect2(p + Vector2(308, 158), Vector2(264, 54)), "Comandi", &"help")
 		_button(Rect2(p + Vector2(28, 224), Vector2(264, 54)), "Impostazioni", &"settings")
 		_button(Rect2(p + Vector2(308, 224), Vector2(264, 54)), "Salva partita", &"save")
-		_button(Rect2(p + Vector2(28, 290), Vector2(544, 54)), "Torna al falò / punto di partenza", &"return_home")
+		_button(Rect2(p + Vector2(28, 290), Vector2(264, 54)), "Torna al punto di partenza", &"return_home")
+		_button(Rect2(p + Vector2(308, 290), Vector2(264, 54)), "Nuova partita", &"new_game")
 		_text(p + Vector2(28, 381), save_text, 15, GamePalette.MUTED, 544)
 		_text(p + Vector2(28, 410), "Esc / P riprende  ·  Frecce e Invio navigano", 14, GamePalette.MUTED)
 		_text(p + Vector2(28, 443), "Progresso esplorazione: %d di %d obiettivi" % [journal.completed_count(), ExpeditionJournal.GOALS.size()], 15)
@@ -201,10 +202,10 @@ func _draw_compact_menu(s: Vector2) -> void:
 	_text(p + Vector2(24, 57), "Il mondo è in pausa", 13, GamePalette.MUTED)
 	if page == "pause":
 		_button(Rect2(p + Vector2(24, 74), Vector2(572, 48)), "Riprendi l'avventura", &"resume", true)
-		var actions := [["Diario", &"journal"], ["Comandi", &"help"], ["Impostazioni", &"settings"], ["Salva partita", &"save"], ["Torna al campo", &"return_home"], ["Strumenti sviluppatore", &"developer"]]
+		var actions := [["Diario", &"journal"], ["Comandi", &"help"], ["Impostazioni", &"settings"], ["Salva partita", &"save"], ["Torna al campo", &"return_home"], ["Nuova partita", &"new_game"], ["Strumenti sviluppatore", &"developer"]]
 		for i in actions.size():
-			_button(Rect2(p + Vector2(24 + (i % 2) * 294, 134 + (i / 2) * 60), Vector2(278, 48)), actions[i][0], actions[i][1])
-		_text(p + Vector2(24, 333), save_text, 13, GamePalette.MUTED, 572)
+			_button(Rect2(p + Vector2(24 + (i % 2) * 294, 130 + (i / 2) * 54), Vector2(278, 44)), actions[i][0], actions[i][1])
+		_text(p + Vector2(24, 350), save_text, 13, GamePalette.MUTED, 572)
 	elif page == "settings":
 		var actions := [["Dettaglio: %d righe" % quality, &"quality"], ["Effetti: %d%%" % volume, &"volume"], ["Movimento ridotto: " + ("sì" if reduced_motion else "no"), &"motion"], ["Mancini: " + ("sì" if left_handed else "no"), &"handed"], ["Suggerimenti: " + ("sì" if hints else "no"), &"hints"], ["Indietro", &"pause"]]
 		for i in actions.size():

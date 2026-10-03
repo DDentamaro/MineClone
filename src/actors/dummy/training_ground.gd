@@ -2,7 +2,8 @@ class_name TrainingGround
 extends Node3D
 ## Manichini d'allenamento in scena (M4): logica in `TrainingDummy`, qui le
 ## mesh (palo, corpo di paglia, testa di sacco, braccia a croce) e la loro
-## oscillazione. Tre manichini a semicerchio davanti al giocatore.
+## oscillazione. Tre manichini a semicerchio davanti al giocatore; nell'arena
+## (D-054) uno a forma di personaggio: un eroe col suo rig, fermo in guardia.
 
 var world: WorldData
 var dummies: Array[TrainingDummy] = []
@@ -10,6 +11,8 @@ var _views: Array[Node3D] = []
 var _parts: Array = []
 var _material: ShaderMaterial
 var _mesh: ArrayMesh
+## Rotazione di ogni manichino attorno a Y (quelli di paglia sono simmetrici).
+var _yaw: Array[float] = []
 
 
 func _init() -> void:
@@ -47,6 +50,7 @@ func setup(w: WorldData) -> void:
 	for v in _views:
 		v.queue_free()
 	_views.clear()
+	_yaw.clear()
 	dummies.clear()
 
 
@@ -64,17 +68,44 @@ func place_around(pos: Vector3, facing: float, n: int = 3, dist: float = 3.2) ->
 		add_dummy(p)
 
 
-func add_dummy(p: Vector3) -> TrainingDummy:
+func add_dummy(p: Vector3, humanoid: bool = false, yaw: float = 0.0) -> TrainingDummy:
 	var d := TrainingDummy.new(p)
 	dummies.append(d)
 	var root := Node3D.new()
-	var mi := MeshInstance3D.new()
-	mi.mesh = _mesh
-	mi.material_override = _material
-	root.add_child(mi)
-	add_child(root)
+	if humanoid:
+		# Stesso corpo dell'eroe (altezza e hurtbox coincidono), un'altra ricetta.
+		var rig := AvatarRig.new()
+		root.add_child(rig)
+		add_child(root)
+		rig.build(sparring_recipe())
+	else:
+		var mi := MeshInstance3D.new()
+		mi.mesh = _mesh
+		mi.material_override = _material
+		root.add_child(mi)
+		add_child(root)
 	_views.append(root)
+	_yaw.append(yaw)
 	return d
+
+
+## Avversario d'allenamento dell'arena: pelle scura, capelli neri a cresta,
+## casacca viola, sguardo tagliente.
+static func sparring_recipe() -> AvatarRecipe:
+	var r := AvatarRecipe.preset(0)
+	r.dna = r.dna.duplicate()
+	r.dna["skin"] = "#876e5b"
+	r.dna["hair"] = "#1f1a17"
+	r.dna["brow"] = "#1f1a17"
+	r.dna["hairStyle"] = "cresta"
+	r.dna["eyes"] = "cattivo"
+	r.dna["brows"] = "arrabbiate"
+	r.dna["mouth"] = "linea"
+	r.dna["shirt"] = "#4a3a6b"
+	r.dna["pants"] = "#2a2f24"
+	r.dna["belt"] = "fusciacca"
+	r.dna["accent"] = "#d9a441"
+	return r
 
 
 func targets() -> Array:
@@ -99,15 +130,20 @@ func sync_views(locked: CombatTarget) -> void:
 		var v := _views[i]
 		v.visible = d.alive
 		v.position = d.position
-		v.basis = Basis.from_euler(Vector3(d.tilt.x, 0, d.tilt.y))
+		v.basis = Basis.from_euler(Vector3(d.tilt.x, 0, d.tilt.y)) * Basis(Vector3.UP, _yaw[i])
+		var lit := d == locked
+		var tint := Color(1.12, 0.96, 0.9) if lit else Color.WHITE
+		var s := _light_at(world, d.position + Vector3(0, 1.0, 0)) if world != null else Vector2(1, 0)
+		var rig := v.get_child(0) as AvatarRig
+		if rig != null:
+			rig.set_flash(d.flash * 0.85, tint)
+			rig.set_light(s.x, s.y)
+			continue
 		var mi := v.get_child(0) as MeshInstance3D
 		mi.set_instance_shader_parameter(&"flash", d.flash * 0.85)
-		var lit := d == locked
-		mi.set_instance_shader_parameter(&"tint", Vector3(1.12, 0.96, 0.9) if lit else Vector3.ONE)
-		if world != null:
-			var s := _light_at(world, d.position + Vector3(0, 1.0, 0))
-			mi.set_instance_shader_parameter(&"sun_here", s.x)
-			mi.set_instance_shader_parameter(&"blk_here", s.y)
+		mi.set_instance_shader_parameter(&"tint", Vector3(tint.r, tint.g, tint.b))
+		mi.set_instance_shader_parameter(&"sun_here", s.x)
+		mi.set_instance_shader_parameter(&"blk_here", s.y)
 
 
 ## Luce solare e dei blocchi (0..1) nella cella di `p`.

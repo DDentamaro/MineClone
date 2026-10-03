@@ -960,3 +960,32 @@ facevano danno e sbalzavano i nemici prima che il martello toccasse terra.
 - Con alcune acconciature le ciocche laterali uscivano dai lati dell'elmo: con un pezzo in testa
   tutti i capelli (e i lacci di code e codini) non si costruiscono.
 
+## D-054 — Partita nuova nell'arena (come il torneo di Cell), armature come oggetti
+Richiesta del proprietario: ricominciare da zero in un'arena tipo quella del torneo di Cell di
+Dragon Ball, con al centro l'armeria e le armi ben separate, un manichino a forma di personaggio
+e i due set d'armatura.
+- Blocco nuovo `MARBLE` (id 16, "marmo"): solido, opaco, indistruttibile (non e' in
+  `Harvest.INFO`). Niente modifica all'atlante verificato del prototipo: lo shader dei blocchi lo
+  disegna con un ramo suo (piastrelle chiare 2x2 con le fughe scure), in entrambe le modalita'.
+  Il test del catalogo ora conta 17 blocchi (i 16 del prototipo piu' il marmo).
+- `Arena.stamp`: nei mondi da giocare (partita nuova e mondo rigenerato; non nella fixture ne'
+  nel generatore, che restano identici al prototipo) cerca entro 40 blocchi dal centro il punto
+  piu' asciutto e piano, spiana 31x31 blocchi a terra battuta, posa il ring 19x19 di marmo
+  rialzato di un blocco e quattro colonne agli angoli, toglie l'acqua, ricalcola la luce.
+  `WorldData.arena` e' il centro; con l'arena si nasce sul ring 5 blocchi a sud del centro.
+  Un salvataggio ha l'arena nei blocchi: al caricamento la si ritrova controllando il marmo.
+- Armeria al centro: rastrelliera larga 2,1 m, solo le quattro armi esposte, una ogni mezzo
+  metro; attrezzi dentro ma non esposti; le armature non stanno piu' nell'armeria.
+- Espositori (`armor_stand`) a ovest e a est, girati verso il centro: un manichino di legno
+  (rig dell'eroe senza capelli ne' viso) che indossa i pezzi contenuti; prendendone uno sparisce
+  dal manichino. Cuoio: casco, cappuccio, giubba, gambali, stivali. Ferro: i quattro pezzi.
+- Oggetti: `ItemDefinition.armor_style` e `armor_color`. Il ferro esistente ha la forma da
+  cavaliere (D-051); cinque oggetti di cuoio (difesa al 70% del rame), non ancora ottenibili
+  altrove. `Equipment.styles()` e `color_of()`; eroe e anteprima dello zaino passano le forme.
+- Manichino a forma di personaggio: `TrainingGround.add_dummy(p, humanoid, yaw)` usa un rig
+  dell'eroe con un'altra ricetta (pelle scura, cresta nera, casacca viola) al posto della paglia;
+  stesso bersaglio (hurtbox, punti vita, ritorno a casa). Uno solo, a nord del centro, girato
+  verso lo spawn. Fuori dall'arena restano i tre di paglia.
+- Menu > "Nuova partita": due tocchi entro 4 s, cancella il salvataggio e ricarica la scena;
+  niente salvataggi automatici durante la ricarica.
+

@@ -21,6 +21,8 @@ const LEAVES := 12
 const SANDSTONE := 13
 const DARKSTONE := 14
 const WATER := 15
+## D-054: marmo bianco a piastrelle dell'arena (indistruttibile: non e' in `Harvest.INFO`).
+const MARBLE := 16
 
 @export var blocks: Array[BlockDefinition] = []
 

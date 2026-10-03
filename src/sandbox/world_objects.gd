@@ -5,11 +5,16 @@ extends Node3D
 ## non sono voxel (il catalogo resta quello del prototipo) ma il giocatore non li
 ## attraversa e i blocchi non ci si posano sopra.
 
-const TYPES := ["workbench", "furnace", "chest", "campfire", "treasure", "armory"]
-## Contenuto dell'armeria vicino allo spawn: un'arma per tipo, gli attrezzi e
-## un'armatura intera, tutto di ferro (D-029).
+const TYPES := ["workbench", "furnace", "chest", "campfire", "treasure", "armory", "armor_stand"]
+## Contenuto dell'armeria: un'arma per tipo e gli attrezzi, di ferro (D-029).
+## Dal D-054 le armature stanno sugli espositori.
 const ARMORY_ITEMS: Array[StringName] = [&"sword_iron", &"spear_iron", &"hammer_iron", &"greatsword_iron",
-	&"pick_iron", &"axe_iron", &"shovel_iron", &"head_iron", &"chest_iron", &"legs_iron", &"feet_iron"]
+	&"pick_iron", &"axe_iron", &"shovel_iron"]
+## Espositori delle armature dell'arena (D-054): cuoio (con i due copricapo) e ferro.
+const STAND_SETS := {
+	"leather": [&"head_leather", &"head_leather_hood", &"chest_leather", &"legs_leather", &"feet_leather"],
+	"iron": [&"head_iron", &"chest_iron", &"legs_iron", &"feet_iron"],
+}
 const RADIUS := 0.42
 
 class Obj:
@@ -19,8 +24,10 @@ class Obj:
 	var rot := 0
 	var inv: Inventory
 	var node: MeshInstance3D
-	## Armeria: armi e attrezzi esposti sulla rastrelliera.
+	## Armeria: armi esposte sulla rastrelliera.
 	var shown: Array[MeshInstance3D] = []
+	## Espositore: manichino che indossa i pezzi contenuti.
+	var rig: AvatarRig
 
 
 var world: WorldData
@@ -63,7 +70,7 @@ func place(type: String, cell: Vector3i, rot: int = 0) -> Obj:
 	o.type = type
 	o.cell = cell
 	o.rot = posmod(rot, 4)
-	if type == "chest" or type == "treasure" or type == "armory":
+	if type in ["chest", "treasure", "armory", "armor_stand"]:
 		o.inv = Inventory.new(18)
 	list.append(o)
 	_make_node(o)
@@ -71,16 +78,25 @@ func place(type: String, cell: Vector3i, rot: int = 0) -> Obj:
 	return o
 
 
-## L'armeria mostra cio' che contiene: si aggiorna quando cambia.
+## Armeria ed espositori mostrano cio' che contengono: si aggiornano quando cambia.
 func _watch(o: Obj) -> void:
-	if o.type != "armory" or o.inv == null:
+	if o.inv == null or not o.type in ["armory", "armor_stand"]:
 		return
 	o.inv.changed.connect(func() -> void: refresh_display(o))
 	refresh_display(o)
 
 
-## Armi e attrezzi dell'armeria in piedi sulla rastrelliera (fino a 7).
+## D-054: rastrelliera larga, armi ben distanziate (una ogni mezzo metro).
+const RACK_STEP := 0.5
+const RACK_SLOTS := 4
+
+
+## Armi dell'armeria in piedi sulla rastrelliera, una per posto e ben
+## separate (D-054; gli attrezzi restano dentro ma non si espongono).
 func refresh_display(o: Obj) -> void:
+	if o.type == "armor_stand":
+		_dress(o)
+		return
 	for n in o.shown:
 		if is_instance_valid(n):
 			n.queue_free()
@@ -89,7 +105,7 @@ func refresh_display(o: Obj) -> void:
 		return
 	var long: Array[ItemStack] = []
 	for s in o.inv.slots:
-		if s != null and s.def().kind in [ItemDefinition.Kind.WEAPON, ItemDefinition.Kind.TOOL] and long.size() < 7:
+		if s != null and s.def().kind == ItemDefinition.Kind.WEAPON and long.size() < RACK_SLOTS:
 			long.append(s)
 	for i in long.size():
 		var d := long[i].def()
@@ -103,7 +119,7 @@ func refresh_display(o: Obj) -> void:
 		var bottom := mesh.get_aabb().position.y * sc
 		mi.scale = Vector3.ONE * sc
 		# In fila sulla base, appoggiati alla traversa (lieve inclinazione indietro).
-		mi.position = Vector3(-0.39 + i * 0.13, 0.09 - bottom, -0.02)
+		mi.position = Vector3((i - (RACK_SLOTS - 1) * 0.5) * RACK_STEP, 0.09 - bottom, -0.02)
 		mi.rotation = Vector3(deg_to_rad(9.0), 0, 0)
 		o.node.add_child(mi)
 		o.shown.append(mi)
@@ -142,6 +158,67 @@ func place_armory(spawn: Vector3, rng: RandomNumberGenerator = null) -> Obj:
 	return null
 
 
+## Espositore: il manichino indossa i pezzi che contiene (il primo per slot).
+func _dress(o: Obj) -> void:
+	if o.node == null or o.inv == null:
+		return
+	if o.rig == null:
+		o.rig = AvatarRig.new()
+		o.node.add_child(o.rig)
+		o.rig.position = Vector3(0, 0.1, 0)
+		o.rig.build(mannequin())
+	var colors := {}
+	var styles := {}
+	for s in o.inv.slots:
+		if s == null or s.def().kind != ItemDefinition.Kind.ARMOR or colors.has(s.def().slot):
+			continue
+		colors[s.def().slot] = Equipment.color_of(s.def())
+		styles[s.def().slot] = s.def().armor_style
+	o.rig.set_armor_all(colors, styles)
+	_light(o)
+
+
+## Manichino di legno degli espositori: niente capelli, viso liscio.
+static func mannequin() -> AvatarRecipe:
+	var r := AvatarRecipe.preset(0)
+	r.dna = r.dna.duplicate()
+	for k: String in ["skin"]:
+		r.dna[k] = "#b88a5c"
+	r.dna["hairStyle"] = "none"
+	r.dna["tuft"] = false
+	r.dna["eyes"] = "chiuso"
+	r.dna["brows"] = "none"
+	r.dna["mouth"] = "none"
+	r.dna["nose"] = "none"
+	r.dna["beard"] = "none"
+	r.dna["shirt"] = "#a07a52"
+	r.dna["pants"] = "#a07a52"
+	r.dna["boots"] = "#8a6644"
+	return r
+
+
+## Arena (D-054): armeria al centro, espositori a ovest (cuoio) e a est
+## (ferro) girati verso il centro. Ognuno si piazza una volta sola.
+func place_arena(c: Vector3i, rng: RandomNumberGenerator = null) -> void:
+	if rng == null:
+		rng = RandomNumberGenerator.new()
+		rng.seed = 99
+	if not list.any(func(o: Obj) -> bool: return o.type == "armory"):
+		var a := place("armory", c, 0)
+		if a != null:
+			for id in ARMORY_ITEMS:
+				a.inv.add(Loot.make_equipment(id, 0, rng))
+	for e: Array in [["leather", Vector3i(-4, 0, 0), 1], ["iron", Vector3i(4, 0, 0), 3]]:
+		var cell: Vector3i = c + e[1]
+		if at(cell) != null:
+			continue
+		var o := place("armor_stand", cell, e[2])
+		if o == null:
+			continue
+		for id: StringName in STAND_SETS[e[0]]:
+			o.inv.add(Loot.make_equipment(id, 0, rng))
+
+
 func remove(o: Obj) -> void:
 	if o.node != null:
 		o.node.queue_free()
@@ -155,7 +232,7 @@ func center_of(o: Obj) -> Vector3:
 ## Raccoglie l'oggetto (col contenuto) nello zaino; falso se non entra tutto.
 ## I forzieri del tesoro non si raccolgono.
 func pick_up(o: Obj, inv: Inventory) -> bool:
-	if o.type == "treasure" or o.type == "armory":
+	if o.type in ["treasure", "armory", "armor_stand"]:
 		return false
 	var items: Array[ItemStack] = [ItemStack.new(StringName(o.type))]
 	if o.inv != null:
@@ -306,6 +383,9 @@ func _light(o: Obj) -> void:
 		if is_instance_valid(n):
 			n.set_instance_shader_parameter(&"sun_here", world.sun[i] / 15.0)
 			n.set_instance_shader_parameter(&"blk_here", world.blk[i] / 15.0)
+	if o.rig != null:
+		var j := world.index(o.cell.x, mini(o.cell.y + 1, world.size_y - 1), o.cell.z)
+		o.rig.set_light(world.sun[j] / 15.0, world.blk[j] / 15.0)
 
 
 ## Aggiorna la luce degli oggetti (dopo edit vicini).
@@ -333,13 +413,20 @@ static func build_mesh(type: String) -> ArrayMesh:
 			k.box(Vector3(0, 0.3, -0.43), Vector3(0.36, 0.3, 0.04), Color(1.0, 0.55, 0.18), 0.01)
 			k.box(Vector3(0, 0.88, 0.2), Vector3(0.22, 0.14, 0.22), Color(0.36, 0.35, 0.36), 0.02)
 		"armory":
-			# Rastrelliera: base, due montanti, traversa con le tacche.
-			k.box(Vector3(0, 0.04, 0), Vector3(0.96, 0.08, 0.42), dark, 0.02)
-			for sx in [-1.0, 1.0]:
-				k.box(Vector3(0.46 * sx, 0.5, 0.14), Vector3(0.07, 1.0, 0.07), wood, 0.015)
-			k.box(Vector3(0, 0.74, 0.14), Vector3(0.98, 0.07, 0.07), wood.lightened(0.1), 0.015)
-			k.box(Vector3(0, 0.98, 0.14), Vector3(1.0, 0.06, 0.09), dark, 0.015)
-			k.box(Vector3(0, 0.86, 0.19), Vector3(0.32, 0.12, 0.02), Color(0.78, 0.62, 0.3), 0.01)
+			# Rastrelliera larga (D-054): base, tre montanti, traversa e cimasa,
+			# un posto ogni mezzo metro con la sua tacca d'ottone.
+			var wdt := RACK_STEP * RACK_SLOTS + 0.1
+			k.box(Vector3(0, 0.04, 0), Vector3(wdt, 0.08, 0.46), dark, 0.02)
+			for sx in [-1.0, 0.0, 1.0]:
+				k.box(Vector3(wdt * 0.5 * sx - 0.035 * sx, 0.55, 0.16), Vector3(0.08, 1.1, 0.08), wood, 0.015)
+			k.box(Vector3(0, 0.74, 0.16), Vector3(wdt, 0.07, 0.07), wood.lightened(0.1), 0.015)
+			k.box(Vector3(0, 1.08, 0.16), Vector3(wdt + 0.04, 0.07, 0.10), dark, 0.015)
+			for i in RACK_SLOTS:
+				k.box(Vector3((i - (RACK_SLOTS - 1) * 0.5) * RACK_STEP, 0.79, 0.12), Vector3(0.08, 0.04, 0.03), Color(0.78, 0.62, 0.3), 0.008)
+		"armor_stand":
+			# Pedana tonda del manichino con il bordo scuro.
+			k.prism(Vector3.ZERO, 0.0, 0.1, 0.4, 0.38, 10, wood)
+			k.prism(Vector3.ZERO, 0.0, 0.04, 0.42, 0.42, 10, dark)
 		"chest", "treasure":
 			var body := wood if type == "chest" else Color(0.40, 0.24, 0.16)
 			var band := metal if type == "chest" else Color(0.92, 0.74, 0.28)
@@ -381,6 +468,8 @@ func load_array(a: Array) -> void:
 		if d.get("inv") is Array:
 			o.inv = Inventory.new(18)
 			o.inv.load_array(d["inv"])
+		if o.type == "armor_stand" and o.inv == null:
+			o.inv = Inventory.new(18)
 		list.append(o)
 		_make_node(o)
 		_watch(o)

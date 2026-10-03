@@ -221,6 +221,8 @@ func _draw() -> void:
 			label = "Tesoro"
 		if t[0] == "chest" and chest != null and chest.type == "armory":
 			label = "Armeria"
+		if t[0] == "chest" and chest != null and chest.type == "armor_stand":
+			label = "Espositore"
 		var w := _font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, int(dp(15.0))).x + dp(28.0)
 		var key: String = t[0]
 		tab_rects[key] = Rect2(x, panel.position.y + m * 0.6, w, th)
@@ -334,7 +336,7 @@ func refresh_preview() -> void:
 	if key != _pv_key:
 		_pv_key = key
 		_pv_rig.build(recipe)
-	_pv_rig.set_armor_all(items.equipment.colors())
+	_pv_rig.set_armor_all(items.equipment.colors(), items.equipment.styles())
 	_pv_rig.set_weapon(WeaponLibrary.by_id(items.weapon_id()), WeaponMeshes.for_item(items.held_def()))
 	_pose_preview()
 	queue_redraw()
@@ -713,8 +715,9 @@ func _draw_chest(body: Rect2) -> void:
 	var cols := 6
 	var left_w := body.size.x * 0.6
 	var cell := minf((left_w - dp(6.0) * (cols - 1)) / cols, dp(58.0))
-	var title: String = {"treasure": "Tesoro", "armory": "Armeria"}.get(chest.type, "Forziere")
-	var hint := "tocca un'arma e premi \"Impugna\" per averla subito in mano" if chest.type == "armory" else "tocca un oggetto per vedere cosa farne"
+	var title: String = {"treasure": "Tesoro", "armory": "Armeria", "armor_stand": "Espositore"}.get(chest.type, "Forziere")
+	var hint := "tocca un'arma e premi \"Impugna\" per averla subito in mano" if chest.type == "armory" else \
+		("tocca un pezzo e premi \"Indossa\"" if chest.type == "armor_stand" else "tocca un oggetto per vedere cosa farne")
 	_text(body.position + Vector2(0, dp(16.0)), "%s — %s" % [title, hint], 13, Color(0.85, 0.9, 0.85))
 	_grid(chest.inv, body.position + Vector2(0, dp(26.0)), cols, cell, _tap_select)
 	var y2 := body.position.y + dp(26.0) + 3 * (cell + dp(6.0)) + dp(22.0)
