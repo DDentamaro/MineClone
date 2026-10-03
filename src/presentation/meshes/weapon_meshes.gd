@@ -43,29 +43,89 @@ static func for_item(d: ItemDefinition) -> ArrayMesh:
 
 ## `mat` colora le parti "di metallo" col materiale dell'oggetto (legno, pietra, rame...).
 static func build(kind: WeaponDefinition.Kind, mat: Color = Color(0, 0, 0, 0)) -> ArrayMesh:
-	var model := modeled(kind, mat)
-	if model != null:
-		return model
 	_set_material(mat)
 	var k := MeshKit.new()
 	match kind:
 		WeaponDefinition.Kind.SWORD:
-			_sprite(k, _sword_rows(), 2)
+			_sword(k)
 		WeaponDefinition.Kind.SPEAR:
-			_sprite(k, _spear_rows(), 13)
+			_spear(k)
 		WeaponDefinition.Kind.HAMMER:
-			_sprite(k, _hammer_rows(), 6)
+			_hammer(k)
 		WeaponDefinition.Kind.GREATSWORD:
-			_sprite(k, _greatsword_rows(), 6)
+			_greatsword(k)
 		_:
 			_wraps(k)
 	return k.commit()
 
 
-# --- armi a voxel (D-039): come gli oggetti di Minecraft, un disegno a pixel
-# estruso in cubetti, cosi' le armi hanno lo stesso aspetto a blocchi del mondo.
-# Righe dall'alto (punta) al basso (pomo); `grip` = riga dell'impugnatura
-# (y = 0). Stesse lunghezze delle vecchie mesh lisce: hitbox e scie non cambiano.
+# --- armi dai modelli Higgsfield (D-052): le tavole e i modelli 3D generati
+# fanno da riferimento, le armi sono ricostruite qui a pezzi smussati nello
+# stile dell'armatura da cavaliere (acciaio, ottone, cuoio, legno). Stesse
+# lunghezze e stessa impugnatura delle armi a cubetti (D-039): hitbox, scie e
+# pose non cambiano. Il materiale dell'oggetto colora solo l'acciaio.
+
+## Spada a una mano: lama larga a rombo con la sgusciatura scura, guardia
+## d'ottone con le estremita' squadrate, manico di cuoio fasciato, pomo tondo.
+static func _sword(k: MeshKit) -> void:
+	k.blade(0.17, 0.84, 0.13, 0.040, 0.12, _steel, _edge)
+	k.box(Vector3(0, 0.50, 0), Vector3(0.022, 0.56, 0.044), _dark, 0.004)
+	k.box(Vector3(0, 0.145, 0), Vector3(0.26, 0.05, 0.075), BRASS, 0.015)
+	for x in [-0.125, 0.125]:
+		k.box(Vector3(x, 0.145, 0), Vector3(0.045, 0.085, 0.09), BRASS.darkened(0.08), 0.012)
+	k.box(Vector3(0, 0.015, 0), Vector3(0.062, 0.21, 0.062), LEATHER, 0.02)
+	for y in [-0.04, 0.03, 0.10]:
+		k.box(Vector3(0, y, 0), Vector3(0.07, 0.022, 0.07), LEATHER.darkened(0.25), 0.008)
+	k.box(Vector3(0, -0.125, 0), Vector3(0.10, 0.09, 0.10), BRASS, 0.04)
+
+
+## Spadone: lama lunga e larghissima con la sgusciatura, guardia d'ottone
+## larga con le punte angolate, impugnatura lunga a due mani, pomo pesante.
+static func _greatsword(k: MeshKit) -> void:
+	k.blade(0.26, 1.30, 0.20, 0.052, 0.16, _steel, _edge)
+	k.box(Vector3(0, 0.76, 0), Vector3(0.036, 0.94, 0.056), _dark, 0.005)
+	k.box(Vector3(0, 0.22, 0), Vector3(0.34, 0.07, 0.09), BRASS, 0.02)
+	for s in [-1.0, 1.0]:
+		k.box(Vector3(s * 0.175, 0.245, 0), Vector3(0.05, 0.11, 0.10), BRASS.darkened(0.08), 0.015, 1.0, MeshKit.rot_about(Vector3.FORWARD, s * 0.35, Vector3(s * 0.175, 0.22, 0)))
+	k.box(Vector3(0, -0.04, 0), Vector3(0.07, 0.45, 0.07), LEATHER, 0.02)
+	for y in [-0.20, -0.08, 0.04, 0.14]:
+		k.box(Vector3(0, y, 0), Vector3(0.078, 0.024, 0.078), LEATHER.darkened(0.25), 0.008)
+	k.box(Vector3(0, -0.31, 0), Vector3(0.14, 0.10, 0.11), BRASS, 0.035)
+
+
+## Lancia: asta di legno con due fasce di cuoio, puntale d'acciaio, collare
+## d'ottone, ferro a foglia con la nervatura centrale.
+static func _spear(k: MeshKit) -> void:
+	k.box(Vector3(0, 0.29, 0), Vector3(0.05, 2.0, 0.05), WOOD, 0.015)
+	for y in [0.0, 0.62]:
+		k.box(Vector3(0, y, 0), Vector3(0.058, 0.16, 0.058), LEATHER, 0.012)
+	k.box(Vector3(0, -0.705, 0), Vector3(0.064, 0.075, 0.064), _steel, 0.02, 0.7)
+	k.box(Vector3(0, 1.315, 0), Vector3(0.075, 0.07, 0.075), BRASS, 0.02)
+	# Ferro: si allarga dal collare e poi si stringe fino alla punta.
+	k.blade(1.35, 1.44, 0.07, 0.07, 0.0, _steel, _edge, Transform3D.IDENTITY, 0.16)
+	k.blade(1.44, 1.47, 0.16, 0.08, 0.155, _steel, _edge)
+	k.box(Vector3(0, 1.47, 0), Vector3(0.02, 0.22, 0.07), _dark, 0.004)
+
+
+## Martello da guerra: testa d'acciaio squadrata con le facce scure e due
+## fasce d'ottone, manico lungo di legno con l'impugnatura di cuoio e il
+## puntale d'acciaio.
+static func _hammer(k: MeshKit) -> void:
+	k.box(Vector3(0, 0.32, 0), Vector3(0.06, 1.34, 0.06), WOOD.darkened(0.15), 0.018)
+	k.box(Vector3(0, -0.04, 0), Vector3(0.072, 0.40, 0.072), LEATHER, 0.02)
+	for y in [-0.20, -0.06, 0.08]:
+		k.box(Vector3(0, y, 0), Vector3(0.08, 0.022, 0.08), LEATHER.darkened(0.25), 0.008)
+	k.box(Vector3(0, -0.33, 0), Vector3(0.08, 0.06, 0.08), _steel, 0.02)
+	k.box(Vector3(0, 1.10, 0), Vector3(0.40, 0.26, 0.22), _steel, 0.035)
+	for s in [-1.0, 1.0]:
+		k.box(Vector3(s * 0.215, 1.10, 0), Vector3(0.05, 0.28, 0.24), _dark, 0.03)
+		k.box(Vector3(s * 0.10, 1.10, 0), Vector3(0.045, 0.275, 0.235), BRASS, 0.01)
+	k.box(Vector3(0, 1.235, 0), Vector3(0.10, 0.03, 0.10), _edge, 0.01)
+
+
+# --- attrezzi a voxel (D-039): come gli oggetti di Minecraft, un disegno a
+# pixel estruso in cubetti. Le armi dal D-052 sono modellate sopra.
+# Righe dall'alto (punta) al basso; `grip` = riga dell'impugnatura (y = 0).
 
 ## Lato di un pixel nello spazio arma.
 const PX := 0.055
@@ -110,45 +170,6 @@ static func _sprite(k: MeshKit, rows: Array, grip: int) -> void:
 			k.box(Vector3((c - (w - 1) * 0.5) * PX, (r - grip) * PX, 0), Vector3(PX, PX, d), col, 0.0)
 
 
-## Spada a una mano: lama di tre pixel col filo chiaro, guardia, manico, pomo.
-static func _sword_rows() -> Array:
-	var rows := ["..E.."]
-	for i in 13:
-		rows.append(".EBE.")
-	rows.append_array(["GGGGG", "..L..", "..L..", "..L..", "..L..", ".GGG."])
-	return rows
-
-
-## Spadone: lama larga con la sgusciatura scura, guardia lunga, manico lungo.
-static func _greatsword_rows() -> Array:
-	var rows := ["...E...", "..EEE.."]
-	for i in 22:
-		rows.append(".EBDBE.")
-	rows.append("GGGGGGG")
-	for i in 7:
-		rows.append("...L...")
-	rows.append("..GGG..")
-	return rows
-
-
-## Lancia: ferro a foglia, collare, nappa, asta lunga con fasce di cuoio.
-static func _spear_rows() -> Array:
-	var rows := ["..E..", ".EBE.", ".EBE.", "EBDBE", "EBDBE", ".EBE.", "..D..", ".CGC."]
-	for r in range(34, 0, -1):
-		rows.append("..L.." if (r >= 11 and r <= 15) or r == 5 or r == 6 else "..W..")
-	rows.append("..D..")
-	return rows
-
-
-## Martello: manico con impugnatura di cuoio, testa squadrata spessa con fascia.
-static func _hammer_rows() -> Array:
-	var rows := ["....E....", "....B....", "hHHHHHHHh", "hHGGGGGHh", "hHGGGGGHh", "hHGGGGGHh", "hHHHHHHHh"]
-	for r in range(21, 0, -1):
-		rows.append("....L...." if r >= 4 and r <= 8 else "....W....")
-	rows.append("....D....")
-	return rows
-
-
 ## Pugni: fasce di cuoio con borchie (vanno su entrambe le mani).
 static func _wraps(k: MeshKit) -> void:
 	# Spazio mano: il pugno scende lungo -Y, le nocche guardano -Y.
@@ -177,73 +198,3 @@ static func build_tool(tool_type: String, mat: Color) -> ArrayMesh:
 	rows.append("....D....")
 	_sprite(k, rows, 3)
 	return k.commit()
-
-
-
-# --- armi modellate (D-052): mesh da Higgsfield convertite da
-# tools/weapons/glb_to_weapon.py in data/weapons/<arma>.json, nello stesso
-# spazio arma e con le stesse lunghezze delle armi a cubetti. Se il file
-# manca resta l'arma a cubetti.
-
-const MODEL_DIR := "res://data/weapons/"
-const MODEL_NAMES := {WeaponDefinition.Kind.SWORD: "sword", WeaponDefinition.Kind.SPEAR: "spear",
-	WeaponDefinition.Kind.HAMMER: "hammer", WeaponDefinition.Kind.GREATSWORD: "greatsword"}
-static var _model_data := {}
-static var _model_cache := {}
-
-
-static func model_data(kind: WeaponDefinition.Kind) -> Dictionary:
-	if not MODEL_NAMES.has(kind):
-		return {}
-	if not _model_data.has(kind):
-		var path: String = MODEL_DIR + MODEL_NAMES[kind] + ".json"
-		var d: Variant = null
-		if FileAccess.file_exists(path):
-			d = JSON.parse_string(FileAccess.get_file_as_string(path))
-		_model_data[kind] = d if d is Dictionary else {}
-	return _model_data[kind]
-
-
-## Mesh modellata, o null. Col materiale dell'oggetto le parti di metallo
-## (grigie, poco sature) prendono il suo colore; cuoio, legno e ottone restano.
-static func modeled(kind: WeaponDefinition.Kind, mat: Color = Color(0, 0, 0, 0)) -> ArrayMesh:
-	var d := model_data(kind)
-	if d.is_empty():
-		return null
-	var key := "%d|%s" % [kind, mat.to_html()]
-	if _model_cache.has(key):
-		return _model_cache[key]
-	var V: Array = d["vertices"]
-	var N: Array = d["normals"]
-	var C: Array = d["colors"]
-	var I: Array = d["indices"]
-	var pos := PackedVector3Array()
-	var nor := PackedVector3Array()
-	var col := PackedColorArray()
-	for i in V.size() / 3:
-		pos.append(Vector3(V[i * 3], V[i * 3 + 1], V[i * 3 + 2]))
-		nor.append(Vector3(N[i * 3], N[i * 3 + 1], N[i * 3 + 2]))
-		var c := Color(C[i * 3], C[i * 3 + 1], C[i * 3 + 2])
-		if mat.a > 0.0 and c.s < 0.18 and c.v > 0.25:
-			c = mat * (0.55 + 0.6 * c.v)
-			c.a = 1.0
-		col.append(c)
-	var idx := PackedInt32Array()
-	for j in range(0, I.size(), 3):
-		# Da antiorario (glTF) al fronte orario di Godot.
-		idx.append(int(I[j]))
-		idx.append(int(I[j + 2]))
-		idx.append(int(I[j + 1]))
-	var arr := []
-	arr.resize(Mesh.ARRAY_MAX)
-	arr[Mesh.ARRAY_VERTEX] = pos
-	arr[Mesh.ARRAY_NORMAL] = nor
-	arr[Mesh.ARRAY_COLOR] = col
-	arr[Mesh.ARRAY_INDEX] = idx
-	var m := ArrayMesh.new()
-	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
-	if _model_cache.size() > 24:
-		_model_cache.clear()
-	_model_cache[key] = m
-	return m
-
