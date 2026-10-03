@@ -1,5 +1,16 @@
 # Avanzamento
 
+## 03/10/2026 — D-057: fuoco leggibile sul telefono
+
+Colori saturi (mai bianco), cerchio arancio, grani piu' grandi.
+
+### Test realmente eseguiti (D-057)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 200/200 PASS |
+| `tools/magic_preview.gd` in terza persona e isometrica | Guardate a occhio: fiamma, cerchio ed esplosione a grani arancio e rossi in tutte e due le viste |
+| Export Android debug 0.35.0-m5 (versionCode 37) + `apksigner verify` + `aapt2 dump badging` | OK; non provato sul telefono |
+
 ## 03/10/2026 — D-056: fuoco a grani come in RMNDWN
 
 Il fuoco del bastone non ha piu' mesh: e' gas caldo a grani che sale, si raffredda e cambia colore

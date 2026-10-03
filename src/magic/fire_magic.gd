@@ -34,13 +34,13 @@ const BURN_DMG := 2.0
 
 ## Parametri del gas (RMNDWN VARIANTS fire, HTML 23239-23290), con grani piu'
 ## grossi: la vista qui e' piu' larga del render target di 424 px.
-const BOLT_GAS := {"buoy": 6.5, "turb": 1.7, "drag": 1.9, "cool": 1.5, "eddy": 0.8, "size": 0.05, "L": 0.6, "D": 0.16}
-const BALL_GAS := {"buoy": 7.0, "turb": 1.4, "drag": 2.0, "cool": 0.72, "eddy": 0.95, "size": 0.045, "L": 1.3, "D": 0.62}
+const BOLT_GAS := {"buoy": 6.5, "turb": 1.7, "drag": 1.9, "cool": 1.5, "eddy": 0.8, "size": 0.075, "L": 0.6, "D": 0.16}
+const BALL_GAS := {"buoy": 7.0, "turb": 1.4, "drag": 2.0, "cool": 0.72, "eddy": 0.95, "size": 0.08, "L": 1.3, "D": 0.62}
 ## Palla in formazione sulla gemma: fiamma corta, che non faccia una colonna.
-const CHARGE_GAS := {"buoy": 6.0, "turb": 1.4, "drag": 2.2, "cool": 1.3, "eddy": 0.6, "size": 0.04, "L": 0.45, "D": 0.3}
-const GEM_GAS := {"buoy": 5.5, "turb": 1.0, "drag": 2.0, "cool": 0.75, "eddy": 0.0, "size": 0.026, "L": 0.46, "D": 0.1}
-const BURN_GAS := {"buoy": 5.0, "turb": 1.2, "drag": 2.2, "cool": 0.8, "eddy": 0.3, "size": 0.03, "L": 0.5, "D": 0.3}
-const EMBER_GAS := {"buoy": 5.5, "turb": 1.2, "drag": 2.0, "cool": 0.9, "eddy": 0.4, "size": 0.03, "L": 0.35, "D": 0.12}
+const CHARGE_GAS := {"buoy": 6.0, "turb": 1.4, "drag": 2.2, "cool": 1.3, "eddy": 0.6, "size": 0.06, "L": 0.45, "D": 0.3}
+const GEM_GAS := {"buoy": 5.5, "turb": 1.0, "drag": 2.0, "cool": 0.75, "eddy": 0.0, "size": 0.039, "L": 0.46, "D": 0.1}
+const BURN_GAS := {"buoy": 5.0, "turb": 1.2, "drag": 2.2, "cool": 0.8, "eddy": 0.3, "size": 0.045, "L": 0.5, "D": 0.3}
+const EMBER_GAS := {"buoy": 5.5, "turb": 1.2, "drag": 2.0, "cool": 0.9, "eddy": 0.4, "size": 0.045, "L": 0.35, "D": 0.12}
 ## Testa: raggio, trattenuta, rotazione, guscio, quota della corsa al rilascio,
 ## grani alla nascita, portata in volo.
 const BOLT_HEAD := {"r": 0.16, "hold": 0.10, "spin": 3.2, "shell": 0.45, "retain": 0.14, "seed": 70, "rate": 600.0}
@@ -52,7 +52,7 @@ const BALL_GLYPH := {"r": 0.46, "poly": 4, "ticks": 16, "spin": 0.53, "rate": 21
 ## Colpo: anello (grani, velocita'), ejecta, lunghezza e spinta della fiamma,
 ## taglia dei grani, braci a terra (numero, raggio, vita).
 const BOLT_HIT := {"ring": 18, "ring_v": 6.0, "ejecta": 9, "len": 1.3, "buoy": 1.3, "size": 1.2, "res": 7, "res_r": 0.55, "res_life": 0.9}
-const BALL_HIT := {"ring": 28, "ring_v": 7.5, "ejecta": 14, "len": 2.4, "buoy": 1.5, "size": 1.2, "res": 16, "res_r": 1.15, "res_life": 1.8}
+const BALL_HIT := {"ring": 28, "ring_v": 7.5, "ejecta": 14, "len": 2.4, "buoy": 1.5, "size": 0.85, "res": 16, "res_r": 1.15, "res_life": 1.8}
 
 class Shot:
 	extends RefCounted
@@ -174,7 +174,7 @@ func _new_glyph(Y: Dictionary, n: Vector3) -> FireGas.Glyph:
 	y.rate = Y["rate"]
 	y.life = Y["life"]
 	y.max_n = Y["max"]
-	y.size = 0.022
+	y.size = 0.032
 	return y
 
 

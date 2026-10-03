@@ -19,11 +19,14 @@ extends Node3D
 enum { FREE, HELD, EMBER, GLYPH }
 
 const CAP := 1300
-## Isoterme della fiamma (RMNDWN RAMP, HTML 22154).
-const RAMP := [[0.0, Color("#0c0b09")], [0.12, Color("#1e0c04")], [0.26, Color("#451003")], [0.42, Color("#6d1d05")],
-	[0.58, Color("#93300a")], [0.72, Color("#ad4a12")], [0.84, Color("#c06a1c")], [0.93, Color("#cf9038")], [1.0, Color("#dcb96e")]]
+## Isoterme della fiamma (D-057). Quelle di corpo nero di RMNDWN arrivano a un
+## oro quasi bianco: li' la scena e' scura e la fusione MAX, qui sul marmo
+## bianco il nucleo e il cerchio si leggevano bianchi e la testa come un blocco
+## pieno. Rampa satura come la tavola di riferimento: rosso scuro, rosso,
+## arancio, ambra, giallo; mai bianco.
+const RAMP := [[0.0, Color("#5a1206")], [0.3, Color("#8f1c08")], [0.5, Color("#d2410c")], [0.7, Color("#f57a14")],
+	[0.85, Color("#ffab2a")], [1.0, Color("#ffd84a")]]
 const STEPS := 6.0
-const LUM := 5.5
 ## Stazioni del cerchio: i grani si riaccendono sempre negli stessi punti, cosi'
 ## la figura si legge come un tracciato e non come una nuvola.
 const GLYPH_STATIONS := 72
@@ -158,8 +161,7 @@ static func _flame_at(tb: float) -> Color:
 		if tb <= float(b[0]):
 			c = (a[1] as Color).lerp(b[1], (tb - float(a[0])) / (float(b[0]) - float(a[0])))
 			break
-	var e := pow(tb, LUM * 0.55) * 0.55 + 0.45 * tb
-	return c * (0.75 + 0.5 * e)
+	return c
 
 
 func _new(p: Vector3, m: int) -> Grain:
@@ -363,7 +365,7 @@ func _step_grain(g: Grain, dt: float) -> bool:
 				_shed(g, y.shed)
 				return true
 			g.p = _glyph_point(y, g.gk, g.gu)
-			g.T = 0.85 + 0.15 * sin(_t * 9.0 + g.ph)
+			g.T = 0.66 + 0.1 * sin(_t * 9.0 + g.ph) + (0.12 if g.gk == 0 else 0.0)
 			return true
 		HELD:
 			var an := g.anchor
@@ -379,7 +381,7 @@ func _step_grain(g: Grain, dt: float) -> bool:
 			g.p = an.p + g.off
 			g.v = an.v
 			g.o = g.p
-			g.T = g.T0 * (0.9 + 0.1 * sin(_t * 11.0 + g.ph))
+			g.T = g.T0 * (1.0 - 0.45 * clampf(g.off.length() / maxf(an.r, 0.01), 0.0, 1.0)) * (0.92 + 0.08 * sin(_t * 11.0 + g.ph))
 			g.hold -= dt
 			if g.hold <= 0.0:
 				# Rilascio: resta indietro rispetto alla testa, e nasce la scia.
@@ -405,8 +407,8 @@ func _step_grain(g: Grain, dt: float) -> bool:
 		g.p.y = g.floor_y + 0.02
 		g.v.y *= -0.12
 	if g.m == FREE:
-		# I vortici crescono salendo, ma non oltre il doppio.
-		g.s = minf(g.s + g.eddy * g.s0 * dt * (1.0 + zr), g.s0 * 2.0)
+		# I vortici crescono salendo, ma non oltre 1,6 volte.
+		g.s = minf(g.s + g.eddy * g.s0 * dt * (1.0 + zr), g.s0 * 1.6)
 	return true
 
 
@@ -427,15 +429,15 @@ func _build() -> void:
 				# Corpo: grani pieni col colore della temperatura. In RMNDWN la
 				# fusione e' MAX, quindi il gas che si spegne sparisce da solo
 				# (non c'e' fumo nero): qui lo si fa sfumare con la temperatura.
-				al = clampf((g.T - 0.28) / 0.3, 0.0, 1.0) * clampf(1.0 - (g.a / g.max_a - 0.8) / 0.2, 0.0, 1.0)
+				al = clampf((g.T - 0.15) / 0.25, 0.0, 1.0) * clampf(1.0 - (g.a / g.max_a - 0.8) / 0.2, 0.0, 1.0)
 			else:
 				# Bagliore: solo i grani piu' caldi, poco piu' grandi e tenui
 				# (sul marmo bianco l'additivo sbianca tutto).
-				if g.T < 0.7:
+				if g.T < 0.88 or g.m == GLYPH:
 					continue
-				al = (g.T - 0.7) * 0.8
-				size = g.s * 1.7
-				col = col * 0.45
+				al = 0.25
+				size = g.s * 1.6
+				col = col * 0.35
 			if al <= 0.02:
 				continue
 			col.a = al

@@ -1045,3 +1045,15 @@ sono tolte.
   array gia' della misura giusta; circa 3,5-4 ms a passo con il tetto pieno sul computer di
   sviluppo, non misurato sul telefono.
 
+## D-057 — Fuoco leggibile sul telefono
+Segnalazione del proprietario: gli effetti non si vedevano, il cerchio era bianco e il fuoco
+sembrava una mesh, non fatto di particelle.
+- Colori: la rampa di corpo nero di RMNDWN finisce in un oro quasi bianco; li' la scena e' scura e
+  la fusione e' MAX, qui sul marmo bianco nucleo e cerchio si leggevano bianchi e la testa fitta
+  come un blocco pieno. Ora rampa satura (rosso scuro, rosso, arancio, ambra, giallo), mai bianco.
+- Cerchio di rune arancio (anello esterno ambra), senza bagliore additivo.
+- Testa del proiettile: nucleo caldo e bordo piu' rosso, cosi' si vedono i grani e non un blocco.
+- Bagliore additivo solo sui grani piu' caldi, tenue.
+- Grani 1,5 volte piu' grandi, perche' si leggano anche nella vista isometrica del telefono.
+  Nel fungo dell'esplosione i grani sono piu' piccoli e crescono al massimo di 1,6 volte.
+
