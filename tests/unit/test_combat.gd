@@ -422,6 +422,12 @@ func test_slancio_dello_spadone() -> void:
 		r.step(int(0.6 / DT))
 	check_eq(r.started, [&"sweep", &"return", &"sweep2", &"return", &"sweep2"] as Array[StringName], "catena che gira")
 	check_eq(r.combat.momentum, 3, "slancio al massimo")
+	# Il forte si preme nel rientro dell'ultima spazzata, come in gioco (un
+	# tocco troppo presto scade dalla memoria del tasto).
+	for i in int(2.0 / DT):
+		if r.combat.phase() == 2:
+			break
+		r.step(1)
 	r.combat.press_heavy()
 	r.combat.release_heavy()
 	r.step(int(0.6 / DT))

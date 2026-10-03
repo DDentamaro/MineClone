@@ -509,7 +509,7 @@ static func _greatsword() -> WeaponDefinition:
 	w.strike_dist = 1.25
 	w.relaxed = pose({"arm_r": [40, 22, 12], "fore_r": [122, 0, 0], "hand_r": [-12, 0, 0], "arm_l": [4, 0, -6], "fore_l": [14, 0, 0]})
 	w.guard = pose({"arm_r": [30, 16, 8], "fore_r": [70, 0, 0], "hand_r": [-52, 0, 0], "chest": [0, -12, 0]})
-	var sw := {"windup": 0.2, "active": 0.15, "recovery": 0.3, "chain_at": 0.2, "shape": AttackDefinition.Shape.ARC,
+	var sw := {"windup": 0.28, "active": 0.2, "recovery": 0.26, "chain_at": 0.2, "shape": AttackDefinition.Shape.ARC,
 		"reach_min": 0.4, "reach": 2.55, "damage": 14.0, "knockback": 3.0, "hitstop": 0.09, "shake": 0.25, "lunge": 0.9}
 	_atk(w, "sweep", _with(sw, {"arc_from": -110.0, "arc_to": 90.0, "next_light": "return", "next_heavy": "cleave"}),
 		_with(STANCE, {"arm_r": [80, -100, 0], "fore_r": [16, 0, 0], "hand_r": [-104, 0, 0], "chest": [0, -62, 0], "spine": [0, -14, 0], "head": [0, 40, 0]}),

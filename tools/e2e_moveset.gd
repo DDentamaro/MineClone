@@ -299,6 +299,8 @@ func _process(dt: float) -> bool:
 				for d in g._dummies.dummies:
 					n += d.hits
 				_log.append("%s %s (da solo): colpi %d" % [GameRoot.WEAPONS[_w], id, n])
+				for k: String in _gap:
+					_log.append("      %s: distanza minima %.2f m punta %s" % [k, float(_gap[k]), _tips.get(k, "")])
 				if n < 1:
 					_log.append("   NO   %s non colpisce" % id)
 					_ok = false
