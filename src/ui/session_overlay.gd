@@ -203,9 +203,10 @@ func _draw_compact_menu(s: Vector2) -> void:
 	if page == "pause":
 		_button(Rect2(p + Vector2(24, 74), Vector2(572, 48)), "Riprendi l'avventura", &"resume", true)
 		var actions := [["Diario", &"journal"], ["Comandi", &"help"], ["Impostazioni", &"settings"], ["Salva partita", &"save"], ["Torna al campo", &"return_home"], ["Nuova partita", &"new_game"], ["Strumenti sviluppatore", &"developer"]]
+		# D-054: sette azioni su tre colonne, pulsanti alti 48 come gli altri.
 		for i in actions.size():
-			_button(Rect2(p + Vector2(24 + (i % 2) * 294, 130 + (i / 2) * 54), Vector2(278, 44)), actions[i][0], actions[i][1])
-		_text(p + Vector2(24, 350), save_text, 13, GamePalette.MUTED, 572)
+			_button(Rect2(p + Vector2(24 + (i % 3) * 194, 134 + (i / 3) * 58), Vector2(184, 48)), actions[i][0], actions[i][1])
+		_text(p + Vector2(24, 333), save_text, 13, GamePalette.MUTED, 572)
 	elif page == "settings":
 		var actions := [["Dettaglio: %d righe" % quality, &"quality"], ["Effetti: %d%%" % volume, &"volume"], ["Movimento ridotto: " + ("sì" if reduced_motion else "no"), &"motion"], ["Mancini: " + ("sì" if left_handed else "no"), &"handed"], ["Suggerimenti: " + ("sì" if hints else "no"), &"hints"], ["Indietro", &"pause"]]
 		for i in actions.size():

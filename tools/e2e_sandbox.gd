@@ -164,6 +164,11 @@ func _process(_dt: float) -> bool:
 					if s != null and s.id == &"pick_wood":
 						_tap(_button(StringName("hot%d" % k)))
 				_dirt0 = g.items.inv.count(&"dirt")
+				# D-054: il ring di marmo non si scava, si scende sulla piana di terra.
+				if Arena.has(g.world):
+					var ax := g.world.arena.x + Arena.HALF + 3.5
+					var az := g.world.arena.z + 0.5
+					g.motor.place_at(Vector3(ax, VoxelQuery.field_height(g.world, ax, az, g.world.arena.y + 2.0), az))
 			if _frame == 65:
 				var p := g.motor.position + Vector3(1.5, 0, 0)
 				var gy := VoxelQuery.field_height(g.world, p.x, p.z, p.y + 1.0)

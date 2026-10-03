@@ -212,7 +212,9 @@ func _process(dt: float) -> bool:
 			var a := g.combat.attack
 			if a != null and g.combat.phase() == 1:
 				_shot("%s_%s" % [GameRoot.WEAPONS[_w], a.id])
-			if _t > 2.6:
+			# Dopo 2,6 s si aspetta la fine del colpo in corso (catene lente), al
+			# piu' fino a 4,5 s.
+			if _t > 2.6 and (g.combat.attack == null or _t > 4.5):
 				var chain := ", ".join(_starts)
 				_log.append("%s catena: %s · colpi %s" % [GameRoot.WEAPONS[_w], chain, _hits])
 				for k: String in _gap:

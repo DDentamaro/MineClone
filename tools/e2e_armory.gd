@@ -1,7 +1,7 @@
 extends SceneTree
 ## Prova end-to-end (D-029) con tocchi reali: le opzioni si chiudono (pulsante
 ## Chiudi, tocco sul mondo, tasto indietro); l'armeria vicino allo spawn si
-## apre toccandola; si impugna il martello e si indossa il busto dall'armeria;
+## apre toccandola; si impugna il martello; dall'espositore del ferro (D-054) si indossa il busto;
 ## si prendono gli stivali e si indossano dalla scheda Equipaggiamento.
 ## Uso: xvfb-run -a godot --path . --script res://tools/e2e_armory.gd -- --out=/tmp/armory.png
 
@@ -12,6 +12,8 @@ var _out := "user://armory.png"
 var _ok := true
 var _log: Array[String] = []
 var _arm: WorldObjects.Obj
+## D-054: espositore del set di ferro nell'arena.
+var _stand: WorldObjects.Obj
 
 
 func _initialize() -> void:
@@ -50,9 +52,11 @@ func _check(cond: bool, what: String) -> void:
 	_ok = _ok and cond
 
 
-func _chest_slot(id: StringName) -> Vector2:
-	for i in _arm.inv.size():
-		var s := _arm.inv.get_slot(i)
+func _chest_slot(id: StringName, o: WorldObjects.Obj = null) -> Vector2:
+	if o == null:
+		o = _arm
+	for i in o.inv.size():
+		var s := o.inv.get_slot(i)
 		if s != null and s.id == id:
 			return (_game._bag.chest_rects[i] as Rect2).get_center()
 	return Vector2(-1, -1)
@@ -72,7 +76,10 @@ func _process(_dt: float) -> bool:
 				for o in _game._objects.list:
 					if o.type == "armory":
 						_arm = o
+					if o.type == "armor_stand" and o.inv.count(&"chest_iron") > 0:
+						_stand = o
 				_check(_arm != null, "armeria nel mondo")
+				_check(_stand != null, "espositore del ferro nell'arena")
 				_phase = 1
 				_frame = 0
 		1:
@@ -116,18 +123,32 @@ func _process(_dt: float) -> bool:
 				_tap_at((bag.button_rects["Impugna"] as Rect2).get_center())
 			if _frame == 120:
 				_check(_game.items.held() != null and _game.items.held().id == &"hammer_iron", "martello in mano")
-				_tap_at(_chest_slot(&"chest_iron"))
-			if _frame == 127:
-				_tap_at((bag.button_rects["Indossa"] as Rect2).get_center())
-			if _frame == 135:
-				_check(_game.items.equipment.get_slot("chest") != null, "busto indossato dall'armeria")
-				_tap_at(_chest_slot(&"feet_iron"))
-			if _frame == 142:
-				_tap_at((bag.button_rects["Prendi"] as Rect2).get_center())
+				_tap_at(bag.close_rect.get_center())
+			if _frame == 126:
+				# D-054: le armature sono sull'espositore del ferro.
+				var c := Vector3(_stand.cell) + Vector3(0.5, 0, 0.5)
+				var fw := Vector3(-sin(_stand.rot * PI * 0.5), 0, -cos(_stand.rot * PI * 0.5))
+				_game.motor.place_at(c + fw * 1.6)
 			if _frame == 150:
+				_shot("espositore")
+				var cam := _game._camera_rig.camera
+				var sp := _game.view_to_screen(cam.unproject_position(_game._objects.center_of(_stand) + Vector3(0, 0.2, 0)))
+				_tap_at(sp)
+			if _frame == 165:
+				_check(bag.is_open() and bag.tab == "chest" and bag.chest == _stand, "toccando il manichino si apre l'Espositore")
+				_tap_at(_chest_slot(&"chest_iron", _stand))
+			if _frame == 172:
+				_tap_at((bag.button_rects["Indossa"] as Rect2).get_center())
+			if _frame == 180:
+				_check(_game.items.equipment.get_slot("chest") != null and _game.items.equipment.get_slot("chest").id == &"chest_iron", "busto di ferro indossato dall'espositore")
+				_check(not _stand.rig._armor_colors.has("chest"), "il manichino resta senza busto")
+				_tap_at(_chest_slot(&"feet_iron", _stand))
+			if _frame == 187:
+				_tap_at((bag.button_rects["Prendi"] as Rect2).get_center())
+			if _frame == 195:
 				_check(_game.items.inv.count(&"feet_iron") == 1, "stivali nello zaino")
 				_tap_at((bag.tab_rects["bag"] as Rect2).get_center())
-			if _frame == 158:
+			if _frame == 203:
 				_check(bag.eq_rects.has("feet") and bag.eq_rects.has("hand"), "inventario con la miniatura e gli slot dell'eroe")
 				var at := -1
 				for i in _game.items.inv.size():
@@ -135,17 +156,17 @@ func _process(_dt: float) -> bool:
 					if st != null and st.id == &"feet_iron":
 						at = i
 				_tap_at((bag.slot_rects[at] as Rect2).get_center())
-			if _frame == 166:
+			if _frame == 211:
 				_shot("equipaggiamento")
 				# Come in Minecraft: oggetto scelto, poi lo slot dei piedi sulla miniatura.
 				_tap_at((bag.eq_rects["feet"] as Rect2).get_center())
-			if _frame == 174:
+			if _frame == 219:
 				_check(_game.items.equipment.get_slot("feet") != null, "stivali indossati toccando lo slot dei piedi")
 				_tap_at((bag.eq_rects["hand"] as Rect2).get_center())
-			if _frame == 182:
+			if _frame == 227:
 				_shot("mano")
 				_tap_at(bag.close_rect.get_center())
-			if _frame == 200:
+			if _frame == 245:
 				_check(not bag.is_open(), "zaino chiuso")
 				_shot("eroe_armato")
 				for l in _log:

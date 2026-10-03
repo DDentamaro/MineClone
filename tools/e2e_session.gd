@@ -66,7 +66,8 @@ func _run() -> void:
 	_touch(menu, false)
 	await _frames()
 	_check(_game.paused and paused, "il tocco su Menu apre la pausa")
-	_check(_game._session._buttons.size() == 7, "la pausa ha sette azioni")
+	# D-054: piu' "Nuova partita".
+	_check(_game._session._buttons.size() == 8, "la pausa ha otto azioni")
 	var before := _game.motor.position
 	await _frames()
 	_check(_game.motor.position == before, "il mondo e' fermo nel menu")
@@ -126,6 +127,10 @@ func _run() -> void:
 			rects.append(rect)
 	_game.set_paused(false)
 	# L'indicazione dell'oggetto vicino non copre i comandi touch del telefono.
+	# D-054: l'armeria e' al centro dell'arena, ci si mette accanto.
+	for o: WorldObjects.Obj in _game._objects.list:
+		if o.type == "armory":
+			_game.motor.place_at(Vector3(o.cell) + Vector3(0.5, 0.0, 1.6))
 	_game._session.context_text = "Apri armeria"
 	_game._update_session_hud()
 	_game._session.context_text = "Apri armeria"

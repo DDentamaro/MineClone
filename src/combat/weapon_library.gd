@@ -440,11 +440,14 @@ static func _hammer() -> WeaponDefinition:
 		_with(STANCE, {"arm_r": [70, -100, 0], "fore_r": [18, 0, 0], "hand_r": [-100, 0, 0], "chest": [0, -62, 0], "spine": [0, -12, 0], "head": [0, 40, 0]}),
 		_with(STANCE, {"arm_r": [70, 74, 0], "fore_r": [6, 0, 0], "hand_r": [-88, 0, 0], "chest": [0, 56, 0], "spine": [0, 14, 0], "head": [0, -35, 0]}),
 		_with(STANCE, {"arm_r": [40, 70, 0], "fore_r": [30, 0, 0], "hand_r": [-80, 0, 0], "chest": [0, 45, 0]}))
-	_atk(w, "upswing", _with(sw, {"shape": AttackDefinition.Shape.THRUST, "reach": 1.95, "width": 0.7, "launch": 5.0, "strike": 0.8,
+	# D-054: il montante si ferma a 1,2 m (su terreno piano a 0,8 la testa che
+	# sale passava sopra un bersaglio vicino) e la finestra di contatto copre la
+	# salita (la posa arriva in ritardo, come le spazzate dello spadone, D-052).
+	_atk(w, "upswing", _with(sw, {"windup": 0.34, "active": 0.2, "shape": AttackDefinition.Shape.THRUST, "reach": 1.95, "width": 0.7, "launch": 5.0, "strike": 1.2,
 		"knockback": 3.0, "next_light": "slam", "next_heavy": "quake"}),
 		_with(SQUAT, {"arm_r": [8, -30, 12], "fore_r": [10, 0, 0], "hand_r": [-120, 0, 0], "chest": [-15, -30, 0]}),
-		{"arm_r": [132, -12, 0], "fore_r": [12, 0, 0], "hand_r": [-86, 0, 0], "chest": [6, 34, 0], "head": [0, -25, 0], "body_pos": [0, 0.04, -0.08]},
-		{"arm_r": [140, 0, 5], "fore_r": [40, 0, 0], "hand_r": [-60, 0, 0], "chest": [8, 5, 0]})
+		{"arm_r": [108, -12, 0], "fore_r": [8, 0, 0], "hand_r": [-90, 0, 0], "chest": [2, 34, 0], "head": [0, -25, 0], "body_pos": [0, 0.04, -0.08]},
+		{"arm_r": [138, 0, 5], "fore_r": [36, 0, 0], "hand_r": [-62, 0, 0], "chest": [8, 5, 0]})
 	_atk(w, "slam", {"windup": 0.3, "active": 0.06, "recovery": 0.46, "shape": AttackDefinition.Shape.RADIAL,
 		"radial_ahead": 1.4, "radial": 2.4, "damage": 20.0, "knockback": 9.0, "launch": 6.0, "hitstop": 0.14, "shake": 0.55,
 		"lunge": 0.8, "fx": "dust", "next_light": "swing", "next_heavy": "aftershock"},
