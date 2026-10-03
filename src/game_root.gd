@@ -166,7 +166,6 @@ func _ready() -> void:
 	magic = FireMagic.new()
 	magic.name = "Magic"
 	_view.add_child(magic)
-	magic.grains = _grains
 	_hitbox_lines = DebugLines.new()
 	_view.add_child(_hitbox_lines)
 	_cursor_lines = DebugLines.new()
@@ -378,21 +377,24 @@ func _physics_process(dt: float) -> void:
 			_avatar.face_towards(Vector2(motor.velocity.x, motor.velocity.z), dt)
 	for d in _dummies.step(0.0 if frozen else dt):
 		fx.broke(d)
-	# D-055: proiettili di fuoco e palla che si forma sulla gemma nella carica.
-	magic.step(0.0 if frozen else dt, targets)
-	var ca := combat.attack if combat.state == CombatController.State.ATTACK else null
-	if ca != null and ca.cast == "ball" and combat.phase() == 0:
-		var cf := maxf(combat.charge_fraction(), combat.t / maxf(ca.windup, 0.01) * 0.35)
-		var fw := CombatController.forward(combat.facing)
-		magic.charging(true, _staff_gem(), Vector3(fw.x, 0, fw.y), cf)
-	else:
-		magic.charging(false, Vector3.ZERO, Vector3.FORWARD, 0.0)
 	# Posa dell'eroe al passo della fisica (D-028): la lama che ferisce e' quella
 	# che si vede, anche quando piu' passi di fisica cadono in un fotogramma.
 	_avatar.animate(0.0 if combat.hitstop > 0.0 else dt, motor, combat)
+	# D-055/D-056: il fuoco parte dalla gemma nella posa appena calcolata.
+	var fw := CombatController.forward(combat.facing)
+	var staff := _avatar.rig.weapon != null and _avatar.rig.weapon.kind == WeaponDefinition.Kind.STAFF
+	magic.set_gem(staff, _staff_gem(), Vector3(fw.x, 0, fw.y))
 	for c: Array in _pending_casts:
 		magic.cast(c[0], _staff_gem(), c[1], c[2], c[3], combat.damage_mult)
 	_pending_casts.clear()
+	var ca := combat.attack if combat.state == CombatController.State.ATTACK else null
+	if ca != null and ca.cast != "" and combat.phase() == 0:
+		var u := combat.t / maxf(ca.windup, 0.01)
+		var cf := maxf(combat.charge_fraction(), u * 0.35) if ca.cast == "ball" else 0.0
+		magic.casting(ca.cast, u, cf)
+	else:
+		magic.casting("", 0.0, 0.0)
+	magic.step(0.0 if frozen else dt, targets)
 
 
 ## Riquadri dei colpi (Hitbox) e cubo del cursore di costruzione.

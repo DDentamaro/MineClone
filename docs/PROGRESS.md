@@ -1,5 +1,19 @@
 # Avanzamento
 
+## 03/10/2026 — D-056: fuoco a grani come in RMNDWN
+
+Il fuoco del bastone non ha piu' mesh: e' gas caldo a grani che sale, si raffredda e cambia colore
+come in RMNDWN; testa del proiettile che lascia la scia, cerchio di rune a grani, esplosione a fungo
+con braci a terra.
+
+### Test realmente eseguiti (D-056)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 200/200 PASS |
+| `tools/magic_preview.gd` (ora anche la foto del fungo e il massimo dei grani; foto un fotogramma dopo) | Guardate a occhio. Corretti: bagliore additivo che sbiancava, grani freddi che restavano come macchie scure, colonna troppo alta durante la carica, dardo troppo piccolo. Grani al massimo 1240 su 1300. Danni invariati (14 e 63) |
+| Banco del gas (1300 grani liberi, 20 passi) | ~3,5-4 ms a passo sul computer di sviluppo; sul telefono non misurato |
+| Export Android debug 0.34.0-m5 (versionCode 36) + `apksigner verify` + `aapt2 dump badging` | OK; non provato sul telefono |
+
 ## 03/10/2026 — D-055: bastone magico e magia del fuoco
 
 Bastone sul modello di Frieren (dalla tavola Higgsfield), dardi di fuoco col leggero e palla di

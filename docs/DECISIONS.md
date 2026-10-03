@@ -1016,3 +1016,32 @@ una palla di fuoco a cubetti attraverso un cerchio di rune arancio.
   altri elementi. "Etrha", indicato come riferimento per la magia, non si trova: per ora lo stile
   segue le tavole approvate.
 
+## D-056 — Fuoco a grani come in RMNDWN
+Richiesta del proprietario: rappresentare meglio il fuoco prendendo spunto da RMNDWN (K112).
+Li' il fuoco non ha mesh ne' silhouette: e' gas caldo a grani, che sale perche' e' caldo e smette
+quando si raffredda; la forma a lingua non e' disegnata, ne e' la conseguenza. La magia del
+bastone ora e' fatta cosi' (`FireGas`), e le mesh a cubetti di D-055 (fiamma, guscio, cerchio)
+sono tolte.
+- Temperatura: profilo lungo l'asse del pennacchio (piena fino a 0,35 L, poi cala) per un
+  decadimento con l'eta'. Colore: la rampa di corpo nero di RMNDWN a 6 isoterme (oro nuovo, rosso
+  vecchio). In RMNDWN la fusione e' MAX e il gas spento sparisce; qui sfuma con la temperatura
+  (niente fumo nero). Bagliore additivo solo sui grani piu' caldi e tenue (sul marmo bianco
+  l'additivo sbiancava tutto).
+- Moto: spinta proporzionale alla temperatura, turbolenza che cresce salendo, attrito, vortici
+  che si allargano (al massimo il doppio). Sfarfallio dell'emissione alla frequenza di distacco dei
+  vortici, f = 1,5 / sqrt(D).
+- Testa del proiettile: grani legati all'ancora che le girano attorno per `hold` secondi e poi si
+  staccano con una parte della corsa (`retain`): cosi' nasce la scia. Parametri dalle varianti di
+  RMNDWN (proiettile e palla), con grani piu' grossi perche' la vista e' piu' larga.
+- Gemma: braci sempre accese col bastone in mano, piu' fitte nella preparazione. La palla si forma
+  sulla gemma come testa legata a un'ancora ferma e al lancio diventa il corpo del proiettile.
+- Cerchio di rune a grani su stazioni fisse (anello esterno, interno controrotante, tacche,
+  poligono): si traccia nella preparazione, resta acceso un poco dopo il lancio, poi si sfalda
+  verso l'esterno.
+- Colpo a fiore: anello radiale corto, sbuffo del volume della palla, ejecta, poi solo
+  galleggiamento (il fungo); braci che restano accese a terra (7 per il dardo, 16 per la palla).
+- Bruciatura: fiammelle che salgono dal colpito.
+- Costo: tetto di 1300 grani (1240 al picco dell'esplosione nella prova), mesh costruita con
+  array gia' della misura giusta; circa 3,5-4 ms a passo con il tetto pieno sul computer di
+  sviluppo, non misurato sul telefono.
+

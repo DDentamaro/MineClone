@@ -1,14 +1,18 @@
 class_name FireMagic
 extends Node3D
-## Magia del fuoco del bastone (D-055), nello stile della tavola di riferimento:
-## fiamme a cubetti (nucleo giallo, corpo arancio, lingue rosse), braci e
-## scintille in pixel (i grani del fuoco), cerchio di rune arancio-oro davanti
-## alla gemma.
-## - Dardo ("bolt"): veloce, segue un poco il bersaglio agganciato, al contatto
-##   brucia e lascia una piccola bruciatura.
-## - Palla ("ball"): si forma sulla gemma mentre si carica il forte (piu' grande
-##   col caricamento), lenta, esplode ad area al contatto, a terra o a fine
-##   corsa: onda, braci, fumo, lampo di luce, bruciatura sui colpiti.
+## Magia del fuoco del bastone (D-055), resa come in RMNDWN (D-056): il fuoco
+## e' solo gas caldo a grani (`FireGas`), niente mesh.
+## - Gemma: braci sempre accese finche' si impugna il bastone; nella
+##   preparazione la portata monta (la carica si legge dalla densita').
+## - Cerchio di rune a grani davanti alla gemma: si traccia come sotto un
+##   compasso durante la preparazione, resta acceso al lancio e poi si sfalda.
+## - Dardo ("bolt"): testa piccola di grani legati che si staccano in fretta,
+##   scia corta e stretta; al contatto un anello e qualche brace.
+## - Palla ("ball"): si forma sulla gemma durante la carica (testa legata
+##   all'ancora della gemma che al lancio diventa il corpo del proiettile),
+##   lenta, al contatto, a terra o a fine corsa si apre a fungo (anello radiale
+##   corto, poi solo galleggiamento) e lascia braci a terra.
+## - Bruciatura: fiammelle che salgono da chi e' stato preso.
 ## La logica sta qui (niente nodi per la fisica); gli eventi vanno al gioco
 ## per scossa della camera e numeri del danno.
 
@@ -28,6 +32,28 @@ const BURN_TIME := 3.0
 const BURN_TICK := 0.5
 const BURN_DMG := 2.0
 
+## Parametri del gas (RMNDWN VARIANTS fire, HTML 23239-23290), con grani piu'
+## grossi: la vista qui e' piu' larga del render target di 424 px.
+const BOLT_GAS := {"buoy": 6.5, "turb": 1.7, "drag": 1.9, "cool": 1.5, "eddy": 0.8, "size": 0.05, "L": 0.6, "D": 0.16}
+const BALL_GAS := {"buoy": 7.0, "turb": 1.4, "drag": 2.0, "cool": 0.72, "eddy": 0.95, "size": 0.045, "L": 1.3, "D": 0.62}
+## Palla in formazione sulla gemma: fiamma corta, che non faccia una colonna.
+const CHARGE_GAS := {"buoy": 6.0, "turb": 1.4, "drag": 2.2, "cool": 1.3, "eddy": 0.6, "size": 0.04, "L": 0.45, "D": 0.3}
+const GEM_GAS := {"buoy": 5.5, "turb": 1.0, "drag": 2.0, "cool": 0.75, "eddy": 0.0, "size": 0.026, "L": 0.46, "D": 0.1}
+const BURN_GAS := {"buoy": 5.0, "turb": 1.2, "drag": 2.2, "cool": 0.8, "eddy": 0.3, "size": 0.03, "L": 0.5, "D": 0.3}
+const EMBER_GAS := {"buoy": 5.5, "turb": 1.2, "drag": 2.0, "cool": 0.9, "eddy": 0.4, "size": 0.03, "L": 0.35, "D": 0.12}
+## Testa: raggio, trattenuta, rotazione, guscio, quota della corsa al rilascio,
+## grani alla nascita, portata in volo.
+const BOLT_HEAD := {"r": 0.16, "hold": 0.10, "spin": 3.2, "shell": 0.45, "retain": 0.14, "seed": 70, "rate": 600.0}
+const BALL_HEAD := {"r": 0.30, "hold": 0.42, "spin": 1.2, "shell": 0.28, "retain": 0.26, "seed": 120, "rate": 480.0}
+## Cerchio: raggio, poligono, tacche, rotazione, portata, vita dei grani, quanto
+## resta acceso dopo il lancio.
+const BOLT_GLYPH := {"r": 0.28, "poly": 3, "ticks": 8, "spin": 1.18, "rate": 1300.0, "life": 0.31, "max": 220, "keep": 0.22}
+const BALL_GLYPH := {"r": 0.46, "poly": 4, "ticks": 16, "spin": 0.53, "rate": 2100.0, "life": 0.47, "max": 380, "keep": 0.35}
+## Colpo: anello (grani, velocita'), ejecta, lunghezza e spinta della fiamma,
+## taglia dei grani, braci a terra (numero, raggio, vita).
+const BOLT_HIT := {"ring": 18, "ring_v": 6.0, "ejecta": 9, "len": 1.3, "buoy": 1.3, "size": 1.2, "res": 7, "res_r": 0.55, "res_life": 0.9}
+const BALL_HIT := {"ring": 28, "ring_v": 7.5, "ejecta": 14, "len": 2.4, "buoy": 1.5, "size": 1.2, "res": 16, "res_r": 1.15, "res_life": 1.8}
+
 class Shot:
 	extends RefCounted
 	var kind := "bolt"
@@ -42,124 +68,118 @@ class Shot:
 	var shake := 0.1
 	var charge := 0.0
 	var target: CombatTarget
-	var node: Node3D
+	var anchor: FireGas.Anchor
+	var gas: Dictionary
+	var head: Dictionary
+	var acc := 0.0
+	var phase := 0.0
 	var light: OmniLight3D
 	var dead := false
 
 
-class Flash:
-	extends RefCounted
-	var node: Node3D
-	var t := 0.0
-	var life := 0.3
-	var kind := "circle"
-	var grow := 1.0
-	var light: OmniLight3D
-
-
-var world: WorldData
-var grains: Grains
+var world: WorldData:
+	set(w):
+		world = w
+		if gas != null:
+			gas.world = w
+var gas: FireGas
 var shots: Array[Shot] = []
 var burns := {}
-var _flashes: Array[Flash] = []
-var _fire_mesh: ArrayMesh
-var _circle_mesh: ArrayMesh
-var _shell_mesh: ArrayMesh
-var _solid_mat: StandardMaterial3D
-var _add_mat: StandardMaterial3D
-## Palla in formazione sulla gemma durante la carica del forte.
-var _charge_node: Node3D
-var _charge_circle: Node3D
 var events: Array[Dictionary] = []
+## Secondi dall'ultima esplosione (INF se nessuna).
+var blast_age := INF
+## Gemma del bastone impugnato (aggiornata dal gioco a ogni passo).
+var gem_on := false
+var gem := Vector3.ZERO
+var gem_dir := Vector3.FORWARD
+var _cast_kind := ""
+var _cast_u := 0.0
+var _cast_cf := 0.0
+var _glyph: FireGas.Glyph
+var _charge: FireGas.Anchor
+## Cerchi gia' lanciati: [cerchio, secondi prima dello sfaldamento].
+var _launched: Array = []
+## Dopo il lancio la gemma brucia ancora un poco piu' forte.
+var _after := 0.0
+var _acc := {}
+## Braci a terra dopo un colpo: {p, t, life, key}.
+var _sources: Array[Dictionary] = []
+var _lights: Array[Dictionary] = []
 
 
 func _init() -> void:
-	_solid_mat = StandardMaterial3D.new()
-	_solid_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_solid_mat.vertex_color_use_as_albedo = true
-	_add_mat = StandardMaterial3D.new()
-	_add_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_add_mat.vertex_color_use_as_albedo = true
-	_add_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_add_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	_add_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_add_mat.no_depth_test = false
-	_add_mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
-	_fire_mesh = build_fire_mesh()
-	_circle_mesh = build_circle_mesh()
-	_shell_mesh = build_shell_mesh()
-
-
-## Fiamma a cubetti lungo +Z (la coda): nucleo giallo, corpo arancio, lingue
-## rosse che si allungano dietro, qualche cubetto di brace staccato.
-static func build_fire_mesh() -> ArrayMesh:
-	var k := MeshKit.new()
-	var yellow := Color(1.0, 0.95, 0.55)
-	var orange := Color(1.0, 0.55, 0.12)
-	var red := Color(0.9, 0.16, 0.06)
-	k.box(Vector3.ZERO, Vector3(0.2, 0.2, 0.2), yellow, 0.0)
-	for d in [Vector3(1, 0, 0), Vector3(-1, 0, 0), Vector3(0, 1, 0), Vector3(0, -1, 0), Vector3(0, 0, -1)]:
-		k.box(d * 0.12, Vector3(0.13, 0.13, 0.13), orange, 0.0)
-	for i in 7:
-		var a := TAU * i / 7.0
-		var off := Vector3(cos(a) * 0.12, sin(a) * 0.12, 0.16 + 0.05 * (i % 3))
-		k.box(off, Vector3(0.11, 0.11, 0.14), red, 0.0)
-	for i in 5:
-		var a := TAU * i / 5.0 + 0.4
-		var off := Vector3(cos(a) * 0.08, sin(a) * 0.08, 0.34 + 0.06 * (i % 2))
-		k.box(off, Vector3(0.08, 0.08, 0.12), red.darkened(0.15), 0.0)
-	for off in [Vector3(0.05, 0.02, 0.52), Vector3(-0.06, -0.04, 0.6), Vector3(0.0, 0.07, 0.68)]:
-		k.box(off, Vector3(0.05, 0.05, 0.05), orange, 0.0)
-	return k.commit()
-
-
-## Cerchio di rune nel piano XY (si guarda lungo Z): anello esterno a cubetti,
-## anello interno sottile, sei rune a losanga fra i due.
-static func build_circle_mesh() -> ArrayMesh:
-	var k := MeshKit.new()
-	var gold := Color(1.0, 0.68, 0.22)
-	var hot := Color(1.0, 0.86, 0.5)
-	for i in 32:
-		var a := TAU * i / 32.0
-		var p := Vector3(cos(a) * 0.42, sin(a) * 0.42, 0)
-		k.box(p, Vector3(0.07, 0.025, 0.01), gold, 0.0, 1.0, MeshKit.rot_about(Vector3(0, 0, 1), a + PI * 0.5, p))
-	for i in 24:
-		var a := TAU * i / 24.0
-		var p := Vector3(cos(a) * 0.27, sin(a) * 0.27, 0)
-		k.box(p, Vector3(0.06, 0.015, 0.01), gold, 0.0, 1.0, MeshKit.rot_about(Vector3(0, 0, 1), a + PI * 0.5, p))
-	for i in 6:
-		var a := TAU * i / 6.0
-		var p := Vector3(cos(a) * 0.345, sin(a) * 0.345, 0)
-		k.box(p, Vector3(0.05, 0.05, 0.01), hot, 0.0, 1.0, MeshKit.rot_about(Vector3(0, 0, 1), PI * 0.25, p))
-	return k.commit()
-
-
-## Guscio dell'esplosione: sfera a cubetti (anelli di cubi), si espande e svanisce.
-static func build_shell_mesh() -> ArrayMesh:
-	var k := MeshKit.new()
-	for j in 5:
-		var lat := (float(j) / 4.0 - 0.5) * PI * 0.8
-		var n := maxi(6, roundi(16 * cos(lat)))
-		for i in n:
-			var a := TAU * i / n
-			var p := Vector3(cos(a) * cos(lat), sin(lat), sin(a) * cos(lat))
-			var c: Color = [Color(1.0, 0.78, 0.3), Color(1.0, 0.45, 0.1), Color(0.88, 0.18, 0.06)][(i + j) % 3]
-			k.box(p, Vector3(0.14, 0.14, 0.14), c, 0.0)
-	return k.commit()
+	gas = FireGas.new()
+	gas.name = "FireGas"
+	add_child(gas)
 
 
 func clear() -> void:
 	for s in shots:
 		_free(s)
 	shots.clear()
-	for f in _flashes:
-		if is_instance_valid(f.node):
-			f.node.queue_free()
-		if f.light != null and is_instance_valid(f.light):
-			f.light.queue_free()
-	_flashes.clear()
+	for l in _lights:
+		if is_instance_valid(l["light"]):
+			(l["light"] as Node).queue_free()
+	_lights.clear()
+	_sources.clear()
+	_launched.clear()
 	burns.clear()
-	charging(false, Vector3.ZERO, Vector3.FORWARD, 0.0)
+	_glyph = null
+	_charge = null
+	_cast_kind = ""
+	gas.clear()
+
+
+## Il gioco dice dove sta la gemma (o che il bastone non c'e').
+func set_gem(on: bool, p: Vector3, dir: Vector3) -> void:
+	gem_on = on
+	gem = p
+	if dir.length() > 1e-3:
+		gem_dir = dir.normalized()
+
+
+## Preparazione di un lancio in corso: tipo ("bolt"/"ball", "" se nessuna),
+## avanzamento della preparazione 0..1 e carica 0..1.
+func casting(kind: String, u: float, cf: float) -> void:
+	if kind == "":
+		if _glyph != null:
+			gas.glyph_end(_glyph)
+			_glyph = null
+		if _charge != null:
+			_charge.alive = false
+			_charge = null
+		_cast_kind = ""
+		return
+	_cast_kind = kind
+	_cast_u = u
+	_cast_cf = cf
+	var Y: Dictionary = BALL_GLYPH if kind == "ball" else BOLT_GLYPH
+	if _glyph == null:
+		_glyph = _new_glyph(Y, gem_dir)
+	_glyph.prog = clampf(u / 0.72, 0.0, 1.0)
+	_glyph.lvl = maxf(0.25, _glyph.prog)
+	if kind == "ball":
+		_glyph.r = float(Y["r"]) * (0.8 + 0.4 * cf)
+		if _charge == null:
+			_charge = FireGas.Anchor.new()
+			_charge.spin = BALL_HEAD["spin"]
+			_charge.retain = BALL_HEAD["retain"]
+		_charge.p = gem
+		_charge.v = Vector3.ZERO
+		_charge.r = 0.08 + 0.2 * cf
+
+
+func _new_glyph(Y: Dictionary, n: Vector3) -> FireGas.Glyph:
+	var y := gas.glyph_new(_glyph_center(Y), n, Y["r"], Y["poly"], Y["ticks"], Y["spin"])
+	y.rate = Y["rate"]
+	y.life = Y["life"]
+	y.max_n = Y["max"]
+	y.size = 0.022
+	return y
+
+
+func _glyph_center(Y: Dictionary) -> Vector3:
+	return gem + gem_dir * (0.18 if Y == BALL_GLYPH else 0.14)
 
 
 ## Lancio dalla gemma `origin` verso `dir` (o verso il bersaglio agganciato).
@@ -176,7 +196,11 @@ func cast(a: AttackDefinition, origin: Vector3, dir: Vector3, charge: float, tar
 	s.knock = a.knockback * (1.0 + charge * 0.5)
 	s.launch = a.launch
 	s.shake = a.shake * (1.0 + charge * 0.6)
-	if s.kind == "ball":
+	var ball := s.kind == "ball"
+	s.gas = BALL_GAS if ball else BOLT_GAS
+	s.head = BALL_HEAD if ball else BOLT_HEAD
+	s.phase = randf() * TAU
+	if ball:
 		s.v = aim * (BALL_SPEED + charge * 3.0)
 		s.life = BALL_LIFE
 		s.r = BALL_R + charge * 0.15
@@ -184,64 +208,45 @@ func cast(a: AttackDefinition, origin: Vector3, dir: Vector3, charge: float, tar
 		s.v = aim * BOLT_SPEED
 		s.life = BOLT_LIFE
 		s.r = BOLT_R
-	s.node = MeshInstance3D.new()
-	(s.node as MeshInstance3D).mesh = _fire_mesh
-	(s.node as MeshInstance3D).material_override = _solid_mat
-	(s.node as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(s.node)
-	var sc := (1.6 + charge * 1.2) if s.kind == "ball" else 1.0
-	s.node.scale = Vector3.ONE * sc
+	s.anchor = FireGas.Anchor.new()
+	s.anchor.p = origin
+	s.anchor.v = s.v
+	s.anchor.r = float(s.head["r"]) * ((0.8 + 0.5 * charge) if ball else 1.0)
+	s.anchor.spin = s.head["spin"]
+	s.anchor.retain = s.head["retain"]
+	# Cio' che si e' accumulato sulla gemma diventa il corpo del proiettile.
+	if _charge != null:
+		for g in gas.list:
+			if g.m == FireGas.HELD and g.anchor == _charge:
+				g.anchor = s.anchor
+				g.hold = maxf(g.hold, float(s.head["hold"]) * randf_range(0.55, 1.45))
+		_charge = null
+	# La testa nasce piena in un fotogramma.
+	var n := int(s.head["seed"]) + (int(80 * charge) if ball else 0)
+	for i in n:
+		gas.held(s.anchor, s.gas, s.head["hold"], s.head["shell"])
 	s.light = OmniLight3D.new()
 	s.light.light_color = Color(1.0, 0.55, 0.2)
-	s.light.light_energy = 1.4 if s.kind == "ball" else 0.8
-	s.light.omni_range = 3.5 if s.kind == "ball" else 2.2
+	s.light.light_energy = 1.4 if ball else 0.8
+	s.light.omni_range = 3.5 if ball else 2.2
 	s.light.shadow_enabled = false
 	add_child(s.light)
-	_place(s)
+	s.light.global_position = origin
 	shots.append(s)
-	# Cerchio di rune davanti alla gemma e scintille del lancio.
-	_flash("circle", origin + aim * 0.15, aim, 0.32 if s.kind == "bolt" else 0.5, 0.9 if s.kind == "bolt" else 1.4 + charge * 0.6)
-	for i in (10 if s.kind == "bolt" else 26):
-		_grain(origin, aim * randf_range(2.0, 5.0) + _rand_dir() * 1.6, "fire", randf_range(0.18, 0.4), randf_range(0.03, 0.06))
+	# Il cerchio resta acceso ancora un poco, poi si sfalda.
+	var Y: Dictionary = BALL_GLYPH if ball else BOLT_GLYPH
+	if _glyph == null:
+		_glyph = _new_glyph(Y, aim)
+	_glyph.prog = 1.0
+	_glyph.lvl = 0.55
+	_launched.append([_glyph, float(Y["keep"])])
+	_glyph = null
+	_after = 0.5
 	return s
 
 
-## Palla in formazione sulla gemma durante la carica (e cerchio che cresce).
-func charging(on: bool, gem: Vector3, dir: Vector3, cf: float) -> void:
-	if not on:
-		if _charge_node != null:
-			_charge_node.queue_free()
-			_charge_circle.queue_free()
-			_charge_node = null
-			_charge_circle = null
-		return
-	if _charge_node == null:
-		var mi := MeshInstance3D.new()
-		mi.mesh = _fire_mesh
-		mi.material_override = _solid_mat
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(mi)
-		_charge_node = mi
-		var ci := MeshInstance3D.new()
-		ci.mesh = _circle_mesh
-		ci.material_override = _add_mat
-		ci.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(ci)
-		_charge_circle = ci
-	var t := Time.get_ticks_msec() / 1000.0
-	_charge_node.global_position = gem
-	_charge_node.rotation = Vector3(t * 3.0, t * 4.0, 0)
-	_charge_node.scale = Vector3.ONE * (0.35 + 1.1 * cf) * (1.0 + 0.08 * sin(t * 18.0))
-	_orient(_charge_circle, gem + dir * 0.2, dir)
-	_charge_circle.rotate_object_local(Vector3(0, 0, 1), t * 2.5)
-	_charge_circle.scale = Vector3.ONE * (0.8 + 0.9 * cf)
-	if randf() < 0.6:
-		# Braci risucchiate verso la gemma.
-		var from := gem + _rand_dir() * (0.5 + 0.3 * cf)
-		_grain(from, (gem - from) * 3.0, "fire", 0.25, 0.035)
-
-
 func step(dt: float, targets: Array) -> void:
+	blast_age += dt
 	for s in shots:
 		if s.dead:
 			continue
@@ -251,10 +256,18 @@ func step(dt: float, targets: Array) -> void:
 			var want := (_chest(s.target) - s.p).normalized()
 			var turn := (BOLT_TURN if s.kind == "bolt" else BALL_TURN) * dt
 			s.v = s.v.normalized().slerp(want, clampf(turn, 0.0, 1.0)) * s.v.length()
-		var prev := s.p
 		s.p += s.v * dt
-		_place(s)
-		_trail(s, prev, dt)
+		s.anchor.p = s.p
+		s.anchor.v = s.v
+		var gt := gas.gate(float(s.gas["D"]), s.phase)
+		s.light.global_position = s.p
+		s.light.light_energy = (1.4 if s.kind == "ball" else 0.8) * (0.8 + 0.4 * gt)
+		# Portata della testa, con lo sfarfallio della sua taglia.
+		var rate := float(s.head["rate"]) * ((0.7 + 0.5 * s.charge) if s.kind == "ball" else 1.0)
+		s.acc += rate * gt * dt
+		while s.acc >= 1.0:
+			s.acc -= 1.0
+			gas.held(s.anchor, s.gas, s.head["hold"], s.head["shell"])
 		var hit: CombatTarget = null
 		for o in targets:
 			var tg := o as CombatTarget
@@ -272,8 +285,56 @@ func step(dt: float, targets: Array) -> void:
 		if shots[i].dead:
 			_free(shots[i])
 			shots.remove_at(i)
+	_step_gem(dt)
+	_step_glyphs(dt)
+	_step_sources(dt)
 	_step_burns(dt)
-	_step_flashes(dt)
+	_step_lights(dt)
+	gas.step(dt)
+
+
+## Braci della gemma: sempre accese col bastone in mano, piu' fitte in
+## preparazione (e un poco dopo il lancio).
+func _step_gem(dt: float) -> void:
+	_after = maxf(0.0, _after - dt)
+	if not gem_on:
+		if _charge != null:
+			_charge.alive = false
+			_charge = null
+		return
+	var rate := 14.0
+	if _cast_kind != "":
+		rate = 240.0 * (0.22 + 0.78 * clampf(_cast_u, 0.0, 1.0))
+	elif _after > 0.0:
+		rate = 120.0
+	var f := GEM_GAS.duplicate()
+	f["floor"] = _floor_at(gem)
+	for i in _emit("gem", rate * gas.gate(0.1, 0.0), dt):
+		var a := randf() * TAU
+		var rr := 0.07 * sqrt(randf())
+		gas.ember(gem + Vector3(cos(a) * rr, -0.04 + randf() * 0.06, sin(a) * rr), f, 0.22)
+	# Palla in formazione: grani legati all'ancora della gemma, che finita la
+	# trattenuta salgono come fiamma sopra il bastone.
+	if _charge != null:
+		_charge.p = gem
+		var k := 0.3 + 0.7 * _cast_cf
+		for i in _emit("charge", 520.0 * k * gas.gate(0.62 * k, 0.0), dt):
+			gas.held(_charge, CHARGE_GAS, 0.3, BALL_HEAD["shell"])
+
+
+func _step_glyphs(dt: float) -> void:
+	if _glyph != null:
+		_glyph.c = _glyph_center(BALL_GLYPH if _cast_kind == "ball" else BOLT_GLYPH)
+		_glyph.n = gem_dir
+	for i in range(_launched.size() - 1, -1, -1):
+		var e: Array = _launched[i]
+		var y: FireGas.Glyph = e[0]
+		e[1] = float(e[1]) - dt
+		if gem_on:
+			y.c = gem + y.n * 0.15
+		if float(e[1]) <= 0.0:
+			gas.glyph_end(y)
+			_launched.remove_at(i)
 
 
 func _hit_shot(s: Shot, tg: CombatTarget, targets: Array) -> void:
@@ -284,15 +345,12 @@ func _hit_shot(s: Shot, tg: CombatTarget, targets: Array) -> void:
 	tg.take_hit(dir * s.knock + Vector3(0, s.launch, 0), s.damage)
 	_burn(tg)
 	events.append({"type": "spell_hit", "p": s.p, "damage": s.damage, "shake": s.shake, "target": tg})
-	for i in 18:
-		_grain(s.p, -s.v.normalized() * randf_range(1.0, 3.0) + _rand_dir() * 2.5, "fire", randf_range(0.2, 0.45), randf_range(0.03, 0.06))
-	_flash("pop", s.p, s.v.normalized(), 0.18, 0.5)
+	_bloom(s, BOLT_HIT, s.v.normalized())
 	s.dead = true
 
 
 func _explode(s: Shot, targets: Array) -> void:
 	var radius := BLAST + BLAST_CHARGE * s.charge
-	var total := 0.0
 	for o in targets:
 		var tg := o as CombatTarget
 		if tg == null or not tg.alive:
@@ -306,24 +364,60 @@ func _explode(s: Shot, targets: Array) -> void:
 		dir = dir.normalized() if dir.length() > 0.05 else Vector3(s.v.x, 0, s.v.z).normalized()
 		tg.take_hit(dir * s.knock * k + Vector3(0, s.launch * k, 0), s.damage * k)
 		_burn(tg)
-		total += s.damage * k
 		events.append({"type": "spell_hit", "p": c, "damage": s.damage * k, "shake": 0.0, "target": tg})
 	events.append({"type": "blast", "p": s.p, "shake": s.shake, "radius": radius})
-	# Onda di cubi, braci in tutte le direzioni, fumo, lampo.
-	_flash("shell", s.p, Vector3.UP, 0.36, radius)
-	_flash("pop", s.p, Vector3.UP, 0.3, 1.2 + s.charge)
-	for i in int(60 + 40 * s.charge):
-		var d := _rand_dir()
-		d.y = absf(d.y) * 0.8 + 0.2
-		_grain(s.p, d * randf_range(3.0, 7.0) * (0.8 + 0.4 * s.charge), "fire", randf_range(0.35, 0.8), randf_range(0.04, 0.09), 6.0)
-	for i in 18:
-		_grain(s.p + _rand_dir() * 0.4, Vector3(randf_range(-0.6, 0.6), randf_range(1.0, 2.2), randf_range(-0.6, 0.6)), "smoke", randf_range(0.9, 1.5), randf_range(0.08, 0.14), -0.6, 1)
+	_bloom(s, BALL_HIT, s.v.normalized())
+	blast_age = 0.0
 	s.dead = true
 
 
+## Impatto a fiore (RMNDWN impact "bloom"): l'anello corto e radiale, poi solo
+## galleggiamento, cosi' la fiamma si apre a fungo; ejecta che salgono; braci
+## che restano accese a terra. La testa si libera dove si trova.
+func _bloom(s: Shot, H: Dictionary, axis: Vector3) -> void:
+	s.anchor.alive = false
+	var big := 1.0 + 0.5 * s.charge
+	var f: Dictionary = s.gas.duplicate()
+	f["L"] = float(f["L"]) * float(H["len"])
+	f["buoy"] = float(f["buoy"]) * float(H["buoy"])
+	f["floor"] = _floor_at(s.p)
+	var ring := f.duplicate()
+	ring["drag"] = 4.0
+	var nr := int(int(H["ring"]) * big)
+	for i in nr:
+		var a := TAU * i / nr + randf() * 0.1
+		var d := Vector3(cos(a), 0.15, sin(a))
+		gas.puff(s.p + d * 0.1, d * float(H["ring_v"]) * randf_range(0.8, 1.25) * big, ring, float(H["size"]))
+	if s.kind == "ball":
+		# Il volume della palla si apre: sbuffo radiale, poi sale.
+		for i in int(120 + 80 * s.charge):
+			var d := FireGas._rand_dir()
+			d.y = absf(d.y) * 0.8 + 0.2
+			gas.puff(s.p + d * 0.15, d * randf_range(1.0, 3.0) * 2.2 * (0.8 + 0.4 * s.charge), f, float(H["size"]))
+	for i in int(H["ejecta"]) * 3:
+		var d := (FireGas._rand_dir() - axis * 0.5 + Vector3.UP).normalized()
+		gas.puff(s.p, d * randf_range(1.1, 2.6) * big + Vector3(0, 1.5, 0), f, 1.0)
+	for i in int(H["res"]):
+		var a := randf() * TAU
+		var r := float(H["res_r"]) * big * randf_range(0.25, 1.0)
+		var q := Vector3(s.p.x + cos(a) * r, s.p.y, s.p.z + sin(a) * r)
+		q.y = _floor_at(q) + 0.03
+		if q.y < -1e8:
+			continue
+		_sources.append({"p": q, "t": 0.0, "life": float(H["res_life"]) * randf_range(0.6, 1.2), "key": "res%d" % randi()})
+	var l := OmniLight3D.new()
+	l.light_color = Color(1.0, 0.6, 0.25)
+	l.omni_range = (BLAST + BLAST_CHARGE * s.charge) * 2.2 if s.kind == "ball" else 2.5
+	l.shadow_enabled = false
+	add_child(l)
+	l.global_position = s.p + Vector3(0, 0.3, 0)
+	var e0 := 2.2 if s.kind == "ball" else 1.0
+	l.light_energy = e0
+	_lights.append({"light": l, "t": 0.0, "life": 0.45 if s.kind == "ball" else 0.2, "e0": e0})
+
+
 func _fizzle(s: Shot) -> void:
-	for i in 10:
-		_grain(s.p, _rand_dir() * 1.5, "fire", randf_range(0.15, 0.3), 0.04)
+	s.anchor.alive = false
 	s.dead = true
 
 
@@ -340,10 +434,12 @@ func _step_burns(dt: float) -> void:
 			continue
 		b["t"] = float(b["t"]) - dt
 		b["tick"] = float(b["tick"]) - dt
-		if randf() < 0.5:
-			# Fiammelle che salgono dal bersaglio.
-			var p := tg.position + Vector3(randf_range(-tg.radius, tg.radius), randf_range(0.2, tg.height * 0.9), randf_range(-tg.radius, tg.radius))
-			_grain(p, Vector3(0, randf_range(1.0, 2.0), 0), "fire", randf_range(0.25, 0.45), randf_range(0.03, 0.05), -1.5)
+		# Fiammelle che salgono dal colpito.
+		var f := BURN_GAS.duplicate()
+		f["floor"] = tg.position.y
+		for i in _emit("burn%d" % tg.get_instance_id(), 90.0 * gas.gate(0.3, 1.0), dt):
+			var p := tg.position + Vector3(randf_range(-tg.radius, tg.radius), randf_range(0.1, tg.height * 0.85), randf_range(-tg.radius, tg.radius))
+			gas.ember(p, f, 0.3)
 		if float(b["tick"]) <= 0.0:
 			b["tick"] = BURN_TICK
 			tg.take_hit(Vector3.ZERO, BURN_DMG)
@@ -352,99 +448,54 @@ func _step_burns(dt: float) -> void:
 			burns.erase(tg)
 
 
-func _trail(s: Shot, prev: Vector3, dt: float) -> void:
-	var n := 3 if s.kind == "bolt" else 6
-	for i in n:
-		var p := prev.lerp(s.p, randf())
-		_grain(p, -s.v * 0.08 + _rand_dir() * 0.8 + Vector3(0, 0.6, 0), "fire", randf_range(0.15, 0.35), randf_range(0.03, 0.055) * (1.4 if s.kind == "ball" else 1.0), -1.0)
-	if s.kind == "ball" and randf() < 0.5:
-		_grain(s.p, Vector3(0, 0.8, 0) + _rand_dir() * 0.3, "smoke", 0.8, 0.07, -0.5, 1)
-
-
-func _place(s: Shot) -> void:
-	if s.node == null:
-		return
-	_orient(s.node, s.p, -s.v.normalized())
-	s.node.rotate_object_local(Vector3(0, 0, 1), s.t * 9.0)
-	if s.light != null:
-		s.light.global_position = s.p
-
-
-## Orienta `n` in `p` con l'asse +Z verso `back` (la coda della fiamma).
-static func _orient(n: Node3D, p: Vector3, back: Vector3) -> void:
-	var up := Vector3.UP if absf(back.normalized().dot(Vector3.UP)) < 0.95 else Vector3.RIGHT
-	n.global_transform = Transform3D(Basis.looking_at(-back, up), p)
-
-
-func _flash(kind: String, p: Vector3, dir: Vector3, life: float, grow: float) -> void:
-	var f := Flash.new()
-	f.kind = kind
-	f.life = life
-	f.grow = grow
-	var mi := MeshInstance3D.new()
-	mi.mesh = _circle_mesh if kind == "circle" else (_shell_mesh if kind == "shell" else _fire_mesh)
-	# Il guscio e' pieno: in additivo sul marmo bianco diventava bianco.
-	mi.material_override = _solid_mat if kind == "shell" else _add_mat
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mi)
-	_orient(mi, p, -dir)
-	f.node = mi
-	if kind == "shell":
-		f.light = OmniLight3D.new()
-		f.light.light_color = Color(1.0, 0.6, 0.25)
-		f.light.light_energy = 1.8
-		f.light.omni_range = grow * 2.5
-		add_child(f.light)
-		f.light.global_position = p + Vector3(0, 0.3, 0)
-	_flashes.append(f)
-	_step_flash(f)
-
-
-func _step_flashes(dt: float) -> void:
-	for i in range(_flashes.size() - 1, -1, -1):
-		var f := _flashes[i]
-		f.t += dt
-		if f.t >= f.life:
-			f.node.queue_free()
-			if f.light != null:
-				f.light.queue_free()
-			_flashes.remove_at(i)
+## Braci a terra: ogni tizzone ha la sua fiammella che si spegne piano.
+func _step_sources(dt: float) -> void:
+	for i in range(_sources.size() - 1, -1, -1):
+		var e := _sources[i]
+		e["t"] = float(e["t"]) + dt
+		var u := float(e["t"]) / float(e["life"])
+		if u >= 1.0:
+			_acc.erase(e["key"])
+			_sources.remove_at(i)
 			continue
-		_step_flash(f)
+		var f := EMBER_GAS.duplicate()
+		f["floor"] = (e["p"] as Vector3).y - 0.03
+		for k in _emit(e["key"], 34.0 * (1.0 - u) * gas.gate(0.12, float(i)), dt):
+			gas.ember(e["p"], f, 0.12)
 
 
-func _step_flash(f: Flash) -> void:
-	var u := clampf(f.t / f.life, 0.0, 1.0)
-	match f.kind:
-		"circle":
-			f.node.scale = Vector3.ONE * f.grow * (0.6 + 0.4 * minf(u * 3.0, 1.0)) * (1.0 - 0.3 * u)
-			f.node.rotate_object_local(Vector3(0, 0, 1), 0.12)
-		"shell":
-			f.node.scale = Vector3.ONE * f.grow * (0.25 + 0.75 * sqrt(u))
-			if f.light != null:
-				f.light.light_energy = 1.8 * (1.0 - u)
-		_:
-			f.node.scale = Vector3.ONE * f.grow * (1.0 + 2.0 * u)
-	# Svanire: i colori additivi si spengono scalando verso il centro alla fine.
-	if u > 0.7:
-		f.node.scale *= 1.0 - (u - 0.7) / 0.3 * 0.9
+func _step_lights(dt: float) -> void:
+	for i in range(_lights.size() - 1, -1, -1):
+		var e := _lights[i]
+		e["t"] = float(e["t"]) + dt
+		var u := float(e["t"]) / float(e["life"])
+		var l: OmniLight3D = e["light"]
+		if u >= 1.0:
+			l.queue_free()
+			_lights.remove_at(i)
+			continue
+		l.light_energy = float(e["e0"]) * (1.0 - u) * (1.0 - u)
 
 
-func _grain(p: Vector3, v: Vector3, el: String, life: float, size: float, grav: float = 2.0, mode: int = 0) -> void:
-	if grains == null:
-		return
-	var g := Grains.Grain.new()
-	g.p = p
-	g.v = v
-	g.el = el
-	g.mode = mode
-	g.life = life
-	g.s = size
-	g.g = grav
-	g.drag = 1.5
-	g.t0 = 1.0
-	g.ground = true
-	grains.add(g)
+## Quanti grani emettere questo passo a `rate` al secondo (accumulatore per chiave).
+func _emit(key: String, rate: float, dt: float) -> int:
+	var a: float = float(_acc.get(key, 0.0)) + rate * dt
+	var n := int(a)
+	_acc[key] = a - n
+	return n
+
+
+## Quota del primo blocco pieno sotto `p` (fino a 6 blocchi).
+func _floor_at(p: Vector3) -> float:
+	if world == null:
+		return -1e9
+	var x := floori(p.x)
+	var z := floori(p.z)
+	var y := floori(p.y)
+	for k in 7:
+		if world.is_solid_at(x, y - k, z):
+			return float(y - k + 1)
+	return -1e9
 
 
 func _solid(p: Vector3) -> bool:
@@ -452,16 +503,11 @@ func _solid(p: Vector3) -> bool:
 
 
 func _free(s: Shot) -> void:
-	if s.node != null and is_instance_valid(s.node):
-		s.node.queue_free()
+	if s.anchor != null:
+		s.anchor.alive = false
 	if s.light != null and is_instance_valid(s.light):
 		s.light.queue_free()
 
 
 static func _chest(tg: CombatTarget) -> Vector3:
 	return tg.position + Vector3(0, tg.height * 0.55, 0)
-
-
-static func _rand_dir() -> Vector3:
-	var v := Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1))
-	return v.normalized() if v.length() > 0.01 else Vector3.UP

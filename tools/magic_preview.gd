@@ -13,6 +13,8 @@ var _t := 0.0
 var _hp0 := 0.0
 var _log: Array[String] = []
 var _shots := {}
+var _peak := 0
+var _gas_ms := 0.0
 
 
 func _initialize() -> void:
@@ -29,16 +31,29 @@ func _initialize() -> void:
 	root.add_child(_game)
 
 
+## La foto si prende al fotogramma dopo: quello gia' disegnato e' del passo prima.
+var _pending: Array[String] = []
+
+
 func _shot(name: String) -> void:
 	if _shots.has(name):
 		return
 	_shots[name] = true
-	root.get_texture().get_image().save_png(_out.replace(".png", "_%s.png" % name))
+	_pending.append(name)
+
+
+func _flush() -> void:
+	for name in _pending:
+		root.get_texture().get_image().save_png(_out.replace(".png", "_%s.png" % name))
+	_pending.clear()
 
 
 func _process(dt: float) -> bool:
 	_frame += 1
+	_flush()
 	var g := _game
+	if g.magic != null:
+		_peak = maxi(_peak, g.magic.gas.count())
 	match _phase:
 		0:
 			if g._runtime.is_idle() and g._build_ms > 0 and g._vegetation.is_idle() and g._water.is_idle():
@@ -79,7 +94,7 @@ func _process(dt: float) -> bool:
 				_shot("1_lancio")
 			if not g.magic.shots.is_empty():
 				var s: FireMagic.Shot = g.magic.shots[0]
-				if s.t > 0.08:
+				if s.t > 0.05:
 					_shot("2_dardo")
 			if _t > 1.2:
 				var d: TrainingDummy = g._dummies.dummies[0]
@@ -102,13 +117,16 @@ func _process(dt: float) -> bool:
 				var s: FireMagic.Shot = g.magic.shots[0]
 				if s.t > 0.15:
 					_shot("4_palla")
-			if g.magic._flashes.any(func(f: FireMagic.Flash) -> bool: return f.kind == "shell" and f.t > 0.08):
+			if g.magic.blast_age > 0.12 and g.magic.blast_age < 1.0:
 				_shot("5_esplosione")
+			if g.magic.blast_age > 0.6 and g.magic.blast_age < 2.0:
+				_shot("7_fungo")
 			if _t > 0.6 and g.magic.burns.size() > 0:
 				_shot("6_bruciatura")
 			if _t > 3.0:
 				var d: TrainingDummy = g._dummies.dummies[0]
 				_log.append("palla di fuoco: danno %.0f (bruciatura compresa), avversario %s" % [_hp0 - d.hp, "in piedi" if d.alive else "a terra"])
+				_log.append("grani al massimo: %d (tetto %d)" % [_peak, FireGas.CAP])
 				for l in _log:
 					print(l)
 				return true
