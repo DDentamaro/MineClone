@@ -1,5 +1,22 @@
 # Avanzamento
 
+## 03/10/2026 — D-051, D-052, D-053: armature in anteprima, armi dai modelli Higgsfield, martello a terra
+
+Armature di cuoio (casco o cappuccio) e di ferro da cavaliere con forma propria, per ora solo in
+anteprima. Spada, spadone, lancia e martello ricostruiti nel codice dai modelli Higgsfield.
+L'onda dei colpi a terra del martello parte quando tocca il suolo; sotto l'elmo non escono capelli.
+
+### Test realmente eseguiti (D-051…D-053)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 197/197 PASS, log pulito. Nuovo: nessun capello sotto l'elmo per tutte le 16 acconciature. Aggiornato: il test dello slancio dello spadone preme il forte nel rientro (col nuovo ritmo delle spazzate il tocco a tempo fisso scadeva) |
+| `tools/armor_preview.gd` (cuoio con casco e con cappuccio, ferro; spada, lancia, spadone, martello) | Guardate a occhio; prima versione del casco con parti scoperte, rifatta come guscio unico |
+| Prova dei movimenti durante D-052 | `sweep2` dello spadone da solo falliva 2 volte su 3: la lama passava a 9–12 cm dal manichino a finestra quasi chiusa. Dopo il nuovo ritmo delle spazzate entra di 0,3–0,4 m, 4 corse su 4 OK. La prova ora stampa la distanza anche per i colpi da soli |
+| Suite e2e completa (movimenti, passo, nuoto, terza e prima persona, combattimento, aggancio, sessione, touch, sandbox, oggetti a terra, armeria, opzioni e opzioni sul telefono) | OK, nessun errore di script. Onda dei colpi a terra: catena 0,07 s dopo l'inizio della fase attiva con la testa a 0,14 m dal suolo; terremoto, colpo caricato e onda 0,08–0,09 s dopo, con la testa gia' a terra (prima: subito, con la testa in alto) |
+| Export Android debug 0.31.0-m5 (versionCode 33) + `apksigner verify` + `aapt2 dump badging` | OK; non provato sul telefono (la 0.30.0-m5 e' stata provata dal proprietario) |
+
+Crediti Higgsfield spesi: ~8,5 (tavole di cuoio e ferro, immagini delle armi, 3D con SAM 3).
+
 ## 02/10/2026 — D-050: spada, via il quinto colpo dopo il giro
 
 La catena leggera della spada torna a quattro colpi (fendente → rovescio → calata → giro), poi da

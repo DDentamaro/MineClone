@@ -68,6 +68,7 @@ func _setup(dist: float, off_deg: float) -> void:
 	_face0 = g._avatar.facing
 	_prev_attack = null
 	_prev_hits = 0
+	_waves.clear()
 	_gap.clear()
 	_tips.clear()
 	_stag.clear()
@@ -80,6 +81,7 @@ func _setup(dist: float, off_deg: float) -> void:
 var _prev_attack: AttackDefinition
 var _prev_hits := 0
 var _prev_t := 0.0
+var _waves := {}
 
 
 func _sample() -> void:
@@ -99,6 +101,13 @@ func _sample() -> void:
 		_hits[id] = int(_hits.get(id, 0)) + hits - _prev_hits
 	_prev_hits = hits
 	_ymax = maxf(_ymax, _game.motor.position.y)
+	# D-053: colpi a terra, quando parte l'onda e dov'e' la testa dell'arma.
+	if a != null and a.shape == AttackDefinition.Shape.RADIAL and c._impact_done and not _waves.has(a):
+		_waves[a] = true
+		var low := INF
+		for hb: Array in _game._avatar.rig.hitboxes():
+			low = minf(low, (hb[0] as Vector3).y - float(hb[1]))
+		_log.append("      %s: onda a %.2f s dall'inizio del colpo (colpo vero da %.2f s), testa a %.2f m dal suolo" % [a.id, c.t, a.windup, low - _game.motor.position.y])
 	# Distanza minima (m) fra le sfere dell'arma e la capsula del manichino
 	# durante la fase attiva e il seguito: < 0 = contatto.
 	if a != null and (c.phase() == 1 or (c.phase() == 2 and c.phase_u() <= CombatController.FOLLOW)) and not _game._dummies.dummies.is_empty():

@@ -65,9 +65,14 @@ static func chest_offset() -> Vector3:
 ## `styles`: forma del pezzo per slot (D-051), vedi `armor_boxes_for`.
 static func body_parts(r: AvatarRecipe, armor: Dictionary, styles: Dictionary = {}) -> Array:
 	var dna := r.dna.duplicate()
-	if (armor.get("head", Color(0, 0, 0, 0)) as Color).a > 0.0:
+	var helm := (armor.get("head", Color(0, 0, 0, 0)) as Color).a > 0.0
+	if helm:
 		dna["helm"] = true
 	var parts := HeroChargen.build(dna, HeroChargen.hair_lib())
+	# D-053: sotto l'elmo niente capelli, nemmeno le ciocche laterali, le code e
+	# i lacci che con alcune acconciature uscivano dai lati dell'elmo.
+	if helm:
+		parts = parts.filter(func(p: Dictionary) -> bool: return p["name"] != "capelli" and p["name"] != "laccio")
 	HeroChargen.cull_inside(parts, armor_boxes(armor, styles))
 	return parts
 

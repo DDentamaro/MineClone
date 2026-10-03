@@ -175,3 +175,24 @@ func test_lancia_affonda_dritta_e_ferisce_di_punta() -> void:
 		var local: Vector3 = g.affine_inverse() * (hb[0] as Vector3)
 		check(local.y >= 1.19, "sfera sulla punta (%.2f)" % local.y)
 	rig.free()
+
+
+## D-053: con l'elmo nessun pezzo di capelli resta, per nessuna acconciatura
+## (prima le ciocche laterali di alcune uscivano dai lati dell'elmo).
+func test_capelli_sotto_l_elmo() -> void:
+	var iron := Color(0.78, 0.80, 0.84)
+	for hs: Array in HeroChargen.OPTIONS["hairStyle"]:
+		var r := AvatarRecipe.preset(0)
+		r.dna["hairStyle"] = hs[0]
+		var hair := 0
+		for p: Dictionary in AvatarRig.body_parts(r, {"head": iron}):
+			if p["name"] == "capelli" or p["name"] == "laccio":
+				hair += 1
+		check_eq(hair, 0, "%s: niente capelli sotto l'elmo" % hs[0])
+	var bare := AvatarRecipe.preset(0)
+	bare.dna["hairStyle"] = "lungo"
+	var n := 0
+	for p: Dictionary in AvatarRig.body_parts(bare, {}):
+		n += 1 if p["name"] == "capelli" else 0
+	check(n > 0, "senza elmo i capelli ci sono")
+

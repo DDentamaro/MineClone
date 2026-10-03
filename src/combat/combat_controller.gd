@@ -395,19 +395,20 @@ func _step_attack(dt: float, motor: PlayerMotor, targets: Array, stick: Vector2)
 		if a.pierce > 0.0 and a.shape == AttackDefinition.Shape.THRUST and ph == 1:
 			_thrust_hits(motor.position, targets, phase_u())
 		_prev_boxes = hitboxes.duplicate()
-	elif ph == 1 and not a.plunge:
+	elif a.shape == AttackDefinition.Shape.RADIAL and not a.plunge and not _impact_done and _radial_now(a, ph, motor):
+		# D-053: l'onda (danno, spinta, arresto, scossa, polvere) parte quando la
+		# testa dell'arma tocca davvero terra, non all'inizio della fase attiva.
+		_impact_done = true
+		_radial_hit(motor.position, targets)
+		var f := forward(facing)
+		events.append({"type": "impact", "attack": a, "position": motor.position + Vector3(f.x, 0, f.y) * a.radial_ahead})
+	elif ph == 1 and not a.plunge and a.shape != AttackDefinition.Shape.RADIAL:
 		var u := phase_u()
 		match a.shape:
 			AttackDefinition.Shape.ARC:
 				_arc_hits(motor.position, targets, _prev_u, u)
 			AttackDefinition.Shape.THRUST:
 				_thrust_hits(motor.position, targets, u)
-			AttackDefinition.Shape.RADIAL:
-				if not _impact_done:
-					_impact_done = true
-					_radial_hit(motor.position, targets)
-					var f := forward(facing)
-					events.append({"type": "impact", "attack": a, "position": motor.position + Vector3(f.x, 0, f.y) * a.radial_ahead})
 		_prev_u = u
 	elif ph == 2 and before < a.windup + a.active and not a.plunge and not blade:
 		# Chiusura del colpo: ultimo tratto dell'arco anche con passi lunghi.
@@ -532,6 +533,36 @@ func _thrust_hits(from: Vector3, targets: Array, u: float) -> void:
 		if along < -tg.radius or along > extent + tg.radius or side > attack.width + tg.radius:
 			continue
 		_hit(tg, f, from)
+
+
+## Altezza (m sopra i piedi) sotto cui la testa dell'arma "tocca terra".
+const GROUND_HIT := 0.32
+## Se la testa non scende fin li' (pendio, posa), l'onda parte comunque a
+## questo punto del rientro.
+const GROUND_LATE := 0.5
+## ...e almeno cosi' avanti (m) rispetto ai piedi.
+const GROUND_AHEAD := 0.35
+
+
+## Momento dell'onda di un colpo a terra: senza hitbox (test, prima persona)
+## all'inizio della fase attiva come prima; con le hitbox vere quando la sfera
+## piu' bassa dell'arma scende vicino al suolo, al piu' tardi a meta' rientro.
+func _radial_now(a: AttackDefinition, ph: int, motor: PlayerMotor) -> bool:
+	if ph == 0:
+		return false
+	if hitboxes.is_empty():
+		return ph == 1
+	if ph == 2 and phase_u() >= GROUND_LATE:
+		return true
+	# Solo la testa davanti all'eroe: nella carica alta il martello pende
+	# dietro la schiena con la testa in basso, e quello non e' l'impatto.
+	var f := forward(_attack_facing)
+	var low := INF
+	for hb: Array in hitboxes:
+		var p: Vector3 = hb[0]
+		if (p.x - motor.position.x) * f.x + (p.z - motor.position.z) * f.y > GROUND_AHEAD:
+			low = minf(low, p.y - float(hb[1]))
+	return low - motor.position.y <= GROUND_HIT
 
 
 func _radial_hit(from: Vector3, targets: Array) -> void:

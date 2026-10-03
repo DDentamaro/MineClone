@@ -921,3 +921,42 @@ della spada torna a quattro colpi (fendente → rovescio → calata → giro), p
 fendente. Il fendente saltato dal video (`m_leap`) resta come forte dopo la calata. Le pose
 `sword_cross` restano in `MocapMoves` ma non sono più usate.
 
+## D-051 — Armature di cuoio e di ferro con forma propria (in anteprima)
+Richiesta del proprietario: migliorare i personaggi modulari con Higgsfield, partendo da
+un'armatura di cuoio basilare. Higgsfield serve solo per le tavole di concept (eroe chibi come
+riferimento, 0,25 crediti l'una); i pezzi sono costruiti nel codice a blocchi smussati, agganciati
+alle ossa come il corpo. Quattro slot come prima: busto, spalle e braccia sono un unico pezzo.
+- `AvatarRig` accetta una forma per slot (`styles`, parallela ai colori): "" metallo di D-030,
+  "leather" (`LeatherArmor`, testa "leather_cap" casco unico fino alla mascella o
+  "leather_hood" cappuccio a punta), "iron" (`IronArmor`, set da cavaliere: elmo chiuso con
+  feritoia, corazza col bordo d'ottone, spallacci tondi, guanti, scarselle, ginocchiere a punta).
+- Le decorazioni sottili e i pezzi ruotati non nascondono il corpo (`armor_boxes`); una mesh
+  rimasta vuota (il cappuccio copre tutti i capelli) non si costruisce.
+- `tools/armor_preview.gd`: l'eroe nel gioco vero con un set, davanti, di lato e dietro.
+- Non ancora tra gli oggetti: si integrano quando il proprietario sceglie come (cuoio da
+  forzieri/banco, ferro al posto delle forme attuali).
+
+## D-052 — Armi ricostruite nel codice dai modelli Higgsfield
+Prima prova: immagini delle armi (stile del set da cavaliere) e modelli 3D con SAM 3 (1 credito
+l'uno; Tripo 9, Hunyuan 14, Meshy 30–38); il CDN di Higgsfield e' bloccato dalla rete della
+sessione, il proprietario ha scaricato i GLB. Convertiti e messi in gioco funzionavano, ma su
+richiesta del proprietario ("evitiamo rogne") niente file esterni: spada, spadone, lancia e
+martello sono ricostruiti in `WeaponMeshes` con `MeshKit` (lame a rombo con sgusciatura, guardie
+e collari d'ottone, cuoio, legno, testa del martello con fasce d'ottone), prendendo immagini e
+modelli come riferimento. Stesse lunghezze e impugnatura delle armi a cubetti: hitbox, scie e
+pose invariate. Il materiale dell'oggetto colora solo l'acciaio. Gli attrezzi restano a cubetti.
+- Trovato nel frattempo: le spazzate dello spadone passavano davanti al bersaglio a finestra di
+  contatto quasi chiusa (il braccio arriva in ritardo sulla posa) e contavano a seconda del ritmo
+  dei fotogrammi. Spazzate: carica 0,2 -> 0,28, fase attiva 0,15 -> 0,2, rientro 0,3 -> 0,26.
+
+## D-053 — Onda del martello sincronizzata all'impatto; niente capelli sotto l'elmo
+Richiesta del proprietario: l'ultimo colpo della catena del martello e i suoi colpi pesanti
+facevano danno e sbalzavano i nemici prima che il martello toccasse terra.
+- I colpi a terra (forma RADIAL, non le picchiate) partivano al primo fotogramma della fase
+  attiva, mentre la posa arriva in ritardo. Ora l'onda (danno, spinta, arresto, scossa, polvere)
+  parte quando la sfera piu' bassa dell'arma e' a meno di 0,32 m dal suolo e almeno 0,35 m davanti
+  ai piedi; al piu' tardi a meta' del rientro. "Davanti" serve perche' nella carica alta il
+  martello pende dietro la schiena con la testa in basso. Senza hitbox (test) resta come prima.
+- Con alcune acconciature le ciocche laterali uscivano dai lati dell'elmo: con un pezzo in testa
+  tutti i capelli (e i lacci di code e codini) non si costruiscono.
+
