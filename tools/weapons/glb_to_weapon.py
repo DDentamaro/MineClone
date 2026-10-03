@@ -12,6 +12,7 @@
 Uscita .json (letta da `WeaponMeshes`): vertici, normali, colori, indici.
 Uscita .glb: per guardarla in un visualizzatore.
 Uso: python3 tools/weapons/glb_to_weapon.py --kind=sword in.glb data/weapons/sword.json
+     (lancia: --girth=0.55, D-052: a parita' di lunghezza era troppo grossa)
 """
 import argparse
 import json
@@ -56,6 +57,7 @@ def main() -> int:
 	ap.add_argument("--kind", required=True, choices=list(TARGET))
 	ap.add_argument("--faces", type=int, default=1800)
 	ap.add_argument("--flip", action="store_true", help="capovolge la punta (se la regola automatica sbaglia)")
+	ap.add_argument("--girth", type=float, default=1.0, help="spessore (X/Z) rispetto alla scala della lunghezza: <1 = arma piu' snella")
 	ap.add_argument("src")
 	ap.add_argument("dst")
 	a = ap.parse_args()
@@ -94,7 +96,8 @@ def main() -> int:
 	k = (t1 - t0) / (hi - lo)
 	low = v[v[:, 1] < lo + (hi - lo) * 0.12]
 	cx, cz = np.median(low[:, 0]), np.median(low[:, 2])
-	v = np.column_stack([(v[:, 0] - cx) * k, (v[:, 1] - lo) * k + t0, (v[:, 2] - cz) * k])
+	g = k * a.girth
+	v = np.column_stack([(v[:, 0] - cx) * g, (v[:, 1] - lo) * k + t0, (v[:, 2] - cz) * g])
 
 	# Poligoni ridotti, colori ripresi dal vertice originale piu' vicino.
 	if len(f) > a.faces:
