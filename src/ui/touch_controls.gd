@@ -113,6 +113,7 @@ func _init() -> void:
 	add_button(&"heavy", "Forte", true)
 	add_button(&"dodge", "Schiva", false)
 	add_button(&"lock", "Lock", false)
+	add_button(&"guard", "Para", true)
 	add_button(&"mode", "Modo", false)
 	add_button(&"weapon", "Arma", false)
 	add_button(&"hero", "Eroe", false)
@@ -254,6 +255,9 @@ func _layout() -> void:
 		elif b.id == &"lock":
 			# Aggancio (D-035): a sinistra di Colpo, a portata di pollice.
 			r = Rect2(attack_x - m * 0.4 - med, s.y - m - med, med, med)
+		elif b.id == &"guard":
+			# Para (D-058): sopra il Lock, accanto al Forte.
+			r = Rect2(attack_x - m * 0.4 - med, s.y - m - med - m * 0.4 - med, med, med)
 		else:
 			var i := row.find(b.id)
 			if i < 0:

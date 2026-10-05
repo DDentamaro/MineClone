@@ -1,6 +1,6 @@
 extends SceneTree
 ## Runner minimale dei test headless.
-## Uso: godot --headless --path . --script res://tests/run_tests.gd
+## Uso: godot --headless --path . --script res://tests/run_tests.gd [-- --only=nome]
 ## Esegue ogni metodo test_* degli script in res://tests/unit/ ed esce con
 ## codice 1 se almeno un'asserzione fallisce.
 
@@ -28,8 +28,13 @@ func _run_all() -> void:
 	var total := 0
 	var files := DirAccess.get_files_at(UNIT_DIR)
 	files.sort()
+	# -- --only=duel: solo i file che contengono quel nome.
+	var only := ""
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--only="):
+			only = a.substr(7)
 	for f in files:
-		if not f.ends_with(".gd"):
+		if not f.ends_with(".gd") or (only != "" and not f.contains(only)):
 			continue
 		var script := load(UNIT_DIR.path_join(f)) as GDScript
 		if script == null or not script.can_instantiate():

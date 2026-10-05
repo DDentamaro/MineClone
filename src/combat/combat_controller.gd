@@ -23,10 +23,17 @@ extends RefCounted
 ##   movimento; gli urti al suolo (area) restano ad area. Senza rig (test) i
 ##   colpi usano le forme astratte: arco, striscia, area. Un colpo per bersaglio
 ##   per attacco (salvo `rehit`), hitstop, scossa della camera.
+## - Parata (D-058): tenendo "Para" si sta in guardia (passo lento, niente
+##   colpi); i colpi da davanti sono parati (danno ridotto, la postura si
+##   consuma e alla fine la guardia si rompe). Premuta all'ultimo istante
+##   (entro `PARRY_WINDOW` dall'arrivo del colpo) e' una parata perfetta: niente
+##   danno, l'attaccante resta stordito e il primo colpo di risposta fa di piu'.
+## - Stordimento: chi e' parato, chi ha la guardia rotta e chi prende un colpo
+##   forte (o un colpo mentre carica) arretra e per un attimo non agisce.
 ##
 ## Nessun nodo: `step` e' deterministico e gira nei test headless.
 
-enum State { IDLE, ATTACK, DODGE }
+enum State { IDLE, ATTACK, DODGE, GUARD, STUN }
 
 const BUFFER := 0.3
 const DODGE_TIME := 0.4
@@ -39,6 +46,22 @@ const LOCK_EXTRA := 0.6
 const LOCK_CONE := 0.61
 const AIM_ASSIST := 0.35
 const PLUNGE_FALL := 22.0
+## Parata (D-058): finestra della parata perfetta dalla pressione, tempo prima
+## che una nuova pressione la ridia (niente parate a raffica), cono frontale
+## della guardia (da ogni lato), passo in guardia.
+const PARRY_WINDOW := 0.2
+const PARRY_REARM := 0.4
+const BLOCK_CONE := 1.4
+const GUARD_MOVE := 0.4
+## Stordimento di chi viene parato e di chi ha la guardia rotta.
+const PARRY_STUN := 0.9
+const BREAK_STUN := 1.1
+## Postura: danno parato che rompe la guardia, e quanto ne recupera al secondo.
+const POSTURE_MAX := 60.0
+const POSTURE_REGEN := 18.0
+## Risposta dopo una parata perfetta: per quanto vale e quanto in piu' fa.
+const RIPOSTE := 1.2
+const RIPOSTE_MULT := 1.6
 
 var weapon: WeaponDefinition
 var state: State = State.IDLE
@@ -93,6 +116,16 @@ var _prev_u := 0.0
 var _impact_done := false
 var _attack_facing := 0.0
 var _last_dodge_end := -99.0
+## Parata (D-058).
+var guard_held := false
+var posture := 0.0
+var riposte_t := 0.0
+var stun_len := 0.0
+var stun_push := Vector2.ZERO
+var _guard_press := -99.0
+var _guard_release := -99.0
+var _press_fresh := true
+var _attack_clock := -99.0
 ## Hitbox dell'arma in coordinate globali ([centro, raggio]), aggiornate dal
 ## gioco prima di ogni passo; vuoto = forme astratte.
 var hitboxes: Array = []
@@ -132,6 +165,21 @@ func press_dodge() -> void:
 	_buffer(&"dodge")
 
 
+func press_guard() -> void:
+	if guard_held:
+		return
+	guard_held = true
+	_press_fresh = clock - _guard_release >= PARRY_REARM
+	_guard_press = clock
+
+
+func release_guard() -> void:
+	if not guard_held:
+		return
+	guard_held = false
+	_guard_release = clock
+
+
 func _buffer(a: StringName) -> void:
 	buffer = a
 	buffer_t = BUFFER
@@ -151,8 +199,86 @@ func cancel() -> void:
 	buffer = &""
 
 
+## Dimentica i bersagli (registro dei colpi, aggancio): i corpi dei duellanti
+## si tengono a vicenda attraverso i controller.
+func forget_targets() -> void:
+	_hit_log.clear()
+	lock_target = null
+	forced = null
+
+
 func is_busy() -> bool:
-	return state != State.IDLE
+	return state != State.IDLE and state != State.GUARD
+
+
+func guarding() -> bool:
+	return state == State.GUARD
+
+
+func stunned() -> bool:
+	return state == State.STUN
+
+
+## Parata perfetta possibile adesso: in guardia, pressione fresca e recente.
+func parry_window() -> bool:
+	return state == State.GUARD and _press_fresh and clock - _guard_press <= PARRY_WINDOW
+
+
+## Come finisce un colpo che arriva da `from` su chi sta in `me` (D-058):
+## schivato nell'invulnerabilita', parato (perfetto o no) se in guardia e il
+## colpo arriva da davanti, altrimenti preso.
+func defend(from: Vector3, me: Vector3, parryable: bool = true) -> int:
+	if invulnerable():
+		return CombatTarget.EVADE
+	if state != State.GUARD:
+		return CombatTarget.HIT
+	var v := Vector2(from.x - me.x, from.z - me.z)
+	if v.length() > 0.05 and absf(wrapf(heading(v) - facing, -PI, PI)) > BLOCK_CONE:
+		return CombatTarget.HIT
+	if parryable and parry_window():
+		riposte_t = RIPOSTE
+		events.append({"type": "parry"})
+		return CombatTarget.PARRY
+	return CombatTarget.BLOCK
+
+
+## Colpo parato in guardia: la postura cala; a zero la guardia si rompe.
+func absorb(damage: float, push: Vector2) -> void:
+	posture += damage
+	if posture >= POSTURE_MAX:
+		posture = 0.0
+		stun(BREAK_STUN, push)
+		events.append({"type": "guard_break"})
+
+
+## Stordimento: niente azioni per `secs`, arretrando con `push` (m/s).
+func stun(secs: float, push: Vector2) -> void:
+	cancel()
+	state = State.STUN
+	t = 0.0
+	stun_len = secs
+	stun_push = push
+	events.append({"type": "stun", "secs": secs})
+
+
+## Chi attacca e viene parato all'ultimo istante.
+func parried(push: Vector2) -> void:
+	stun(PARRY_STUN, push)
+	events.append({"type": "parried"})
+
+
+## Reazione a un colpo preso (D-058): un colpo forte stordisce sempre; uno
+## leggero interrompe chi sta caricando un colpo, scalfisce chi e' gia' nel
+## colpo (nessuna interruzione a meta' fendente) e fa barcollare chi e' fermo.
+func react(damage: float, push: Vector2) -> void:
+	if state == State.DODGE:
+		return
+	if damage >= 14.0 or push.length() >= 6.0:
+		stun(0.32 + minf(0.4, damage * 0.01), push)
+	elif state == State.ATTACK and phase() >= 1:
+		return
+	else:
+		stun(0.2, push * 0.7)
 
 
 func invulnerable() -> bool:
@@ -203,6 +329,9 @@ func step(dt: float, motor: PlayerMotor, targets: Array, stick: Vector2) -> void
 	if buffer_t <= 0.0:
 		buffer = &""
 	cooldown = maxf(0.0, cooldown - dt)
+	riposte_t = maxf(0.0, riposte_t - dt)
+	if state != State.GUARD:
+		posture = maxf(0.0, posture - POSTURE_REGEN * dt)
 	combo_t += dt
 	if combo_t > 1.6:
 		combo = 0
@@ -213,6 +342,9 @@ func step(dt: float, motor: PlayerMotor, targets: Array, stick: Vector2) -> void
 		State.IDLE:
 			drive_on = false
 			move_scale = 1.0
+			if guard_held and draw_t <= 0.0 and buffer == &"":
+				_enter_guard()
+				return
 			if draw_t > 0.0:
 				# Arma in arrivo: l'input resta in attesa e parte appena e' in mano.
 				draw_t -= dt
@@ -223,6 +355,56 @@ func step(dt: float, motor: PlayerMotor, targets: Array, stick: Vector2) -> void
 			_step_attack(dt, motor, targets, stick)
 		State.DODGE:
 			_step_dodge(dt, motor, targets, stick)
+		State.GUARD:
+			_step_guard(motor, targets, stick)
+		State.STUN:
+			_step_stun(dt)
+
+
+func _enter_guard() -> void:
+	state = State.GUARD
+	attack = null
+	charging = false
+	drive_on = false
+	t = 0.0
+	move_scale = GUARD_MOVE
+	events.append({"type": "guard"})
+
+
+## In guardia: passo lento; rilasciando si torna liberi; schivata e colpi
+## partono da qui (la risposta dopo una parata).
+func _step_guard(motor: PlayerMotor, targets: Array, stick: Vector2) -> void:
+	drive_on = false
+	move_scale = GUARD_MOVE
+	if buffer == &"dodge" and motor.on_ground and cooldown <= 0.0:
+		_start_dodge(stick)
+		return
+	if buffer == &"light" or buffer == &"heavy":
+		state = State.IDLE
+		move_scale = 1.0
+		_take_buffer(motor, targets, stick)
+		return
+	if not guard_held:
+		state = State.IDLE
+		move_scale = 1.0
+
+
+func _step_stun(dt: float) -> void:
+	t += dt
+	var u := clampf(t / maxf(stun_len, 1e-3), 0.0, 1.0)
+	drive_on = true
+	drive = stun_push * pow(1.0 - u, 2.0)
+	move_scale = 0.0
+	buffer = &""
+	if t >= stun_len:
+		state = State.IDLE
+		drive_on = false
+		move_scale = 1.0
+
+
+## Avanzamento dello stordimento 0..1 (-1 se non stordito).
+func stun_u() -> float:
+	return clampf(t / maxf(stun_len, 1e-3), 0.0, 1.0) if state == State.STUN else -1.0
 
 
 func _take_buffer(motor: PlayerMotor, targets: Array, stick: Vector2) -> void:
@@ -260,6 +442,7 @@ func _start_attack(id: StringName, motor: PlayerMotor, targets: Array, stick: Ve
 	attack = a
 	state = State.ATTACK
 	t = 0.0
+	_attack_clock = clock
 	_prev_u = 0.0
 	_prev_boxes = hitboxes.duplicate()
 	_impact_done = false
@@ -350,6 +533,11 @@ func _step_attack(dt: float, motor: PlayerMotor, targets: Array, stick: Vector2)
 		if lv.length() > 0.3:
 			facing = heading(lv)
 			_attack_facing = facing
+	# Para premuto adesso (non tenuto da prima): annulla il rientro o l'inizio
+	# della carica e alza la guardia, come la schivata.
+	if guard_held and _guard_press > _attack_clock and (phase() == 2 or before < a.windup * 0.5):
+		_enter_guard()
+		return
 	var in_dodge_cancel := buffer == &"dodge" and (phase() == 2 or before < a.windup * 0.5)
 	if in_dodge_cancel and motor.on_ground and cooldown <= 0.0:
 		_start_dodge(stick)
@@ -467,6 +655,7 @@ func _step_dodge(dt: float, motor: PlayerMotor, targets: Array, stick: Vector2) 
 	if u >= 1.0:
 		state = State.IDLE
 		drive_on = false
+		move_scale = 1.0
 		cooldown = DODGE_COOLDOWN
 		_last_dodge_end = clock
 		if buffer != &"" and buffer != &"dodge":
@@ -654,17 +843,37 @@ func _hit(tg: CombatTarget, dir: Vector2, from: Vector3, at: Vector3 = Vector3.I
 	var mult := 1.0 + cf * attack.charge_bonus
 	var crit := rng.randf() < crit_chance
 	var dmg := attack.damage * mult * damage_mult * (1.5 if crit else 1.0) * (1.0 + weapon.momentum_step * momentum)
+	# Risposta dopo una parata perfetta (D-058): il primo colpo fa di piu'.
+	var riposte := riposte_t > 0.0
+	if riposte:
+		dmg *= RIPOSTE_MULT
+		riposte_t = 0.0
 	var imp := Vector3(dir.x, 0, dir.y) * attack.knockback * (1.0 + cf * 0.5)
 	imp.y = attack.launch * (1.0 + cf * 0.3)
-	tg.take_hit(imp, dmg)
-	hitstop = maxf(hitstop, attack.hitstop * (1.0 + cf * 0.6))
-	combo += 1
-	combo_t = 0.0
 	var p := tg.position + Vector3(0, tg.height * 0.6, 0)
 	var back := Vector3(from.x - p.x, 0, from.z - p.z).normalized() * tg.radius
 	if at != Vector3.INF:
 		# Scintilla dove la lama tocca: sulla superficie della capsula.
 		p = Vector3(tg.position.x, clampf(at.y, tg.position.y + 0.1, tg.position.y + tg.height), tg.position.z)
 		back = Vector3(at.x - p.x, 0, at.z - p.z).normalized() * tg.radius
+	# D-058: il bersaglio puo' schivare o parare. I colpi a terra e le picchiate
+	# si parano ma non all'ultimo istante.
+	var parryable := attack.shape != AttackDefinition.Shape.RADIAL and not attack.plunge
+	var res := tg.receive_hit(self, from, imp, dmg, parryable)
+	match res:
+		CombatTarget.EVADE:
+			return
+		CombatTarget.PARRY:
+			hitstop = maxf(hitstop, 0.14)
+			parried(-dir * 4.0)
+			events.append({"type": "parried_by", "target": tg, "position": p + back})
+			return
+		CombatTarget.BLOCK:
+			hitstop = maxf(hitstop, 0.07)
+			events.append({"type": "blocked", "attack": attack, "target": tg, "position": p + back, "damage": dmg})
+			return
+	hitstop = maxf(hitstop, attack.hitstop * (1.0 + cf * 0.6))
+	combo += 1
+	combo_t = 0.0
 	events.append({"type": "hit", "attack": attack, "target": tg, "position": p + back, "dir": Vector3(dir.x, 0, dir.y),
-		"damage": dmg, "shake": attack.shake * (1.0 + cf * 0.6) * (1.3 if crit else 1.0), "charge": cf, "crit": crit})
+		"damage": dmg, "shake": attack.shake * (1.0 + cf * 0.6) * (1.3 if crit else 1.0), "charge": cf, "crit": crit, "riposte": riposte})

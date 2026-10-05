@@ -78,7 +78,9 @@ func test_avvio_allo_spawn() -> void:
 	for st: WorldObjects.Obj in stands:
 		check(st.rig != null, "manichino sull'espositore")
 		check(st.inv.total_items() >= 4, "set completo sull'espositore")
-	check_eq(g._dummies.dummies.size(), 1, "un avversario nell'arena")
+	check_eq(g._dummies.dummies.size(), 0, "nell'arena niente manichini (D-058)")
+	check(g.enemy != null and g.duel != null, "un avversario vero e lo scontro nell'arena")
+	check(g.enemy.motor.position.distance_to(g.motor.position) > 8.0, "avversario e giocatore ai due lati del ring")
 	g.free()
 
 

@@ -68,6 +68,8 @@ class Shot:
 	var shake := 0.1
 	var charge := 0.0
 	var target: CombatTarget
+	## Chi l'ha lanciato (D-058): non lo colpisce.
+	var caster: CombatTarget
 	var anchor: FireGas.Anchor
 	var gas: Dictionary
 	var head: Dictionary
@@ -183,8 +185,9 @@ func _glyph_center(Y: Dictionary) -> Vector3:
 
 
 ## Lancio dalla gemma `origin` verso `dir` (o verso il bersaglio agganciato).
-func cast(a: AttackDefinition, origin: Vector3, dir: Vector3, charge: float, target: CombatTarget, damage_mult: float = 1.0) -> Shot:
+func cast(a: AttackDefinition, origin: Vector3, dir: Vector3, charge: float, target: CombatTarget, damage_mult: float = 1.0, caster: CombatTarget = null) -> Shot:
 	var s := Shot.new()
+	s.caster = caster
 	s.kind = a.cast
 	s.p = origin
 	s.charge = charge
@@ -271,7 +274,7 @@ func step(dt: float, targets: Array) -> void:
 		var hit: CombatTarget = null
 		for o in targets:
 			var tg := o as CombatTarget
-			if tg != null and tg.alive and CombatController.sphere_capsule(s.p, s.r, tg):
+			if tg != null and tg != s.caster and tg.alive and CombatController.sphere_capsule(s.p, s.r, tg):
 				hit = tg
 				break
 		if hit != null:
@@ -353,7 +356,7 @@ func _explode(s: Shot, targets: Array) -> void:
 	var radius := BLAST + BLAST_CHARGE * s.charge
 	for o in targets:
 		var tg := o as CombatTarget
-		if tg == null or not tg.alive:
+		if tg == null or not tg.alive or tg == s.caster:
 			continue
 		var c := _chest(tg)
 		var d := c.distance_to(s.p) - tg.radius

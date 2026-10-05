@@ -75,6 +75,13 @@ var _texts: FloatingText
 ## Magia del fuoco del bastone (D-055).
 var magic: FireMagic
 var _pending_casts: Array = []
+## Scontro nell'arena (D-058): il corpo del giocatore (vita, parata), il
+## nemico con l'IA, i round e la loro interfaccia.
+var player_body: FighterBody
+var enemy: Fighter
+var duel: ArenaDuel
+var _duel_hud: DuelHud
+var _guard_key := false
 var _light_key := false
 var paused := false
 var show_hitboxes := false
@@ -144,6 +151,7 @@ func _ready() -> void:
 	if _args.has("weapon"):
 		weapon_index = maxi(0, WEAPONS.find(StringName(_args["weapon"])))
 	combat = CombatController.new(WeaponLibrary.by_id(WEAPONS[weapon_index]))
+	player_body = FighterBody.new(motor, combat, 100.0)
 	_avatar.set_weapon(combat.weapon)
 	if _args.has("weapon"):
 		select_weapon(weapon_index)
@@ -166,6 +174,11 @@ func _ready() -> void:
 	magic = FireMagic.new()
 	magic.name = "Magic"
 	_view.add_child(magic)
+	_duel_hud = DuelHud.new()
+	_duel_hud.name = "DuelHud"
+	_duel_hud.visible = false
+	$HUD.add_child(_duel_hud)
+	$HUD.move_child(_duel_hud, 0)
 	_hitbox_lines = DebugLines.new()
 	_view.add_child(_hitbox_lines)
 	_cursor_lines = DebugLines.new()
@@ -310,6 +323,7 @@ func _swap_world(w: WorldData) -> void:
 	ground.clear()
 	_objects.scatter_treasure(world.world_seed, world.spawn_point())
 	_place_armory()
+	_setup_duel()
 	sandbox.setup(world, edits, catalog, motor, _objects, _vegetation)
 	if combat != null:
 		combat.cancel()
@@ -327,14 +341,29 @@ func _physics_process(dt: float) -> void:
 	for d in _dummies.dummies:
 		if d.alive and d.position.distance_to(motor.position) < 4.5:
 			_avatar.aware_t = 2.5
+	# Para (D-058): tenuto = guardia; la parata perfetta e' all'ultimo istante.
+	if (_guard_key or _touch.is_held(&"guard")) and player_body.alive:
+		combat.press_guard()
+	else:
+		combat.release_guard()
+	# Fermo immagine condiviso: chi colpisce e chi e' colpito si fermano insieme.
+	if enemy != null:
+		var hs := maxf(combat.hitstop, enemy.combat.hitstop)
+		combat.hitstop = hs
+		enemy.combat.hitstop = hs
 	var stick := _read_stick()
+	if not player_body.alive:
+		stick = Vector2.ZERO
 	_move_world = _camera_rig.stick_to_world(stick)
 	var fps := _camera_rig.mode == CameraRig.Mode.FPS
 	combat.aim_view = fps
 	if not combat.is_busy():
 		# In prima persona il colpo parte lungo lo sguardo.
 		combat.facing = _camera_rig.yaw if fps else _avatar.facing
-	var targets := _dummies.targets()
+	var targets: Array = []
+	targets.append_array(_dummies.targets())
+	if _duel_on():
+		targets.append(enemy.body)
 	lock.step(motor.position, targets)
 	var locked := lock.active()
 	combat.forced = lock.target if locked else null
@@ -358,6 +387,7 @@ func _physics_process(dt: float) -> void:
 		journal.record("walk", Vector2(motor.position.x - before_move.x, motor.position.z - before_move.z).length())
 		_avatar.position = motor.position
 		_push_out_of_dummies()
+		_push_out_of_enemy()
 		motor.position = _objects.push_out(motor.position, PlayerMotor.RADIUS)
 		for got in ground.step(dt, motor.position, items.inv):
 			last_edit = "raccolto: %s%s" % [Loot.full_name(got), (" ×%d" % got.count) if got.count > 1 else ""]
@@ -377,6 +407,7 @@ func _physics_process(dt: float) -> void:
 			_avatar.face_towards(Vector2(motor.velocity.x, motor.velocity.z), dt)
 	for d in _dummies.step(0.0 if frozen else dt):
 		fx.broke(d)
+	player_body.step(dt)
 	# Posa dell'eroe al passo della fisica (D-028): la lama che ferisce e' quella
 	# che si vede, anche quando piu' passi di fisica cadono in un fotogramma.
 	_avatar.animate(0.0 if combat.hitstop > 0.0 else dt, motor, combat)
@@ -385,7 +416,7 @@ func _physics_process(dt: float) -> void:
 	var staff := _avatar.rig.weapon != null and _avatar.rig.weapon.kind == WeaponDefinition.Kind.STAFF
 	magic.set_gem(staff, _staff_gem(), Vector3(fw.x, 0, fw.y))
 	for c: Array in _pending_casts:
-		magic.cast(c[0], _staff_gem(), c[1], c[2], c[3], combat.damage_mult)
+		magic.cast(c[0], _staff_gem(), c[1], c[2], c[3], combat.damage_mult, player_body)
 	_pending_casts.clear()
 	var ca := combat.attack if combat.state == CombatController.State.ATTACK else null
 	if ca != null and ca.cast != "" and combat.phase() == 0:
@@ -395,6 +426,7 @@ func _physics_process(dt: float) -> void:
 	else:
 		magic.casting("", 0.0, 0.0)
 	magic.step(0.0 if frozen else dt, targets)
+	_step_duel(dt)
 
 
 ## Riquadri dei colpi (Hitbox) e cubo del cursore di costruzione.
@@ -511,6 +543,31 @@ func is_covered(p: Vector3, n: int) -> bool:
 
 
 ## I manichini sono solidi: il giocatore ne viene spinto fuori (cilindri).
+## Il nemico e' solido come i manichini: ci si separa a meta' per uno.
+func _push_out_of_enemy() -> void:
+	if enemy == null or not enemy.visible:
+		return
+	var em := enemy.motor
+	if absf(em.position.y - motor.position.y) > PlayerMotor.HEIGHT:
+		return
+	var v := Vector2(motor.position.x - em.position.x, motor.position.z - em.position.z)
+	var r := PlayerMotor.RADIUS * 2.0 + 0.1
+	var l := v.length()
+	if l >= r:
+		return
+	var n := v / l if l > 1e-4 else Vector2(1, 0)
+	var push := (r - l) * 0.5
+	var mp := Vector2(motor.position.x, motor.position.z) + n * push
+	var ep := Vector2(em.position.x, em.position.z) - n * push
+	if motor.ground(mp.x, mp.y) <= motor.position.y + 0.04:
+		motor.position.x = mp.x
+		motor.position.z = mp.y
+	if em.ground(ep.x, ep.y) <= em.position.y + 0.04:
+		em.position.x = ep.x
+		em.position.z = ep.y
+	_avatar.position = motor.position
+
+
 func _push_out_of_dummies() -> void:
 	for d in _dummies.dummies:
 		if not d.alive or motor.position.y > d.position.y + d.height or motor.position.y + PlayerMotor.HEIGHT < d.position.y:
@@ -545,6 +602,15 @@ func _handle_combat_events() -> void:
 			"dodge":
 				journal.record("dodge")
 				fx.dodge(motor.position, combat.dodge_dir)
+			"blocked":
+				fx.clash(e["position"], false)
+				_camera_rig.shake(0.08)
+			"parried_by":
+				fx.clash(e["position"], true)
+				_camera_rig.shake(0.3)
+				_texts.spawn((e["position"] as Vector3) + Vector3(0, 0.6, 0), "PARATO!", Color(1.0, 0.5, 0.4), 30)
+			"guard_break":
+				_texts.spawn(motor.position + Vector3(0, 2.0, 0), "GUARDIA ROTTA", Color(1.0, 0.5, 0.4), 26)
 			"cast":
 				var a: AttackDefinition = e["attack"]
 				var f := CombatController.forward(float(e["facing"]))
@@ -608,6 +674,11 @@ func _process(dt: float) -> void:
 	_lock_marker.update(dt)
 	var lt := TrainingGround._light_at(world, p + Vector3(0, 1.1, 0))
 	_avatar.set_light(lt.x, lt.y)
+	_avatar.rig.set_flash(player_body.flash * 0.85, Color.WHITE)
+	if enemy != null and enemy.visible:
+		var el := TrainingGround._light_at(world, enemy.avatar.get_global_transform_interpolated().origin + Vector3(0, 1.1, 0))
+		enemy.set_light(el.x, el.y)
+	_update_duel_hud()
 	_fpv.set_light(lt.x, lt.y)
 	_dummies.sync_views(combat.lock_target if combat.is_busy() else null)
 	_camera_rig.update_camera(dt, p)
@@ -785,7 +856,7 @@ func _update_session_hud() -> void:
 	var key := "" if DisplayServer.is_touchscreen_available() else "F / "
 	_session.context_text = (key + String(names.get(nearby.type, "Interagisci"))) if nearby != null else ""
 	_session.avoid.clear()
-	for id: StringName in [&"lock", &"attack", &"heavy", &"dodge", &"jump"]:
+	for id: StringName in [&"lock", &"attack", &"heavy", &"dodge", &"jump", &"guard"]:
 		_session.avoid.append(_touch.button_rect(id))
 	if last_edit != "" and last_edit != _last_notice:
 		_last_notice = last_edit
@@ -833,6 +904,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		if k.physical_keycode == KEY_SPACE:
 			_jump_key = k.pressed
+		if k.physical_keycode == KEY_Q and not k.echo:
+			_guard_key = k.pressed
 		if k.physical_keycode == KEY_J and not k.echo:
 			_light_key = k.pressed
 		if k.physical_keycode == KEY_K and not k.echo:
@@ -1273,11 +1346,123 @@ func _place_armory() -> void:
 ## verso lo spawn (D-054); altrimenti tre di paglia davanti al giocatore.
 func _place_dummies() -> void:
 	if Arena.has(world):
+		# D-058: nell'arena c'e' il nemico vero al posto del manichino.
 		_dummies.setup(world)
-		var p := Vector3(world.arena.x + 0.5, world.arena.y, world.arena.z - 4.5)
-		_dummies.add_dummy(p, true, PI)
 	else:
 		_dummies.place_around(motor.position, _avatar.facing)
+
+
+## Scontro nell'arena (D-058): nei mondi con l'arena c'e' sempre un nemico.
+func _setup_duel() -> void:
+	if not Arena.has(world):
+		if enemy != null:
+			enemy.queue_free()
+			enemy = null
+		duel = null
+		if _duel_hud != null:
+			_duel_hud.visible = false
+		return
+	if enemy == null:
+		enemy = Fighter.new()
+		enemy.name = "Enemy"
+		_view.add_child(enemy)
+	enemy.setup(world, _objects, TrainingGround.sparring_recipe(), catalog)
+	duel = ArenaDuel.new(world.arena, world.world_seed)
+	_duel_hud.visible = not _args.has("screenshot")
+	_next_round()
+
+
+func _duel_on() -> bool:
+	return duel != null and enemy != null and duel.active()
+
+
+## Round nuovo: vita piena, giocatore a sud e nemico a nord del centro.
+func _next_round() -> void:
+	duel.start_round(WEAPONS)
+	var c := duel.center
+	enemy.set_weapon(duel.enemy_weapon)
+	enemy.place(Vector3(c.x, c.y, c.z - 5.0), PI)
+	enemy.ai = FighterAI.new(duel.level, world.world_seed + duel.round_n * 101)
+	player_body.reset()
+	combat.cancel()
+	combat.release_guard()
+	combat.posture = 0.0
+	combat.forget_targets()
+	lock.clear()
+	magic.clear()
+	motor.place_at(Vector3(c.x, c.y, c.z + 5.0))
+	_avatar.position = motor.position
+	_avatar.facing = 0.0
+	_avatar.rotation.y = 0.0
+
+
+func _step_duel(dt: float) -> void:
+	if duel == null or enemy == null:
+		return
+	enemy.step(dt, player_body, combat, magic.shots, duel.center, duel.half, duel.active())
+	_handle_enemy_events()
+	_push_out_of_enemy()
+	for e in player_body.events:
+		match String(e["type"]):
+			"damage":
+				_texts.spawn((e["p"] as Vector3) + Vector3(randf_range(-0.2, 0.2), 0.5, 0), str(roundi(float(e["damage"]))), Color(1.0, 0.35, 0.3), 30)
+				_camera_rig.shake(0.18)
+			"parry":
+				_texts.spawn((e["p"] as Vector3) + Vector3(0, 0.7, 0), "PARATA!", GamePalette.ACCENT, 34)
+			"block":
+				_texts.spawn((e["p"] as Vector3) + Vector3(0, 0.6, 0), "parato", Color(0.8, 0.85, 0.9), 22)
+	player_body.events.clear()
+	for e in enemy.body.events:
+		match String(e["type"]):
+			"damage":
+				_texts.spawn((e["p"] as Vector3) + Vector3(randf_range(-0.2, 0.2), 0.5, 0), str(roundi(float(e["damage"]))), Color(1.0, 0.95, 0.8), 28)
+			"parry":
+				_texts.spawn((e["p"] as Vector3) + Vector3(0, 0.7, 0), "PARATA!", Color(1.0, 0.5, 0.4), 30)
+	enemy.body.events.clear()
+	match duel.step(dt, player_body, motor.on_ground, enemy.body, enemy.motor.on_ground):
+		"fight":
+			# Lock automatico sul rivale: col telefono e' la cosa piu' comoda.
+			if not lock.active():
+				lock.toggle(motor.position, _avatar.facing, [enemy.body])
+		"win", "lose":
+			lock.clear()
+		"next":
+			_next_round()
+
+
+func _handle_enemy_events() -> void:
+	for e in enemy.events:
+		match String(e["type"]):
+			"hit":
+				fx.hit(e)
+				_camera_rig.shake(float(e["shake"]) * 0.7)
+			"impact":
+				fx.impact(e)
+				_camera_rig.shake((e["attack"] as AttackDefinition).shake * 0.6)
+			"dodge":
+				fx.dodge(enemy.motor.position, enemy.combat.dodge_dir)
+			"blocked":
+				fx.clash(e["position"], false)
+			"parried_by":
+				fx.clash(e["position"], true)
+				_camera_rig.shake(0.3)
+			"blast":
+				_camera_rig.shake(float(e["shake"]) * 0.7)
+	enemy.events.clear()
+
+
+func _update_duel_hud() -> void:
+	if duel == null or enemy == null or _duel_hud == null:
+		return
+	_duel_hud.player_hp = player_body.hp / player_body.max_hp
+	_duel_hud.enemy_hp = enemy.body.hp / enemy.body.max_hp
+	_duel_hud.player_posture = combat.posture / CombatController.POSTURE_MAX
+	_duel_hud.enemy_posture = enemy.combat.posture / CombatController.POSTURE_MAX
+	_duel_hud.enemy_name = "%s, livello %d" % [ArenaDuel._weapon_name(duel.enemy_weapon), duel.level + 1]
+	_duel_hud.score = "Round %d   ·   Tu %d - %d Avversario" % [duel.round_n, duel.wins, duel.losses]
+	_duel_hud.banner = duel.banner
+	_duel_hud.banner_sub = duel.banner_sub
+	_duel_hud.queue_redraw()
 
 
 ## Apre l'interfaccia dell'oggetto toccato.

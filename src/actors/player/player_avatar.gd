@@ -102,8 +102,10 @@ func animate(dt: float, motor: PlayerMotor, combat: CombatController) -> void:
 	s.u = combat.phase_u()
 	s.charge = combat.charge_fraction() if combat.charging else -1.0
 	s.dodge = combat.dodge_u()
+	s.guard = combat.guarding()
+	s.stun = combat.stun_u()
 	# Guardia o riposo, e cambio d'arma.
-	var busy := s.attack != null or s.dodge >= 0.0 or combat.combo > 0
+	var busy := s.attack != null or s.dodge >= 0.0 or combat.combo > 0 or s.guard or s.stun >= 0.0
 	if busy:
 		aware_t = 2.5
 	else:
@@ -125,7 +127,7 @@ func animate(dt: float, motor: PlayerMotor, combat: CombatController) -> void:
 		s.reach = 1.0 - absf(_swap_t - half) / half
 		if _swap_t >= SWAP_TIME:
 			_swap_t = -1.0
-	if s.dodge >= 0.0 or s.attack != null:
+	if s.dodge >= 0.0 or s.attack != null or s.stun >= 0.0:
 		s.speed = 0.0 if s.attack != null else s.speed * 0.2
 	if dt > 0.0:
 		# Passo procedurale: piedi nel mondo, poi la posa dell'animatore sopra.

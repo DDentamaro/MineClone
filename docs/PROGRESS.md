@@ -1,5 +1,14 @@
 # Avanzamento
 
+## 05/10/2026 — D-058: nemico con l'IA, parata, scontro nell'arena di Cell
+
+### Test realmente eseguiti (D-058)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 207/207 PASS. Nuovi (`test_duel.gd`): parata perfetta, guardia tenuta, colpo alle spalle, guardia rotta, capriola, carica interrotta, IA contro IA con tre coppie di armi (tutti e due attaccano, colpiscono e si difendono). Aggiornato: nell'arena c'e' il nemico al posto del manichino |
+| `tools/duel_preview.gd` (nuovo) | Nel gioco: 16 s, un round perso e uno vinto, al round 2. Corretti: lista dei bersagli tipizzata (il nemico non ci entrava), tinta arancio fissa sui personaggi |
+| Export Android debug 0.36.0-m5 (versionCode 38) + `apksigner verify` + `aapt2 dump badging` | OK; non provato sul telefono |
+
 ## 03/10/2026 — D-057: fuoco leggibile sul telefono
 
 Colori saturi (mai bianco), cerchio arancio, grani piu' grandi.

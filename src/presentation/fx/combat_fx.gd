@@ -72,6 +72,22 @@ func broke(d: TrainingDummy) -> void:
 		_g(c, _rand_dir() * 2.0 + Vector3(0, 1.5, 0), "smoke", 1, _rng.randf_range(0.6, 1.0), 0.09, -0.5, 2.5, 0.8)
 
 
+## Lama contro lama (D-058): scintille bianche e dorate; la parata perfetta
+## ne fa di piu' e un anello.
+func clash(p: Vector3, perfect: bool) -> void:
+	var n := 30 if perfect else 14
+	for i in n:
+		var v := _rand_dir() * _rng.randf_range(2.0, 6.0 if perfect else 4.0) + Vector3(0, 1.5, 0)
+		var g := _g(p, v, "air" if i % 3 == 0 else "fire", 0, _rng.randf_range(0.12, 0.3), 0.03, 9.0, 2.0)
+		if g != null:
+			g.length = 0.08
+	if perfect:
+		for i in 20:
+			var a := TAU * i / 20.0
+			var d := Vector3(cos(a), sin(a) * 0.6, sin(a) * 0.8).normalized()
+			_g(p + d * 0.1, d * 3.5, "fire", 0, 0.22, 0.025, 0.0, 3.0)
+
+
 func dodge(p: Vector3, dir: Vector2) -> void:
 	for i in 8:
 		var v := Vector3(-dir.x, 0, -dir.y) * _rng.randf_range(1.0, 2.5) + _rand_dir() * 0.8 + Vector3(0, 0.8, 0)

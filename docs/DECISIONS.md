@@ -1057,3 +1057,30 @@ sembrava una mesh, non fatto di particelle.
 - Grani 1,5 volte piu' grandi, perche' si leggano anche nella vista isometrica del telefono.
   Nel fungo dell'esplosione i grani sono piu' piccoli e crescono al massimo di 1,6 volte.
 
+## D-058 — Nemico con l'IA, parata e scontro nell'arena di Cell
+Richiesta del proprietario: un nemico con l'IA che puo' fare tutte le azioni del giocatore, una
+meccanica di parata, e lo scontro nell'arena di Cell.
+- Parata (`CombatController`, stati `GUARD` e `STUN`): "Para" tenuto (tasto touch sopra il Lock,
+  Q da tastiera) alza la guardia: passo lento, i colpi da davanti (entro 80 gradi per lato) sono
+  parati, passa il 15% del danno e cala la postura (60 di danno parato rompono la guardia: 1,1 s
+  stordito). Para premuto entro 0,2 s dall'arrivo del colpo = parata perfetta: nessun danno,
+  l'attaccante resta stordito 0,9 s e il primo colpo di risposta entro 1,2 s fa il 60% in piu'.
+  Una nuova pressione ridà la finestra solo dopo 0,4 s dal rilascio (niente parate a raffica).
+  Colpi a terra e picchiate si parano ma non all'ultimo istante; la magia si para, la
+  bruciatura passa. Para annulla il rientro o l'inizio della carica come la schivata.
+- Reazione ai colpi: un colpo forte (14+ di danno o spinta forte) stordisce sempre; uno leggero
+  interrompe chi carica e fa barcollare chi e' fermo; chi e' gia' nel fendente non si interrompe.
+- `CombatTarget.receive_hit` con l'esito (preso, parato, parata perfetta, schivato);
+  `FighterBody`: vita e difesa di chi combatte, per il giocatore e per il nemico.
+- `Fighter`: il nemico usa gli stessi pezzi del giocatore (motore, controller dei colpi, avatar,
+  magia del bastone) guidati da `FighterAI`, che preme gli stessi tasti: catene, forti caricati,
+  capriola e colpo in corsa, salto e colpo dall'alto, guardia, parata perfetta, dardi e palla di
+  fuoco col bastone. Vede il colpo che il giocatore prepara con un ritardo di reazione, i
+  proiettili in arrivo e il bordo del ring; punisce chi e' stordito; vicino al bordo usa il forte
+  per spingere fuori. Quattro livelli (reazione da 0,34 a 0,16 s, parata perfetta dal 10% al 45%).
+- `ArenaDuel`: round con conto alla rovescia, K.O. o uscita dal ring (toccare la terra fuori dal
+  marmo) come nel torneo di Cell; arma del nemico a caso fra le sei; vincendo il nemico sale di
+  livello. Lock automatico sul nemico all'inizio dello scontro. `DuelHud`: vita e guardia in alto a
+  sinistra, punteggio, scritte al centro. Nell'arena il manichino a forma di personaggio e'
+  sostituito dal nemico.
+

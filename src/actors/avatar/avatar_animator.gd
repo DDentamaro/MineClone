@@ -36,6 +36,9 @@ class State:
 	var reach := 0.0
 	## Scavo/abbattimento: fase del colpo ripetuto (in cicli), -1 se fermo.
 	var mine := -1.0
+	## Guardia alzata (D-058) e stordimento 0..1 (-1 se no).
+	var guard := false
+	var stun := -1.0
 
 
 var stride_phase := 0.0
@@ -202,6 +205,24 @@ func target_pose(dt: float, s: State) -> Dictionary:
 	# Colpo.
 	if s.attack != null:
 		_apply_attack(p, s)
+	# Guardia (D-058): l'arma di traverso davanti al petto, i pugni davanti al viso.
+	if s.guard and s.attack == null:
+		_apply_guard(p, s)
+	# Stordito: il corpo arretra, la testa va indietro, le braccia si aprono.
+	if s.stun >= 0.0:
+		var sk := sin(clampf(s.stun, 0.0, 1.0) * PI * 0.5 + PI * 0.5) * 0.6 + 0.4
+		sk *= 1.0 - _smooth((s.stun - 0.75) / 0.25)
+		var wob := sin(time * 18.0) * 4.0 * sk
+		p[&"body"] += d(18.0 * sk)
+		p[&"spine"] += d(10.0 * sk, wob)
+		p[&"head"] += d(-22.0 * sk, -wob)
+		p[&"arm_l"] = (p[&"arm_l"] as Vector3).lerp(d(-25, 0, -40), sk)
+		p[&"arm_r"] = (p[&"arm_r"] as Vector3).lerp(d(-15, 0, 40), sk)
+		p[&"fore_l"] = (p[&"fore_l"] as Vector3).lerp(d(20), sk)
+		p[&"fore_r"] = (p[&"fore_r"] as Vector3).lerp(d(25), sk)
+		p[&"leg_l"] += d(-12.0 * sk)
+		p[&"leg_r"] += d(20.0 * sk)
+		p[&"shin_r"] += d(-25.0 * sk)
 
 	# Scavo: colpi ripetuti dall'alto (carica lenta, colpo secco, piccolo rimbalzo).
 	if s.mine >= 0.0:
@@ -291,6 +312,32 @@ func _apply_attack(p: Dictionary, s: State) -> void:
 	# Giro del corpo.
 	if at.spin != 0.0 and s.phase == 1:
 		p[&"body"] += Vector3(0, deg_to_rad(at.spin) * _smooth(u), 0)
+
+
+func _apply_guard(p: Dictionary, s: State) -> void:
+	var kind := s.weapon.kind if s.weapon != null else WeaponDefinition.Kind.FISTS
+	if kind == WeaponDefinition.Kind.FISTS:
+		p[&"arm_l"] = d(72, 28, -8)
+		p[&"fore_l"] = d(118)
+		p[&"arm_r"] = d(72, -28, 8)
+		p[&"fore_r"] = d(118)
+		p[&"hand_r"] = d(0)
+		p[&"chest"] += d(-6, -8)
+		p[&"head"] += d(8, 6)
+	else:
+		# Arma alzata di traverso, la sinistra sostiene la lama o l'asta.
+		p[&"arm_r"] = d(62, -48, 10)
+		p[&"fore_r"] = d(58)
+		p[&"hand_r"] = d(-12, 0, 72)
+		p[&"arm_l"] = d(66, 34, -12)
+		p[&"fore_l"] = d(78)
+		p[&"chest"] += d(-4, -14)
+		p[&"head"] += d(6, 10)
+	p[&"leg_l"] += d(10)
+	p[&"leg_r"] += d(-14)
+	p[&"shin_l"] += d(-16)
+	p[&"shin_r"] += d(-10)
+	p[&"body_pos"] += Vector3(0, -0.05, 0)
 
 
 static func _smooth(x: float) -> float:
