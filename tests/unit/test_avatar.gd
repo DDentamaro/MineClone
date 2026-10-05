@@ -196,3 +196,23 @@ func test_capelli_sotto_l_elmo() -> void:
 		n += 1 if p["name"] == "capelli" else 0
 	check(n > 0, "senza elmo i capelli ci sono")
 
+
+
+func test_armature_modulari() -> void:
+	# D-065: un set e' una lista di moduli; i moduli si mescolano per nome.
+	check_eq(Array(ArmorKit.modules_for("chest", "iron")).size(), 6, "busto di ferro in sei moduli")
+	check(ArmorKit.knows("head", "chain"), "set di maglia")
+	var mix := ArmorKit.boxes("chest", Color(0.6, 0.6, 0.6), "iron_cuirass+leather_bracers@leather")
+	var mats := {}
+	for b: Array in mix:
+		mats[snappedf((b[5] as Color).a, 0.01)] = true
+	check(mats.has(ArmorKit.PLATE) and mats.has(ArmorKit.LEATHER) and mats.has(ArmorKit.BRASS), "piastra, cuoio e ottone: %s" % [mats.keys()])
+	# Il ferro di prima e' lo stesso, ma diviso in moduli.
+	check_eq(ArmorKit.boxes("chest", Color(0.6, 0.6, 0.6), "iron").size(), IronArmor.boxes("chest", Color(0.6, 0.6, 0.6)).size(), "stessi pezzi del set di ferro")
+	var rig := AvatarRig.new()
+	rig.sync_ao = true
+	rig.build(AvatarRecipe.new())
+	var c := ArmorKit.PALETTE["mail"]
+	rig.set_armor_all({"head": c, "chest": c, "legs": c, "feet": c}, {"head": "chain", "chest": "chain", "legs": "chain", "feet": "chain"})
+	check(rig._armor.size() == 4, "maglia indossata")
+	rig.free()

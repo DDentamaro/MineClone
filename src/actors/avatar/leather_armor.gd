@@ -109,6 +109,15 @@ static func _hood(out: Array, mat: Color, dark: Color) -> void:
 # ---------------------------------------------------------------- busto, spalle e braccia
 
 static func _jerkin(out: Array, mat: Color, dark: Color, lite: Color) -> void:
+	jerkin(out, mat, dark, lite)
+	sleeves(out, mat, dark, lite)
+	pauldrons(out, mat, dark, lite)
+	bracers(out, mat, dark, lite)
+
+
+## Moduli (D-065), combinabili con quelli degli altri set (`ArmorKit`).
+## Giubba imbottita con colletto, falda e cinghie incrociate.
+static func jerkin(out: Array, mat: Color, dark: Color, lite: Color) -> void:
 	var T: Dictionary = HeroChargen.BODY["torso"]
 	var tmin: Vector3 = T["min"]
 	var tmax: Vector3 = T["max"]
@@ -131,6 +140,10 @@ static func _jerkin(out: Array, mat: Color, dark: Color, lite: Color) -> void:
 		_b(out, "cinghia", "torso", Vector3(-.065, .74, tmin.z - .12), Vector3(.065, 1.56, tmin.z - .06), .02, dark, HeroChargen.rot_t(2, a, piv))
 	_b(out, "fibbia", "torso", Vector3(-.11, 1.04, tmax.z + .10), Vector3(.11, 1.26, tmax.z + .15), .02, BRASS, HeroChargen.rot_t(2, PI / 4, Vector3(0, 1.15, 0)))
 	_b(out, "fibbia", "torso", Vector3(-.055, 1.095, tmax.z + .13), Vector3(.055, 1.205, tmax.z + .165), .01, dark, HeroChargen.rot_t(2, PI / 4, Vector3(0, 1.15, 0)))
+
+
+## Maniche fino al gomito.
+static func sleeves(out: Array, mat: Color, dark: Color, lite: Color) -> void:
 	var A: Dictionary = HeroChargen.BODY["arm"]
 	var ay: Array = A["y"]
 	var az: Array = A["z"]
@@ -141,6 +154,17 @@ static func _jerkin(out: Array, mat: Color, dark: Color, lite: Color) -> void:
 		# Manica fino al gomito.
 		var mx: Vector2 = X.call(.52, .97)
 		_b(out, "manica", "arm" + m + "U", Vector3(mx.x, ay[0] - .04, az[0] - .04), Vector3(mx.y, ay[1] + .04, az[1] + .04), .10, mat)
+
+
+## Spallacci a due lamelle col bordo cucito.
+static func pauldrons(out: Array, mat: Color, dark: Color, lite: Color) -> void:
+	var A: Dictionary = HeroChargen.BODY["arm"]
+	var ay: Array = A["y"]
+	var az: Array = A["z"]
+	for s in [1, -1]:
+		var m := "L" if s > 0 else "R"
+		var X := func(x0: float, x1: float) -> Vector2:
+			return Vector2(x0, x1) if s > 0 else Vector2(-x1, -x0)
 		# Spallacci a due lamelle con il bordo cucito.
 		var p1: Vector2 = X.call(.46, .82)
 		_b(out, "spallaccio", "arm" + m + "U", Vector3(p1.x, 1.42, az[0] - .10), Vector3(p1.y, 1.68, az[1] + .10), .08, mat)
@@ -148,6 +172,17 @@ static func _jerkin(out: Array, mat: Color, dark: Color, lite: Color) -> void:
 		_b(out, "spallaccio", "arm" + m + "U", Vector3(p2.x, 1.36, az[0] - .08), Vector3(p2.y, 1.62, az[1] + .08), .07, lite)
 		_stitch(out, "arm" + m + "U", Vector3(s * .66, 1.45, az[1] + .185), Vector3(s * .66, 1.63, az[1] + .185), 2)
 		_stitch(out, "arm" + m + "U", Vector3(s * .84, 1.40, az[1] + .165), Vector3(s * .84, 1.58, az[1] + .165), 2)
+
+
+## Bracciali scuri coi lacci incrociati.
+static func bracers(out: Array, mat: Color, dark: Color, lite: Color) -> void:
+	var A: Dictionary = HeroChargen.BODY["arm"]
+	var ay: Array = A["y"]
+	var az: Array = A["z"]
+	for s in [1, -1]:
+		var m := "L" if s > 0 else "R"
+		var X := func(x0: float, x1: float) -> Vector2:
+			return Vector2(x0, x1) if s > 0 else Vector2(-x1, -x0)
 		# Bracciale scuro sull'avambraccio con i lacci incrociati color crema.
 		var bx: Vector2 = X.call(.98, 1.20)
 		_b(out, "bracciale", "arm" + m + "F", Vector3(bx.x, ay[0] - .05, az[0] - .05), Vector3(bx.y, ay[1] + .05, az[1] + .05), .07, dark)
@@ -159,8 +194,13 @@ static func _jerkin(out: Array, mat: Color, dark: Color, lite: Color) -> void:
 # ---------------------------------------------------------------- gambe
 
 static func _legs(out: Array, mat: Color, dark: Color) -> void:
-	var L: Dictionary = HeroChargen.BODY["leg"]
-	var lz: Array = L["z"]
+	belt(out, mat, dark)
+	thighs(out, mat, dark)
+	knees(out, mat, dark)
+
+
+## Cintura bassa con la fibbia e il borsello sul fianco sinistro.
+static func belt(out: Array, mat: Color, dark: Color) -> void:
 	var T: Dictionary = HeroChargen.BODY["torso"]
 	var tmin: Vector3 = T["min"]
 	var tmax: Vector3 = T["max"]
@@ -170,6 +210,12 @@ static func _legs(out: Array, mat: Color, dark: Color) -> void:
 	_b(out, "fibbia", "torso", Vector3(-.05, .76, tmax.z + .10), Vector3(.05, .82, tmax.z + .13), .01, dark)
 	_b(out, "borsello", "torso", Vector3(.52, .58, -.16), Vector3(.68, .82, .14), .04, dark)
 	_b(out, "borsello", "torso", Vector3(.53, .74, -.17), Vector3(.69, .84, .15), .03, mat)
+
+
+## Cosciali con la cinghia scura e la fibbia.
+static func thighs(out: Array, mat: Color, dark: Color) -> void:
+	var L: Dictionary = HeroChargen.BODY["leg"]
+	var lz: Array = L["z"]
 	for s in [1, -1]:
 		var m := "L" if s > 0 else "R"
 		var lx: Array = L["x"] if s > 0 else [-L["x"][1], -L["x"][0]]
@@ -179,6 +225,15 @@ static func _legs(out: Array, mat: Color, dark: Color) -> void:
 		var cx := (float(lx[0]) + float(lx[1])) * .5
 		_b(out, "fibbia", "leg" + m + "U", Vector3(cx - .05, .53, lz[1] + .04), Vector3(cx + .05, .61, lz[1] + .07), .01, BRASS)
 		_stitch(out, "leg" + m + "U", Vector3(lx[1] + .035 if s > 0 else lx[0] - .025, .64, 0), Vector3(lx[1] + .035 if s > 0 else lx[0] - .025, .78, 0), 2)
+
+
+## Gambali sotto il ginocchio e ginocchiere imbottite.
+static func knees(out: Array, mat: Color, dark: Color) -> void:
+	var L: Dictionary = HeroChargen.BODY["leg"]
+	var lz: Array = L["z"]
+	for s in [1, -1]:
+		var m := "L" if s > 0 else "R"
+		var lx: Array = L["x"] if s > 0 else [-L["x"][1], -L["x"][0]]
 		# Pantalone sotto il ginocchio e ginocchiera imbottita (sullo stinco).
 		_b(out, "gambale", "leg" + m + "F", Vector3(lx[0] - .02, .28, lz[0] - .03), Vector3(lx[1] + .03, .46, lz[1] + .03), .08, mat)
 		_b(out, "ginocchiera", "leg" + m + "F", Vector3(lx[0] + .05, .30, lz[1]), Vector3(lx[1] - .04, .50, lz[1] + .09), .05, dark)

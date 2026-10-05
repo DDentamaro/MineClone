@@ -18,6 +18,8 @@ const SETS := {
 	"leather": [["casco", Color(0.55, 0.33, 0.19), "leather_cap", "leather"], ["cappuccio", Color(0.55, 0.33, 0.19), "leather_hood", "leather"]],
 	"iron": [["ferro", Color(0.56, 0.57, 0.59), "iron", "iron"]],
 	"none": [["senza", Color(0, 0, 0, 0), "", ""]],
+	"chain": [["maglia", Color(0.58, 0.59, 0.62), "chain", "chain"]],
+	"all": [["ferro", Color(0.56, 0.57, 0.59), "iron", "iron"], ["maglia", Color(0.58, 0.59, 0.62), "chain", "chain"], ["casco", Color(0.55, 0.33, 0.19), "leather_cap", "leather"]],
 }
 ## --weapon=sword (D-052): l'eroe impugna quell'arma invece dei pugni.
 var _weapon := &"fists"

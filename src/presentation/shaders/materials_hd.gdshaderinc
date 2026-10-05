@@ -144,7 +144,39 @@ vec3 hd_material(float tile, int face, vec2 sp, vec2 uv, vec3 wp, vec3 col, out 
 		c *= 0.95 + 0.08 * hash21(floor(sp * 40.0));
 		return c;
 	}
+	if (tile >= 5.0 && tile <= 8.0) {
+		// D-065: minerali nella pietra (rame, ferro, oro) e roccia madre.
+		vec3 c = mix(vec3(0.31, 0.30, 0.28), vec3(0.44, 0.41, 0.37), hd_fbm(sp * 1.4 + blk * 5.0));
+		if (tile == 8.0) c = mix(vec3(0.12, 0.12, 0.13), vec3(0.26, 0.25, 0.25), hd_fbm(sp * 2.2));
+		vec3 cr = hd_voronoi(sp * 2.6 + blk * 13.0);
+		c *= 1.0 - 0.30 * (1.0 - smoothstep(0.0, 0.03, cr.y));
+		if (tile < 8.0) {
+			vec3 nug = hd_voronoi(sp * 5.0 + blk * 7.0);
+			float on = step(0.55, nug.z) * (1.0 - smoothstep(0.16, 0.24, nug.x));
+			vec3 ore = tile == 5.0 ? mix(vec3(0.74, 0.40, 0.20), vec3(0.32, 0.62, 0.48), step(0.85, nug.z)) : (tile == 6.0 ? vec3(0.80, 0.66, 0.56) : vec3(0.98, 0.80, 0.26));
+			ore *= 0.85 + 0.3 * (1.0 - nug.x / 0.24);
+			c = mix(c, ore, on);
+		}
+		c *= 1.0 + (face == 3 ? -0.12 : 0.10) * hd_bevel(uv);
+		return c;
+	}
 	if (tile == 13.0) {
+		// D-065: arenaria a strati orizzontali (prima, per errore, tavole).
+		float ly = sp.y * (face == 2 ? 0.0 : 1.0);
+		float strata = vnoise(vec2(sp.x * 0.3, ly * 5.0 + vnoise(sp * 0.7) * 1.5));
+		vec3 c = mix(vec3(0.66, 0.54, 0.34), vec3(0.80, 0.68, 0.45), strata);
+		c *= 0.94 + 0.08 * hash21(floor(sp * 32.0));
+		if (face != 2) c *= 1.0 - 0.12 * (1.0 - smoothstep(0.0, 0.05, abs(fract(ly * 2.0 + vnoise(sp * 1.3) * 0.3) - 0.5) - 0.42));
+		c *= 1.0 + (face == 3 ? -0.10 : 0.08) * hd_bevel(uv);
+		return c;
+	}
+	if (tile == 12.0) {
+		// Foglie: grappoli scuri e chiari.
+		vec3 v = hd_voronoi(sp * 4.0 + blk * 3.0);
+		vec3 c = mix(vec3(0.17, 0.32, 0.10), vec3(0.32, 0.50, 0.16), v.z) * (1.0 - 0.35 * smoothstep(0.25, 0.6, v.x));
+		return c;
+	}
+	if (tile == 11.0) {
 		// Tavole: quattro per blocco, venatura lungo la tavola, fughe scure.
 		float pl = floor(sp.y * 4.0);
 		float k = hash21(vec2(pl, floor(sp.x * 0.5) + blk));
@@ -158,6 +190,16 @@ vec3 hd_material(float tile, int face, vec2 sp, vec2 uv, vec3 wp, vec3 col, out 
 		// Prato: il colore del bioma con ciuffi e chiazze a piena risoluzione.
 		float tuft = hash21(floor(sp * 28.0));
 		vec3 c = col * (0.90 + 0.14 * hd_fbm(sp * 1.3)) * (0.94 + 0.12 * tuft);
+		// D-065: macchie di trifoglio piu' scure e fiorellini sparsi.
+		float clover = smoothstep(0.58, 0.72, hd_fbm(sp * 0.35 + vec2(21.0, 4.0)));
+		c = mix(c, c * vec3(0.80, 0.92, 0.78), clover * 0.6);
+		vec2 fc = floor(sp * 10.0);
+		float fl = hash21(fc + vec2(9.0, 13.0));
+		vec2 ff = fract(sp * 10.0) - 0.5;
+		if (fl > 0.985 && dot(ff, ff) < 0.05) {
+			float k = hash21(fc + vec2(2.0, 7.0));
+			c = k < 0.4 ? vec3(0.95, 0.93, 0.85) : (k < 0.75 ? vec3(0.98, 0.82, 0.28) : vec3(0.78, 0.50, 0.85));
+		}
 		return c;
 	}
 	ok = false;

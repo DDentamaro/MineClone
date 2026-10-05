@@ -1,5 +1,11 @@
 # Avanzamento
 
+## 05/10/2026 — D-065: mondo fuori dall'arena, armature modulari
+
+- Oggetti di scena per bioma (`WorldDecor`), materiali nitidi per minerali, arenaria, foglie, prato.
+- Armature a moduli (`ArmorKit`), set di maglia e terzo espositore, texture per materiale negli attori.
+- Test eseguiti: suite completa 213/213. Non provato sul telefono.
+
 ## 05/10/2026 — D-064: niente sfocatura, risoluzione nativa
 
 - Predefinita la risoluzione nativa (un pixel per pixel, senza filtro); glow senza bloom diffuso.

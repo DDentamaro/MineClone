@@ -352,10 +352,18 @@ func set_armor_all(colors: Dictionary, styles: Dictionary = {}) -> void:
 ## Pezzi d'armatura nelle unita' del modello CHARGEN: [nome, osso, min, max,
 ## raggio, colore] e, facoltativo, una deformazione (`HeroChargen.rot_t`).
 static func armor_boxes_for(slot: String, mat: Color, style: String = "") -> Array:
-	if style.begins_with("leather"):
-		return LeatherArmor.boxes(slot, mat, style)
-	if style == "iron":
-		return IronArmor.boxes(slot, mat)
+	# D-065: set e liste di moduli (`ArmorKit`), col materiale nei colori.
+	if ArmorKit.knows(slot, style):
+		return ArmorKit.boxes(slot, mat, style)
+	var out := _legacy_boxes(slot, mat)
+	for b: Array in out:
+		var c: Color = b[5]
+		b[5] = Color(c.r, c.g, c.b, ArmorKit.PLATE)
+	return out
+
+
+## Pezzi in metallo del D-030 (rame e oro).
+static func _legacy_boxes(slot: String, mat: Color) -> Array:
 	var out := []
 	var band := mat.darkened(0.3)
 	var hi := mat.lightened(0.18)

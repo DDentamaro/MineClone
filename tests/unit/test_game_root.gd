@@ -74,7 +74,7 @@ func test_avvio_allo_spawn() -> void:
 		check_eq(o.inv.total_items(), WorldObjects.ARMORY_ITEMS.size(), "armeria piena")
 		check_eq(o.shown.size(), 5, "le cinque armi esposte (col bastone), ben separate")
 	var stands := g._objects.list.filter(func(o: WorldObjects.Obj) -> bool: return o.type == "armor_stand")
-	check_eq(stands.size(), 2, "espositori del cuoio e del ferro")
+	check_eq(stands.size(), 3, "espositori del cuoio, del ferro e della maglia")
 	for st: WorldObjects.Obj in stands:
 		check(st.rig != null, "manichino sull'espositore")
 		check(st.inv.total_items() >= 4, "set completo sull'espositore")

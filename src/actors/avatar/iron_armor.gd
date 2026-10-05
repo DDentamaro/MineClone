@@ -73,6 +73,17 @@ static func _helm(out: Array, mat: Color, dark: Color) -> void:
 # ---------------------------------------------------------------- busto, spalle e braccia
 
 static func _cuirass(out: Array, mat: Color, dark: Color) -> void:
+	cuirass(out, mat, dark)
+	sleeves(out, mat, dark)
+	pauldrons(out, mat, dark)
+	couters(out, mat, dark)
+	vambraces(out, mat, dark)
+	gauntlets(out, mat, dark)
+
+
+## Moduli (D-065): ogni pezzo si puo' combinare con quelli degli altri set
+## (`ArmorKit`).
+static func cuirass(out: Array, mat: Color, dark: Color) -> void:
 	var T: Dictionary = HeroChargen.BODY["torso"]
 	var tmin: Vector3 = T["min"]
 	var tmax: Vector3 = T["max"]
@@ -87,6 +98,10 @@ static func _cuirass(out: Array, mat: Color, dark: Color) -> void:
 		_b(out, "bordo", "torso", Vector3(px - .25, 1.33, tmax.z + .08), Vector3(px + .25, 1.39, tmax.z + .12), .01, BRASS, HeroChargen.rot_t(2, a, piv))
 		_b(out, "bordo", "torso", Vector3(px - .25, 1.33, tmin.z - .12), Vector3(px + .25, 1.39, tmin.z - .08), .01, BRASS, HeroChargen.rot_t(2, a, piv))
 	_b(out, "bordo", "torso", Vector3(tmin.x - .07, .84, tmin.z - .07), Vector3(tmax.x + .07, .90, tmax.z + .10), .02, BRASS)
+
+
+## Per ogni lato: (osso, X(x0, x1) -> intervallo sul lato, ay, az, segno).
+static func _sides(f: Callable) -> void:
 	var A: Dictionary = HeroChargen.BODY["arm"]
 	var ay: Array = A["y"]
 	var az: Array = A["z"]
@@ -94,44 +109,77 @@ static func _cuirass(out: Array, mat: Color, dark: Color) -> void:
 		var m := "L" if s > 0 else "R"
 		var X := func(x0: float, x1: float) -> Vector2:
 			return Vector2(x0, x1) if s > 0 else Vector2(-x1, -x0)
-		# Manica di cuoio sotto le piastre.
+		f.call(m, X, ay, az, s)
+
+
+## Maniche di cuoio sotto le piastre (colore del cuoio, non del metallo).
+static func sleeves(out: Array, _mat: Color, _dark: Color, col: Color = BROWN) -> void:
+	_sides(func(m: String, X: Callable, ay: Array, az: Array, _s: int) -> void:
 		var mx: Vector2 = X.call(.52, .97)
-		_b(out, "manica", "arm" + m + "U", Vector3(mx.x, ay[0] - .03, az[0] - .03), Vector3(mx.y, ay[1] + .03, az[1] + .03), .10, BROWN)
-		# Spallaccio tondo e grande, con la lamella sotto e la borchia.
+		_b(out, "manica", "arm" + m + "U", Vector3(mx.x, ay[0] - .03, az[0] - .03), Vector3(mx.y, ay[1] + .03, az[1] + .03), .10, col))
+
+
+## Spallacci tondi e grandi, con la lamella sotto e la borchia.
+static func pauldrons(out: Array, mat: Color, dark: Color) -> void:
+	_sides(func(m: String, X: Callable, _ay: Array, az: Array, _s: int) -> void:
 		var p1: Vector2 = X.call(.42, .88)
 		_b(out, "spallaccio", "arm" + m + "U", Vector3(p1.x, 1.30, az[0] - .14), Vector3(p1.y, 1.76, az[1] + .14), .18, mat)
 		var p2: Vector2 = X.call(.66, .96)
 		_b(out, "spallaccio", "arm" + m + "U", Vector3(p2.x, 1.22, az[0] - .10), Vector3(p2.y, 1.36, az[1] + .10), .05, dark)
 		var bx: Vector2 = X.call(.62, .70)
-		_b(out, "borchia", "arm" + m + "U", Vector3(bx.x, 1.50, az[1] + .13), Vector3(bx.y, 1.58, az[1] + .17), .01, dark)
-		# Cubitiera sul gomito.
+		_b(out, "borchia", "arm" + m + "U", Vector3(bx.x, 1.50, az[1] + .13), Vector3(bx.y, 1.58, az[1] + .17), .01, dark))
+
+
+## Cubitiere sui gomiti.
+static func couters(out: Array, _mat: Color, dark: Color) -> void:
+	_sides(func(m: String, X: Callable, ay: Array, az: Array, _s: int) -> void:
 		var cx: Vector2 = X.call(.86, .99)
-		_b(out, "cubitiera", "arm" + m + "U", Vector3(cx.x, ay[0] - .06, az[0] - .06), Vector3(cx.y, ay[1] + .06, az[1] + .06), .06, dark)
-		# Bracciale di ferro con due fasce scure e guanto di ferro.
+		_b(out, "cubitiera", "arm" + m + "U", Vector3(cx.x, ay[0] - .06, az[0] - .06), Vector3(cx.y, ay[1] + .06, az[1] + .06), .06, dark))
+
+
+## Bracciali di ferro con due fasce scure.
+static func vambraces(out: Array, mat: Color, dark: Color) -> void:
+	_sides(func(m: String, X: Callable, ay: Array, az: Array, _s: int) -> void:
 		var vx: Vector2 = X.call(.98, 1.20)
 		_b(out, "bracciale", "arm" + m + "F", Vector3(vx.x, ay[0] - .05, az[0] - .05), Vector3(vx.y, ay[1] + .05, az[1] + .05), .07, mat)
 		for xx in [1.01, 1.15]:
 			var fx: Vector2 = X.call(xx, xx + .04)
-			_b(out, "fascia", "arm" + m + "F", Vector3(fx.x, ay[0] - .065, az[0] - .065), Vector3(fx.y, ay[1] + .065, az[1] + .065), .02, dark)
+			_b(out, "fascia", "arm" + m + "F", Vector3(fx.x, ay[0] - .065, az[0] - .065), Vector3(fx.y, ay[1] + .065, az[1] + .065), .02, dark))
+
+
+## Guanti di ferro con la nocca scura.
+static func gauntlets(out: Array, mat: Color, dark: Color) -> void:
+	_sides(func(m: String, X: Callable, ay: Array, az: Array, _s: int) -> void:
 		var gx: Vector2 = X.call(1.19, 1.48)
 		_b(out, "guanto", "arm" + m + "F", Vector3(gx.x, ay[0] - .04, az[0] - .04), Vector3(gx.y, ay[1] + .04, az[1] + .04), .08, mat)
 		var kx: Vector2 = X.call(1.30, 1.36)
-		_b(out, "guanto", "arm" + m + "F", Vector3(kx.x, ay[0] - .05, az[0] - .05), Vector3(kx.y, ay[1] + .05, az[1] + .05), .02, dark)
+		_b(out, "guanto", "arm" + m + "F", Vector3(kx.x, ay[0] - .05, az[0] - .05), Vector3(kx.y, ay[1] + .05, az[1] + .05), .02, dark))
 
 
 # ---------------------------------------------------------------- gambe
 
 static func _legs(out: Array, mat: Color, dark: Color) -> void:
-	var L: Dictionary = HeroChargen.BODY["leg"]
-	var lz: Array = L["z"]
+	belt(out, mat, dark)
+	tassets(out, mat, dark)
+	cuisses(out, mat, dark)
+	greaves(out, mat, dark)
+
+
+## Cintura di cuoio col fibbione d'ottone.
+static func belt(out: Array, _mat: Color, _dark: Color) -> void:
 	var T: Dictionary = HeroChargen.BODY["torso"]
 	var tmin: Vector3 = T["min"]
 	var tmax: Vector3 = T["max"]
-	# Cintura di cuoio col fibbione d'ottone.
 	_b(out, "cintura", "torso", Vector3(tmin.x - .08, .74, tmin.z - .08), Vector3(tmax.x + .08, .84, tmax.z + .10), .03, BROWN)
 	_b(out, "fibbia", "torso", Vector3(-.11, .72, tmax.z + .09), Vector3(.11, .86, tmax.z + .14), .02, BRASS)
 	_b(out, "fibbia", "torso", Vector3(-.06, .76, tmax.z + .12), Vector3(.06, .82, tmax.z + .15), .01, BROWN)
-	# Scarselle: due piastre davanti, una per lato, una dietro, con le borchie.
+
+
+## Scarselle: due piastre davanti, una per lato, una dietro, con le borchie.
+static func tassets(out: Array, mat: Color, dark: Color) -> void:
+	var T: Dictionary = HeroChargen.BODY["torso"]
+	var tmin: Vector3 = T["min"]
+	var tmax: Vector3 = T["max"]
 	for s in [1, -1]:
 		var x0 := .04 if s > 0 else -.56
 		var x1 := .56 if s > 0 else -.04
@@ -141,14 +189,27 @@ static func _legs(out: Array, mat: Color, dark: Color) -> void:
 		var sx1 := .66 if s > 0 else -.56
 		_b(out, "scarsella", "torso", Vector3(sx0, .58, -.30), Vector3(sx1, .78, .20), .04, mat)
 	_b(out, "scarsella", "torso", Vector3(-.56, .58, tmin.z - .12), Vector3(.56, .78, tmin.z - .02), .04, mat)
+
+
+## Cosciali (di cuoio col set di ferro) con la cinghia.
+static func cuisses(out: Array, _mat: Color, _dark: Color, col: Color = BROWN) -> void:
+	var L: Dictionary = HeroChargen.BODY["leg"]
+	var lz: Array = L["z"]
+	for s in [1, -1]:
+		var m := "L" if s > 0 else "R"
+		var lx: Array = L["x"] if s > 0 else [-L["x"][1], -L["x"][0]]
+		_b(out, "cosciale", "leg" + m + "U", Vector3(lx[0] - .02, .40, lz[0] - .03), Vector3(lx[1] + .03, .86, lz[1] + .03), .09, col)
+		_b(out, "cinghia", "leg" + m + "U", Vector3(lx[0] - .03, .50, lz[0] - .04), Vector3(lx[1] + .04, .55, lz[1] + .04), .02, BROWN.darkened(0.35))
+
+
+## Schinieri e ginocchiere a punta (un rombo davanti).
+static func greaves(out: Array, mat: Color, dark: Color) -> void:
+	var L: Dictionary = HeroChargen.BODY["leg"]
+	var lz: Array = L["z"]
 	for s in [1, -1]:
 		var m := "L" if s > 0 else "R"
 		var lx: Array = L["x"] if s > 0 else [-L["x"][1], -L["x"][0]]
 		var cx := (float(lx[0]) + float(lx[1])) * .5
-		# Cosciale di cuoio con la cinghia.
-		_b(out, "cosciale", "leg" + m + "U", Vector3(lx[0] - .02, .40, lz[0] - .03), Vector3(lx[1] + .03, .86, lz[1] + .03), .09, BROWN)
-		_b(out, "cinghia", "leg" + m + "U", Vector3(lx[0] - .03, .50, lz[0] - .04), Vector3(lx[1] + .04, .55, lz[1] + .04), .02, BROWN.darkened(0.35))
-		# Schiniere e ginocchiera a punta (un rombo davanti).
 		_b(out, "schiniere", "leg" + m + "F", Vector3(lx[0] - .02, .26, lz[0] - .03), Vector3(lx[1] + .03, .46, lz[1] + .05), .07, mat)
 		var c := Vector3(cx, .40, lz[1] + .08)
 		_b(out, "ginocchiera", "leg" + m + "F", c - Vector3(.12, .12, .05), c + Vector3(.12, .12, .05), .03, mat, HeroChargen.rot_t(2, PI / 4, c))

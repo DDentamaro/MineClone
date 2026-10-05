@@ -98,6 +98,9 @@ vec3 rustic_light_m(vec3 n, float sun, float blk, vec3 wp, vec3 S, float bands, 
 	} else if (paint_mode > 0.5) { float d = band * smoothstep(0.12, 0.58, sun) * wsh * cloud_shadow(wp); d = floor(d * bands + 0.5) / bands; band = d; sh = 1.0; }
 	vec3 amb = ambient_color * (mix(0.35, 0.55, night) + mix(0.65, 0.45, night) * pow(sun, 1.35));
 	if (paint_mode > 0.5) amb *= S / 0.40 * mix(1.0, 0.85, night);
+	// D-065: nella resa nitida l'ombra resta fresca ma meno tinta (il ferro e la
+	// pietra in ombra diventavano blu) e piu' chiara (sotto il bosco era nera).
+	if (paint_mode > 0.5 && look_hd > 0.5) { float ga = dot(amb, vec3(0.333)); amb = mix(vec3(ga), amb, 0.35) * 1.22; }
 	float rim = pow(1.0 - max(dot(N, normalize(view_dir)), 0.0), 2.5) * night * pow(sun, 0.8);
 	vec3 l = amb + sun_color * (sun_intensity * band * sh) + vec3(0.30, 0.40, 0.62) * rim * 0.35 + vec3(1.0, 0.72, 0.42) * pow(blk, 1.4) * 0.95;
 	if (paint_mode > 0.5) l = min(l, vec3(1.12));

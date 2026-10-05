@@ -94,6 +94,9 @@ static func _build() -> void:
 				if t["key"] == "iron":
 					d.armor_style = "iron"
 					d.armor_color = Color(0.60, 0.61, 0.64)
+				# D-065: l'oro e' la stessa armatura a piastre, dorata.
+				elif t["key"] == "gold":
+					d.armor_style = "iron"
 	# D-054: armatura di cuoio, leggera (difesa al 70% del rame), due copricapo.
 	for a: Array in [[&"head_leather", "Casco di cuoio", "head", "leather_cap"], [&"head_leather_hood", "Cappuccio di cuoio", "head", "leather_hood"],
 			[&"chest_leather", "Giubba di cuoio", "chest", "leather"], [&"legs_leather", "Gambali di cuoio", "legs", "leather"],
@@ -105,6 +108,16 @@ static func _build() -> void:
 		d.material = "leather"
 		d.armor_style = a[3]
 		d.armor_color = LEATHER
+	# D-065: armatura di maglia (moduli di ArmorKit), fra il cuoio e il ferro.
+	for a: Array in [[&"head_chain", "Elmo a nasale con camaglio", "head"], [&"chest_chain", "Cotta di maglia", "chest"],
+			[&"legs_chain", "Calze di maglia", "legs"], [&"feet_chain", "Stivali col puntale", "feet"]]:
+		var d := _mk(a[0], a[1], ItemDefinition.Kind.ARMOR, ArmorKit.PALETTE["mail"], String(a[1]).substr(0, 2))
+		d.slot = a[2]
+		d.tier = 3
+		d.defense = snappedf(float(ARMOR[a[2]][1]) * 1.3, 0.1)
+		d.material = "iron"
+		d.armor_style = "chain"
+		d.armor_color = ArmorKit.PALETTE["mail"]
 	for st in [[&"workbench", "Banco da lavoro", "workbench", Color(0.66, 0.48, 0.28), "Bn"], [&"furnace", "Fornace", "furnace", Color(0.45, 0.44, 0.46), "Fo"],
 			[&"chest", "Forziere", "chest", Color(0.72, 0.52, 0.26), "Fz"], [&"campfire", "Falò", "campfire", Color(0.95, 0.55, 0.20), "Fa"]]:
 		var d := _mk(st[0], st[1], ItemDefinition.Kind.STATION, st[3], st[4])

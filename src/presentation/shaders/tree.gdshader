@@ -12,6 +12,9 @@ varying vec3 v_world;
 varying vec3 v_color;
 varying float v_light;
 varying vec3 v_n;
+// D-065: materiale degli oggetti di scena (alfa del colore): 1 albero,
+// 0.8 pietra, 0.6 liscio (petali, funghi).
+varying float v_mat;
 
 void vertex() {
 	float wind_k = CUSTOM0.x, seed = CUSTOM0.y, base_y = CUSTOM0.z;
@@ -27,6 +30,7 @@ void vertex() {
 	v_color = COLOR.rgb;
 	v_light = CUSTOM0.w;
 	v_n = NORMAL;
+	v_mat = COLOR.a;
 }
 
 void fragment() {
@@ -51,7 +55,12 @@ void light() {
 			vec3 cell = floor(v_world * 11.0);
 			float spots = vnoise(v_world.xz * 4.0 + v_world.y * 2.3) * 0.7 + hash21(cell.xy + cell.z * 5.1) * 0.3;
 			float ridges = vnoise(vec2((v_world.x + v_world.z) * 18.0, v_world.y * 2.5));
-			col *= mix(0.88 + 0.22 * ridges, 0.80 + 0.32 * spots, leafy);
+			if (v_mat > 0.9) col *= mix(0.88 + 0.22 * ridges, 0.80 + 0.32 * spots, leafy);
+			else if (v_mat > 0.7) {
+				// Pietra: grana, venature e muschio nelle conche.
+				float g = vnoise(v_world.xz * 9.0 + v_world.y * 7.0) * 0.6 + hash21(floor(v_world.xz * 24.0) + floor(v_world.y * 24.0)) * 0.4;
+				col *= 0.84 + 0.30 * g;
+			}
 		}
 		DIFFUSE_LIGHT += out_color(col * lt);
 	}

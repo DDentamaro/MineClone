@@ -1190,3 +1190,32 @@ fisiche, fattore 1,5) ammorbidiscono tutto.
 - Una volta sola (`rt_v` 3) le preferenze salvate passano alla nativa.
 - Glow senza bloom diffuso (`glow_bloom` 0): resta solo l'alone delle cose luminose.
 - Costo: piu' pixel da disegnare (circa 2,25 volte le 720 righe su un 1080p). Non misurato sul telefono.
+
+## D-065 — Il mondo fuori dall'arena, armature modulari, texture per materiale
+
+Richiesta del proprietario: "procediamo con il resto del mondo fuori dall'arena e con la modularita'
+e le texture di personaggi/armature".
+
+Mondo (resa nitida):
+- `WorldDecor`: oggetti di scena per bioma, generati con gli alberi (stesso thread, stesse mesh dei
+  gruppi, nessuna chiamata di disegno in piu'): sassi, massi muschiosi, cespugli con bacche, macchie
+  di fiori in cinque colori, felci, funghi all'ombra degli alberi, tronchi caduti, cespugli secchi
+  del deserto. Niente collisioni; spariscono se si scava sotto o si occupa la cella. Lontani 18
+  blocchi dal centro dell'arena. Solo nella resa nitida (la pixel-art resta come il prototipo).
+- Materiali nitidi nuovi: minerali (pepite di rame, ferro, oro nella pietra), roccia madre,
+  arenaria a strati (prima il codice la trattava per errore come tavole: le tavole sono il blocco
+  legno), foglie; trifoglio e fiorellini nel prato.
+- Ombre della resa nitida meno blu e piu' chiare (il ferro e la pietra in ombra diventavano blu,
+  sotto il bosco era quasi nero).
+
+Armature:
+- `ArmorKit`: ogni set e' una lista di moduli per slot (elmo, corazza, maniche, spallacci,
+  cubitiere, bracciali, guanti, cintura, scarselle, cosciali, schinieri, scarpe...). I set di ferro
+  e di cuoio sono gli stessi pezzi di prima, divisi in moduli. Uno stile puo' anche essere una lista
+  libera "modulo+modulo@colore".
+- Nuovo set di maglia, fatto mescolando moduli: elmo a nasale con camaglio, cotta di maglia con
+  sopravveste blu e stemma, bracciali di cuoio, calze di maglia, stivali col puntale. Terzo
+  espositore a sud dell'armeria. L'armatura d'oro usa ora i moduli a piastre.
+- Ogni modulo porta il materiale nell'alfa del colore dei vertici; lo shader degli attori fa la
+  texture per materiale: piastra spazzolata con graffi e riflesso caldo, cuoio a pori e pieghe,
+  stoffa a trama, maglia ad anelli, ottone lucido, pelliccia. I metalli in ombra restano neutri.

@@ -10,10 +10,13 @@ const TYPES := ["workbench", "furnace", "chest", "campfire", "treasure", "armory
 ## Dal D-054 le armature stanno sugli espositori.
 const ARMORY_ITEMS: Array[StringName] = [&"sword_iron", &"spear_iron", &"hammer_iron", &"greatsword_iron", &"staff_iron",
 	&"pick_iron", &"axe_iron", &"shovel_iron"]
-## Espositori delle armature dell'arena (D-054): cuoio (con i due copricapo) e ferro.
+## Espositori delle armature dell'arena (D-054): cuoio (con i due copricapo),
+## ferro e, dal D-065, maglia (a sud dell'armeria).
 const STAND_SETS := {
 	"leather": [&"head_leather", &"head_leather_hood", &"chest_leather", &"legs_leather", &"feet_leather"],
 	"iron": [&"head_iron", &"chest_iron", &"legs_iron", &"feet_iron"],
+	# D-065: set di maglia, fatto coi moduli degli altri (ArmorKit).
+	"chain": [&"head_chain", &"chest_chain", &"legs_chain", &"feet_chain"],
 }
 const RADIUS := 0.42
 
@@ -208,7 +211,7 @@ func place_arena(c: Vector3i, rng: RandomNumberGenerator = null) -> void:
 		if a != null:
 			for id in ARMORY_ITEMS:
 				a.inv.add(Loot.make_equipment(id, 0, rng))
-	for e: Array in [["leather", Vector3i(-4, 0, 0), 1], ["iron", Vector3i(4, 0, 0), 3]]:
+	for e: Array in [["leather", Vector3i(-4, 0, 0), 1], ["iron", Vector3i(4, 0, 0), 3], ["chain", Vector3i(0, 0, 4), 2]]:
 		var cell: Vector3i = c + e[1]
 		if at(cell) != null:
 			continue

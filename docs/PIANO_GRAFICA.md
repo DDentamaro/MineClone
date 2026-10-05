@@ -137,7 +137,7 @@ Proposta: F0 → F1 → F2 → F3 → F5 → F4 → F6 → F7, con un APK a ogni
 2. Telefono di riferimento: Pixel 10.
 3. Nell'arena resta il ciclo del giorno, rallentato attorno all'alba e al tramonto.
 
-Fatto in D-061: F0, F1, F2, glow e vignettatura di F5. Fatto in D-062: F3 (materiali). Fatto in D-063: F4 (ombre di contatto), F6 (arredo dell'arena), F7 (texture dei personaggi), alberi a cubetti, gradazione; profondita' di campo spenta su richiesta.
+Fatto in D-061: F0, F1, F2, glow e vignettatura di F5. Fatto in D-062: F3 (materiali). Fatto in D-065: oggetti di scena nel mondo, armature modulari, texture per materiale. Fatto in D-063: F4 (ombre di contatto), F6 (arredo dell'arena), F7 (texture dei personaggi), alberi a cubetti, gradazione; profondita' di campo spenta su richiesta.
 
 ## 6. Decisioni da prendere (testo originale)
 

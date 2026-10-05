@@ -1056,7 +1056,8 @@ static func to_rig(parts: Array, offsets: Dictionary = {}) -> Dictionary:
 				var a0 := AO[i] if i < AO.size() else 1.0
 				var a := 1.0 - (1.0 - a0) * 0.5 if limb else a0
 				var c: Color = C[i]
-				col.append(Color(c.r * (.62 + .38 * a), c.g * (.66 + .34 * a), c.b * (.78 + .22 * a)))
+				# D-065: l'alfa porta il materiale (`ArmorKit`) allo shader.
+				col.append(Color(c.r * (.62 + .38 * a), c.g * (.66 + .34 * a), c.b * (.78 + .22 * a), c.a))
 			var I: PackedInt32Array = g["index"]
 			for j in range(0, I.size(), 3):
 				# Da antiorario uscente (three.js) al fronte orario di Godot.

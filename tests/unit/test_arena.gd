@@ -65,7 +65,7 @@ func test_espositore_veste_il_manichino() -> void:
 	objs.world = w
 	objs.place_arena(w.arena)
 	var stands := objs.list.filter(func(o: WorldObjects.Obj) -> bool: return o.type == "armor_stand")
-	check_eq(stands.size(), 2, "due espositori")
+	check_eq(stands.size(), 3, "tre espositori (cuoio, ferro, maglia)")
 	for o: WorldObjects.Obj in stands:
 		check(o.rig != null, "manichino")
 		check_eq(o.rig._armor_colors.size(), 4, "veste i quattro pezzi")

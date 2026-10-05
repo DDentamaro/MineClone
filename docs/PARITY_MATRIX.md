@@ -105,3 +105,4 @@ verificato) · `verificato` (verificato anche su dispositivo).
 - [ ] Prova su telefono reale
 | Nemico con l'IA, parata e scontro nell'arena (oltre il prototipo) | — | nuovo | `Fighter`, `FighterAI`, `FighterBody`, `ArenaDuel`, `DuelHud`, `CombatController` (GUARD, STUN) | M5 | fatto (D-058) | Il nemico ha tutte le azioni del giocatore; parata e parata perfetta; round e K.O. (D-059: niente sconfitta per uscita dal ring). D-060: postura, deviazione, clash delle lame, attacchi pericolosi, IA a turni |
 | Resa grafica nitida, risoluzione nativa (oltre il prototipo) | — | nuovo | `GameRoot.view_rows`, `RT_NATIVE` | M5 | fatto (D-064) | Un pixel per pixel, senza ingrandimento filtrato; righe fisse in Opzioni |
+| Oggetti di scena e armature modulari (oltre il prototipo) | — | nuovo | `WorldDecor`, `ArmorKit` | M5 | fatto (D-065) | Sassi, cespugli, fiori, felci, funghi, tronchi; set a moduli (ferro, cuoio, maglia), texture per materiale |

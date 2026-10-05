@@ -76,3 +76,27 @@ func test_abbattere_un_albero() -> void:
 	check_eq(rt.trees_near(sp.x, sp.z, 0).size(), near_before - 1, "sparito dalla griglia")
 	check_eq(rt.dead_indices(), [10] as Array[int], "indice per il salvataggio")
 	rt.free()
+
+
+func test_oggetti_di_scena_e_scavo_sotto() -> void:
+	var w := WorldFactory.from_fixture(_cat)
+	var v := _veg(w)
+	v.flush()
+	var n0 := v.decor_count()
+	check(n0 > 200, "sassi, cespugli e fiori nel mondo: %d" % n0)
+	# Toglie il blocco sotto un oggetto di scena: l'oggetto sparisce.
+	var ds: WorldDecor.Spot = null
+	for g: Array in v._groups.values():
+		if not (g[2] as Array).is_empty():
+			ds = g[2][0]
+			break
+	check(ds != null, "un oggetto di scena")
+	if ds != null:
+		var edits := WorldEditService.new(w, _cat)
+		edits.light = LightEngine.new(w, _cat)
+		edits.chunks_changed.connect(v.mark_dirty)
+		var list: Array[WorldEditService.Edit] = [WorldEditService.Edit.new(ds.cell - Vector3i(0, 1, 0), BlockCatalog.AIR)]
+		edits.try_apply(list)
+		check(ds.dead, "senza appoggio sparisce")
+		check_eq(v.decor_count(), n0 - 1, "uno in meno")
+	v.free()

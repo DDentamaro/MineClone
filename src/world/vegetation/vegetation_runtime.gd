@@ -38,6 +38,8 @@ var _groups := {}
 var _templates: Array[Vegetation.Template] = []
 ## D-063: alberi della resa nitida (chioma a cubetti); falso = quelli del prototipo.
 var hd_trees := true
+## D-065: modelli degli oggetti di scena.
+var _decor_templates: Array[PackedFloat32Array] = []
 var _mutex := Mutex.new()
 var _snapshot: WorldData
 var _snapshot_revision := -1
@@ -60,17 +62,52 @@ func setup(w: WorldData, catalog: BlockCatalog, seed_value: int) -> void:
 	_snapshot = null
 	_snapshot_revision = -1
 	var snap := _get_snapshot()
-	_tree_task = WorkerThreadPool.add_task(_tree_job.bind(snap, opaque, seed_value, _session))
+	_tree_task = WorkerThreadPool.add_task(_tree_job.bind(snap, opaque, seed_value, _session, world.arena))
 	for cz in world.chunks_z():
 		for cx in world.chunks_x():
 			_grass_dirty[Vector2i(cx, cz)] = true
 
 
 func mark_dirty(chunks: Array[Vector3i]) -> void:
+	_check_decor(chunks)
 	for c in chunks:
 		var col := Vector2i(c.x, c.z)
 		_grass_dirty[col] = true
 		_grass_version[col] = int(_grass_version.get(col, 0)) + 1
+
+
+## Oggetti di scena dei blocchi cambiati: via quelli rimasti senza appoggio o
+## dentro un blocco nuovo, il gruppo si ricostruisce.
+func _check_decor(chunks: Array[Vector3i]) -> void:
+	if _templates.is_empty() or world == null:
+		return
+	var keys := {}
+	var cs := WorldData.CHUNK_SIZE
+	for c in chunks:
+		for gz in range(int(c.z * cs / TREE_GROUP), int(((c.z + 1) * cs - 1) / TREE_GROUP) + 1):
+			for gx in range(int(c.x * cs / TREE_GROUP), int(((c.x + 1) * cs - 1) / TREE_GROUP) + 1):
+				keys[Vector2i(gx, gz)] = true
+	for key: Vector2i in keys:
+		if not _groups.has(key):
+			continue
+		var g: Array = _groups[key]
+		var changed := false
+		for ds: WorldDecor.Spot in g[2]:
+			if not ds.dead and not WorldDecor.valid(world, opaque, ds):
+				ds.dead = true
+				changed = true
+		if changed:
+			_set_group_mesh(g[1], _tree_group_arrays(world, g[0], _templates, g[2], _decor_templates))
+
+
+## Oggetti di scena ancora in piedi (test).
+func decor_count() -> int:
+	var n := 0
+	for g: Array in _groups.values():
+		for ds: WorldDecor.Spot in g[2]:
+			if not ds.dead:
+				n += 1
+	return n
 
 
 func is_idle() -> bool:
@@ -105,6 +142,7 @@ func _process_work(budget_ms: float, wait: bool) -> void:
 		_mutex.unlock()
 		if not res.is_empty() and int(res[0]) == _session:
 			_templates.assign(res[3])
+			_decor_templates.assign(res[4])
 			_apply_trees(res[1], res[2])
 	for col: Vector2i in _grass_dirty.keys():
 		if _grass_jobs.size() >= max_jobs:
@@ -135,8 +173,11 @@ func _process_work(budget_ms: float, wait: bool) -> void:
 
 # ------------------------------------------------------------------ alberi
 
-func _tree_job(snap: WorldData, op: PackedByteArray, seed_value: int, session: int) -> void:
+func _tree_job(snap: WorldData, op: PackedByteArray, seed_value: int, session: int, arena: Vector3i) -> void:
 	var list := Vegetation.tree_spots(snap, op, seed_value)
+	# D-065: oggetti di scena (sassi, cespugli, fiori...) negli stessi gruppi.
+	var dec: Array = WorldDecor.spots(snap, op, seed_value, list, arena) if hd_trees else []
+	var dtpl := WorldDecor.templates(seed_value)
 	var tpls: Array[Vegetation.Template] = []
 	for k in 3:
 		for v in 2:
@@ -146,18 +187,24 @@ func _tree_job(snap: WorldData, op: PackedByteArray, seed_value: int, session: i
 	for sp in list:
 		var key := Vector2i(int(sp.x / TREE_GROUP), int(sp.z / TREE_GROUP))
 		if not groups.has(key):
-			groups[key] = []
-		(groups[key] as Array).append(sp)
+			groups[key] = [[], []]
+		(groups[key][0] as Array).append(sp)
+	for ds: WorldDecor.Spot in dec:
+		var key := Vector2i(int(ds.x / TREE_GROUP), int(ds.z / TREE_GROUP))
+		if not groups.has(key):
+			groups[key] = [[], []]
+		(groups[key][1] as Array).append(ds)
 	var meshes: Array = []
 	for key: Vector2i in groups:
-		meshes.append([key, groups[key], _tree_group_arrays(snap, groups[key], tpls)])
+		var g: Array = groups[key]
+		meshes.append([key, g[0], _tree_group_arrays(snap, g[0], tpls, g[1], dtpl), g[1]])
 	_mutex.lock()
-	_tree_result = [session, list, meshes, tpls]
+	_tree_result = [session, list, meshes, tpls, dtpl]
 	_mutex.unlock()
 
 
 ## Array della mesh di un gruppo, come View._buildTreeGroup (winding orario per Godot).
-static func _tree_group_arrays(snap: WorldData, list: Array, tpls: Array[Vegetation.Template]) -> Array:
+static func _tree_group_arrays(snap: WorldData, list: Array, tpls: Array[Vegetation.Template], decor: Array = [], dtpl: Array[PackedFloat32Array] = []) -> Array:
 	var pos := PackedVector3Array()
 	var nrm := PackedVector3Array()
 	var col := PackedColorArray()
@@ -189,6 +236,14 @@ static func _tree_group_arrays(snap: WorldData, list: Array, tpls: Array[Vegetat
 				nrm.append(Vector3(c * d[o + 3] - sn * d[o + 5], d[o + 4], sn * d[o + 3] + c * d[o + 5]))
 				col.append(Color(d[o + 6], d[o + 7], d[o + 8]))
 				cus.append_array(PackedFloat32Array([d[o + 9], sp.seed_value, sp.y, li]))
+	for ds: WorldDecor.Spot in decor:
+		if ds.dead or dtpl.is_empty():
+			continue
+		var c := ds.cell
+		var ls := 15
+		if snap.inside(c.x, c.y, c.z):
+			ls = snap.sun[snap.index(c.x, c.y, c.z)]
+		WorldDecor.append(ds, dtpl[ds.kind * WorldDecor.VARIANTS + ds.variant], maxi(ls, 10) / 15.0, pos, nrm, col, cus)
 	var a := []
 	a.resize(Mesh.ARRAY_MAX)
 	a[Mesh.ARRAY_VERTEX] = pos
@@ -211,7 +266,7 @@ func _apply_trees(list: Array[Vegetation.TreeSpot], meshes: Array) -> void:
 		inst.extra_cull_margin = 0.5
 		add_child(inst)
 		_tree_nodes.append(inst)
-		_groups[g[0]] = [g[1], inst]
+		_groups[g[0]] = [g[1], inst, g[3]]
 		_set_group_mesh(inst, g[2])
 	trees_ready.emit(spots.size())
 
@@ -236,7 +291,7 @@ func kill_tree(sp: Vegetation.TreeSpot) -> void:
 	var key := Vector2i(int(sp.x / TREE_GROUP), int(sp.z / TREE_GROUP))
 	if _groups.has(key) and not _templates.is_empty():
 		var g: Array = _groups[key]
-		_set_group_mesh(g[1], _tree_group_arrays(world, g[0], _templates))
+		_set_group_mesh(g[1], _tree_group_arrays(world, g[0], _templates, g[2], _decor_templates))
 
 
 ## Indici degli alberi abbattuti (per il salvataggio) e ripristino.
@@ -374,6 +429,7 @@ func _clear() -> void:
 	_tree_nodes.clear()
 	_groups.clear()
 	_templates.clear()
+	_decor_templates.clear()
 	spots.clear()
 	tree_grid.clear()
 
