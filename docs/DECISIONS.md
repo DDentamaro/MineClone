@@ -1152,3 +1152,27 @@ usano piu' i 16 texel per blocco della pixel-art ma colore procedurale a piena r
 - Tentativi guardati e scartati: lastre Voronoi irregolari ("opus incertum", troppo fitte e
   diverse dalla reference); lastre piccole con fughe larghe tutte erbose.
 
+## D-063 — Alberi, arredo dell'arena, texture dei personaggi, ombre di contatto
+Richiesta del proprietario: procedere col piano e rivedere alberi, altri elementi del mondo e
+texture dei personaggi. Poi: "Sfocatura eliminala".
+- Errore trovato: la resa nitida non partiva sui telefoni. Le righe si leggevano dalle
+  impostazioni con 360 come valore predefinito, quindi 0.39 e 0.40 partivano in pixel-art.
+  Ora il predefinito e' 720 e, una volta sola, chi aveva righe salvate prima passa alla nitida
+  (chiave `view/rt_v`).
+- Alberi della resa nitida (`Vegetation.tree_template_hd`): stesso tronco, rami e posizione
+  delle chiome del prototipo (`tree_template` resta identico, c'e' il test di parita'), ma la
+  chioma e' un'unica massa di cubetti di foglie di 0,38 m con bordi frastagliati, tono per
+  cubetto (piu' chiaro in alto, qualche foglia gialla) e senza facce interne: ~1000-1700
+  vertici per albero contro ~450. Nel shader: macchie di luce sulle foglie, solchi sulla
+  corteccia.
+- Arredo dell'arena (`ArenaDecor`): stendardi blu e oro sulle colonne, edera, quattro lanterne
+  accese su pali agli angoli (luce puntiforme piu' forte di notte, vetro con glow), casse e
+  barili in due angoli, cespugli fioriti lungo il bordo. Solo scena, niente collisioni.
+- Personaggi nella resa nitida (`actor.gdshader`): grana a texel per stoffa e cuoio, metallo con
+  riflesso del sole, pelle liscia, luce di contorno leggera.
+- Ombre di contatto (F4): fino a 12 cerchi morbidi sotto giocatore, nemico, manichini e oggetti
+  vicini, nel shader dei blocchi.
+- Gradazione della resa nitida: un filo piu' di saturazione e contrasto di giorno.
+- Profondita' di campo (tilt-shift): fatta, guardata e poi spenta su richiesta del proprietario
+  (`CameraRig.dof_on` falso); gia' prima la parte vicina copriva alberi e colonne.
+

@@ -95,8 +95,47 @@ var _tps_zoom_cur := 1.0
 @onready var camera: Camera3D = $Camera3D
 
 
+## D-063: profondita' di campo stile tilt-shift (piano grafico F5), spenta su
+## richiesta del proprietario (resta il codice, `dof_on`). A fuoco il
+## piano del giocatore, sfocati il primo piano e il fondo. Solo nella resa
+## nitida (`look_hd` lo imposta il gioco).
+var dof_on := false
+var dof_hd := true
+var _dof: CameraAttributesPractical
+
+
 func _ready() -> void:
 	_apply_projection()
+	_dof = CameraAttributesPractical.new()
+	_dof.dof_blur_amount = 0.05
+	camera.attributes = _dof
+
+
+## Fuoco sul giocatore: la banda nitida si adatta allo zoom (in iso) o alla
+## distanza (in terza persona); niente sfocatura in prima persona.
+func _update_dof() -> void:
+	if _dof == null:
+		return
+	var on := dof_on and dof_hd and mode != Mode.FPS
+	_dof.dof_blur_far_enabled = on
+	# Davanti niente sfocatura: in iso gli oggetti alti vicini alla camera
+	# (alberi, colonne) coprivano il gioco.
+	_dof.dof_blur_near_enabled = false
+	if not on:
+		return
+	if mode == Mode.ISO:
+		var band := camera.size
+		# La profondita' visibile sullo schermo e' circa +-0,4 x camera.size:
+		# nitido il terzo centrale, sfocati in alto (fondo) e in basso (davanti).
+		_dof.dof_blur_far_distance = CAM_DIST + band * 0.18
+		_dof.dof_blur_far_transition = band * 0.22
+		_dof.dof_blur_near_distance = CAM_DIST - band * 0.36
+		_dof.dof_blur_near_transition = band * 0.3
+		_dof.dof_blur_amount = 0.05
+	else:
+		_dof.dof_blur_far_distance = tps_dist + 10.0
+		_dof.dof_blur_far_transition = 22.0
+		_dof.dof_blur_amount = 0.04
 
 
 func set_mode(m: Mode) -> void:
@@ -249,6 +288,7 @@ func update_camera(dt: float, target: Vector3) -> void:
 	rs.global_shader_parameter_set(&"persp", 1.0 if mode == Mode.TPS else 0.0)
 	if mode == Mode.ISO:
 		rs.global_shader_parameter_set(&"px_h", camera.size / _viewport_height())
+	_update_dof()
 
 
 ## Prima persona: la camera sta negli occhi dell'eroe e guarda lungo lo sguardo;

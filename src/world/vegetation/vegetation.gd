@@ -268,6 +268,123 @@ static func tree_template(kind: int, seed_value: int) -> Template:
 	return t
 
 
+## D-063 (piano grafico): albero della resa nitida. Stesso tronco, rami e
+## posizione delle chiome di `tree_template` (che resta identico al prototipo),
+## ma la chioma e' un'unica massa di cubetti di foglie (lato LEAF_CUBE) come il
+## mondo: i bordi sono frastagliati, ogni cubetto ha il suo tono (piu' chiaro in
+## alto) e le facce fra cubetti pieni non si disegnano.
+const LEAF_CUBE := 0.38
+
+
+static func tree_template_hd(kind: int, seed_value: int) -> Template:
+	var s := seed_value & 0xFFFFFFFF
+	var rng := Mulberry32.new(s if s != 0 else 1)
+	var d := PackedFloat64Array()
+	var bark := PackedFloat64Array([0.30, 0.21, 0.13])
+	var bark2 := PackedFloat64Array([0.22, 0.155, 0.095])
+	var leaf_pal: Array[Vector3] = [Vector3(0.235, 0.345, 0.11), Vector3(0.285, 0.395, 0.13), Vector3(0.34, 0.42, 0.15)]
+	var h := 4.5 if kind == 1 else (3.35 if kind == 2 else 3.85)
+	var lean_x := (rng.next() - 0.5) * 0.28
+	var lean_z := (rng.next() - 0.5) * 0.28
+	var p0 := PackedFloat64Array([0, 0, 0])
+	var p1 := PackedFloat64Array([lean_x * 0.28, h * 0.38, lean_z * 0.28])
+	var p2 := PackedFloat64Array([lean_x * 0.72, h * 0.72, lean_z * 0.72])
+	var p3 := PackedFloat64Array([lean_x, h, lean_z])
+	_segment(d, p0, p1, 0.22, 0.17, bark2, 0.0, 0.08, 7)
+	_segment(d, p1, p2, 0.17, 0.115, bark, 0.08, 0.28, 7)
+	_segment(d, p2, p3, 0.115, 0.055, bark, 0.28, 0.65, 6)
+	var branch_y := h * (0.48 if kind == 2 else 0.56)
+	var nb := 3 if kind == 2 else 2
+	for b in nb:
+		var a := b * PI * 2.0 / nb + rng.next() * 0.8
+		var st := PackedFloat64Array([lean_x * 0.42, branch_y + b * 0.24, lean_z * 0.42])
+		var reach := 1.05 if kind == 2 else 0.78
+		var e0 := st[0] + JsMath.js_cos(a) * reach
+		var e1 := st[1] + 0.55 + rng.next() * 0.28
+		var e2 := st[2] + JsMath.js_sin(a) * reach
+		_segment(d, st, PackedFloat64Array([e0, e1, e2]), 0.085, 0.035, bark, 0.25, 0.68, 5)
+	# Ellissoidi delle chiome: [centro, raggi, colore, vento].
+	var blobs: Array = []
+	var base_y := h * 0.68 if kind == 1 else h * 0.62
+	var count := 6 if kind == 2 else (4 if kind == 1 else 5)
+	for i in count:
+		var a := i * PI * 2.0 / count + rng.next() * 0.9
+		var rad := 0.62 if kind == 1 else (0.90 if kind == 2 else 0.78)
+		var cx := lean_x * 0.72 + JsMath.js_cos(a) * rad * (0.35 + rng.next() * 0.5)
+		var cz := lean_z * 0.72 + JsMath.js_sin(a) * rad * (0.35 + rng.next() * 0.5)
+		var cy := base_y + (rng.next() - 0.22) * (1.25 if kind == 1 else 1.05)
+		var r := Vector3(rad * (0.72 + rng.next() * 0.28), 0.62 + rng.next() * 0.30, rad * (0.68 + rng.next() * 0.32))
+		blobs.append([Vector3(cx, cy, cz), r * 1.12, leaf_pal[(i + kind) % 3], 0.72 + rng.next() * 0.28])
+	blobs.append([Vector3(lean_x, h * 0.91, lean_z), Vector3(0.52 if kind == 1 else 0.72, 0.70, 0.50 if kind == 1 else 0.68) * 1.12, leaf_pal[kind % 3], 1.0])
+	var lo := Vector3(INF, INF, INF)
+	var hi := -lo
+	for bl: Array in blobs:
+		lo = lo.min((bl[0] as Vector3) - (bl[1] as Vector3))
+		hi = hi.max((bl[0] as Vector3) + (bl[1] as Vector3))
+	var n0 := Vector3i((lo / LEAF_CUBE).floor())
+	var n1 := Vector3i((hi / LEAF_CUBE).ceil())
+	var cells := {}
+	for z in range(n0.z, n1.z + 1):
+		for y in range(n0.y, n1.y + 1):
+			for x in range(n0.x, n1.x + 1):
+				var c := (Vector3(x, y, z) + Vector3(0.5, 0.5, 0.5)) * LEAF_CUBE
+				# Frastagliatura: il raggio cambia un poco per cella.
+				var jag := 1.0 + (_cell_hash(x, y, z, s) - 0.5) * 0.30
+				for bi in blobs.size():
+					var bl: Array = blobs[bi]
+					var q := (c - (bl[0] as Vector3)) / (bl[1] as Vector3)
+					if q.length() <= jag:
+						cells[Vector3i(x, y, z)] = bi
+						break
+	var dirs := [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 1, 0), Vector3i(0, -1, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]
+	var ymin := float(n0.y) * LEAF_CUBE
+	var yspan := maxf(0.5, float(n1.y - n0.y) * LEAF_CUBE)
+	for key: Vector3i in cells:
+		var bl: Array = blobs[int(cells[key])]
+		var c := (Vector3(key) + Vector3(0.5, 0.5, 0.5)) * LEAF_CUBE
+		var up := clampf((c.y - ymin) / yspan, 0.0, 1.0)
+		var tone := 0.82 + 0.30 * up + (_cell_hash(key.x, key.y, key.z, s + 7) - 0.5) * 0.16
+		var lc: Vector3 = (bl[2] as Vector3) * tone
+		if _cell_hash(key.x, key.y, key.z, s + 13) > 0.94:
+			lc = lc.lerp(Vector3(0.46, 0.50, 0.18), 0.5)
+		var col := PackedFloat64Array([lc.x, lc.y, lc.z])
+		var w: float = bl[3]
+		for dv: Vector3i in dirs:
+			if cells.has(key + dv):
+				continue
+			_leaf_face(d, c, Vector3(dv), col, w)
+	var t := Template.new()
+	t.data = PackedFloat32Array(Array(d))
+	t.height = h
+	return t
+
+
+static func _cell_hash(x: int, y: int, z: int, s: int) -> float:
+	var hh := (x * 73856093) ^ (y * 19349663) ^ (z * 83492791) ^ (s * 2654435761)
+	hh = (hh ^ (hh >> 13)) * 1274126177
+	return float((hh ^ (hh >> 16)) & 0xFFFF) / 65535.0
+
+
+## Una faccia di un cubetto di foglie (normale `n`), due triangoli (verso come
+## i segmenti del tronco: visibili da fuori).
+static func _leaf_face(out: PackedFloat64Array, c: Vector3, n: Vector3, col: PackedFloat64Array, wind: float) -> void:
+	var hs := LEAF_CUBE * 0.5
+	var u := Vector3(n.y, n.z, n.x)
+	var v := n.cross(u)
+	var fc := c + n * hs
+	var a := fc + (-u - v) * hs
+	var b := fc + (u - v) * hs
+	var cc := fc + (u + v) * hs
+	var dd := fc + (-u + v) * hs
+	var nn := PackedFloat64Array([n.x, n.y, n.z])
+	var pa := PackedFloat64Array([a.x, a.y, a.z])
+	var pb := PackedFloat64Array([b.x, b.y, b.z])
+	var pc := PackedFloat64Array([cc.x, cc.y, cc.z])
+	var pd := PackedFloat64Array([dd.x, dd.y, dd.z])
+	_push_tri(out, pa, pb, pc, nn, nn, nn, col, wind, wind, wind)
+	_push_tri(out, pa, pc, pd, nn, nn, nn, col, wind, wind, wind)
+
+
 # ------------------------------------------------------------------ erba
 
 ## grassBlades: 7 valori per filo [x, z, seme, larghezza, altezza, y suolo, luce].

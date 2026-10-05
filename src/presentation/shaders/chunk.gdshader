@@ -9,6 +9,11 @@ render_mode cull_back, specular_disabled, ambient_light_disabled, fog_disabled;
 #include "res://src/presentation/shaders/materials_hd.gdshaderinc"
 
 uniform sampler2D atlas : source_color, filter_nearest, repeat_disable;
+// D-063 (piano grafico F4): ombre di contatto. Piedi (xyz) e raggio (w) di
+// personaggi e oggetti vicini; il suolo sotto di loro si scurisce in un cerchio
+// morbido, come l'occlusione dove le cose toccano terra.
+uniform vec4 blobs[12];
+uniform int blob_count = 0;
 
 varying flat float v_tile;
 varying flat float v_face;
@@ -132,6 +137,17 @@ void light() {
 			if (paint_mode > 0.5) lt *= mix(mix(vec3(0.62, 0.64, 0.72), v_S / 0.40 * 0.62, 0.30), vec3(1.0), aok);
 			else lt *= mix(vec3(0.50, 0.54, 0.66), vec3(1.0), aok);
 			lt *= 1.0 - 0.28 * v_occl;
+		}
+		if (look_hd > 0.5 && v_n.y > 0.5) {
+			float occ = 0.0;
+			for (int i = 0; i < blob_count; i++) {
+				vec4 b = blobs[i];
+				float dy = v_world.y - b.y;
+				if (dy < -0.3 || dy > 0.5) continue;
+				float d = length(v_world.xz - b.xz);
+				occ = max(occ, (1.0 - smoothstep(b.w * 0.2, b.w, d)) * (1.0 - smoothstep(0.0, 0.5, dy)));
+			}
+			lt *= 1.0 - 0.42 * occ;
 		}
 		lt = max(min(lt, vec3(1.25)), vec3(0.030, 0.034, 0.055));
 		lt = quantize(lt, FRAGCOORD.xy);

@@ -44,6 +44,15 @@ void light() {
 			lt += sun_color * vec3(1.0, 1.05, 0.55) * (sun_intensity * 0.26 * back * leaf * pow(v_light, 1.35) * (1.0 - night));
 		}
 		lt = quantize(lt, FRAGCOORD.xy);
-		DIFFUSE_LIGHT += out_color(v_color * lt);
+		vec3 col = v_color;
+		if (look_hd > 0.5) {
+			// D-063: foglie con macchie di luce e ombra, corteccia a solchi.
+			float leafy = step(max(v_color.r, v_color.b), v_color.g);
+			vec3 cell = floor(v_world * 11.0);
+			float spots = vnoise(v_world.xz * 4.0 + v_world.y * 2.3) * 0.7 + hash21(cell.xy + cell.z * 5.1) * 0.3;
+			float ridges = vnoise(vec2((v_world.x + v_world.z) * 18.0, v_world.y * 2.5));
+			col *= mix(0.88 + 0.22 * ridges, 0.80 + 0.32 * spots, leafy);
+		}
+		DIFFUSE_LIGHT += out_color(col * lt);
 	}
 }

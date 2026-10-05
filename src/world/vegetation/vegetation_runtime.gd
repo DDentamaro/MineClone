@@ -36,6 +36,8 @@ var _tree_nodes: Array[MeshInstance3D] = []
 ## Gruppi di alberi (Vector2i -> [lista, MeshInstance3D]) e template, per abbattere.
 var _groups := {}
 var _templates: Array[Vegetation.Template] = []
+## D-063: alberi della resa nitida (chioma a cubetti); falso = quelli del prototipo.
+var hd_trees := true
 var _mutex := Mutex.new()
 var _snapshot: WorldData
 var _snapshot_revision := -1
@@ -138,7 +140,8 @@ func _tree_job(snap: WorldData, op: PackedByteArray, seed_value: int, session: i
 	var tpls: Array[Vegetation.Template] = []
 	for k in 3:
 		for v in 2:
-			tpls.append(Vegetation.tree_template(k, seed_value * 7 + k * 13 + v * 101))
+			var ts := seed_value * 7 + k * 13 + v * 101
+			tpls.append(Vegetation.tree_template_hd(k, ts) if hd_trees else Vegetation.tree_template(k, ts))
 	var groups := {}
 	for sp in list:
 		var key := Vector2i(int(sp.x / TREE_GROUP), int(sp.z / TREE_GROUP))

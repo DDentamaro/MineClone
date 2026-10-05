@@ -1,5 +1,14 @@
 # Avanzamento
 
+## 05/10/2026 — D-063: alberi, arredo, personaggi, ombre di contatto
+
+### Test realmente eseguiti (D-063)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 211/211 PASS (il modello d'albero del prototipo resta identico) |
+| `tools/look_preview.gd` arena, angolo con colonna, bosco | Guardate a occhio. Corretti: alberi nuovi non usati (righe predefinite lette a 360), facce dei cubetti di foglie rovesciate, riflesso del metallo troppo forte, sfocatura vicina che copriva il gioco (poi tutta la sfocatura spenta) |
+| Export Android debug 0.41.0-m5 (versionCode 43) + `apksigner verify` + `aapt2 dump badging` | OK; non provato sul telefono |
+
 ## 05/10/2026 — D-062: materiali della resa nitida (lastre, pietra, terra, legno)
 
 ### Test realmente eseguiti (D-062)

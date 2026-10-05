@@ -82,6 +82,8 @@ var enemy: Fighter
 var duel: ArenaDuel
 var _duel_hud: DuelHud
 var _guard_key := false
+## Arredo dell'arena (D-063): stendardi, lanterne, casse, cespugli.
+var _decor: ArenaDecor
 var _light_key := false
 var paused := false
 var show_hitboxes := false
@@ -117,7 +119,13 @@ func _ready() -> void:
 	get_tree().quit_on_go_back = false
 	_args = _parse_user_args()
 	# Preferenze del prototipo (chiavi isoterra.*): righe, spigoli, terza persona.
-	var rh := int(Settings.load_value("view", "rt_h", 360))
+	var rh := int(Settings.load_value("view", "rt_h", RT_DEFAULT))
+	# D-063: le righe salvate prima della resa nitida (0.38 e precedenti)
+	# portavano alla pixel-art; una volta sola si passa alla nitida.
+	if int(Settings.load_value("view", "rt_v", 1)) < 2:
+		rh = RT_DEFAULT
+		Settings.save_value("view", "rt_h", rh)
+		Settings.save_value("view", "rt_v", 2)
 	rt_height = rh if rh in RT_OPTIONS else RT_DEFAULT
 	toggles["edges"] = bool(Settings.load_value("view", "edges", true))
 	catalog = BlockCatalog.load_default()
@@ -300,6 +308,7 @@ func _swap_world(w: WorldData) -> void:
 	_runtime.focus = motor.position
 	_build_ms = 0
 	_runtime.setup(world, catalog)
+	_vegetation.hd_trees = rt_height >= RT_HD
 	_vegetation.setup(world, catalog, world.world_seed)
 	_water.setup(world)
 	_grains.world = world
@@ -685,6 +694,9 @@ func _process(dt: float) -> void:
 		var el := TrainingGround._light_at(world, enemy.avatar.get_global_transform_interpolated().origin + Vector3(0, 1.1, 0))
 		enemy.set_light(el.x, el.y)
 	_update_duel_hud()
+	_update_contact_shadows()
+	if _decor != null:
+		_decor.set_daylight(float(_day.state.get("daylight", 1.0)))
 	_fpv.set_light(lt.x, lt.y)
 	_dummies.sync_views(combat.lock_target if combat.is_busy() else null)
 	_camera_rig.update_camera(dt, p)
@@ -1361,6 +1373,8 @@ func _place_dummies() -> void:
 ## Scontro nell'arena (D-058): nei mondi con l'arena c'e' sempre un nemico.
 func _setup_duel() -> void:
 	if not Arena.has(world):
+		if _decor != null:
+			_decor.clear()
 		if enemy != null:
 			enemy.queue_free()
 			enemy = null
@@ -1368,6 +1382,11 @@ func _setup_duel() -> void:
 		if _duel_hud != null:
 			_duel_hud.visible = false
 		return
+	if _decor == null:
+		_decor = ArenaDecor.new()
+		_decor.name = "ArenaDecor"
+		_view.add_child(_decor)
+	_decor.build(world, world.arena)
 	if enemy == null:
 		enemy = Fighter.new()
 		enemy.name = "Enemy"
@@ -1481,6 +1500,36 @@ func _clash_fx(e: Dictionary) -> void:
 	fx.clash(e["position"], true)
 	_camera_rig.shake(0.35)
 	_texts.spawn((e["position"] as Vector3) + Vector3(0, 0.5, 0), "CLASH!", Color(0.85, 0.92, 1.0), 30)
+
+
+## Ombre di contatto (D-063, piano grafico F4): i piedi di chi e' vicino al
+## giocatore (lui, il nemico, i manichini, gli oggetti) al shader dei blocchi.
+var _blobs := PackedVector4Array()
+
+
+func _update_contact_shadows() -> void:
+	var c := motor.position
+	var list: Array = [Vector4(c.x, c.y, c.z, 0.55)]
+	if enemy != null and enemy.visible:
+		var e := enemy.motor.position
+		list.append(Vector4(e.x, e.y, e.z, 0.55))
+	for d in _dummies.dummies:
+		if d.alive:
+			list.append(Vector4(d.position.x, d.position.y, d.position.z, 0.5))
+	var objs: Array = []
+	for o: WorldObjects.Obj in _objects.list:
+		var p := Vector3(o.cell) + Vector3(0.5, 0.0, 0.5)
+		if p.distance_squared_to(c) < 400.0:
+			objs.append([p.distance_squared_to(c), Vector4(p.x, p.y, p.z, 0.75 if o.type == "armory" else 0.6)])
+	objs.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	for o: Array in objs:
+		list.append(o[1])
+	_blobs.resize(12)
+	var n := mini(list.size(), 12)
+	for i in n:
+		_blobs[i] = list[i]
+	_runtime.opaque_material.set_shader_parameter(&"blobs", _blobs)
+	_runtime.opaque_material.set_shader_parameter(&"blob_count", n)
 
 
 func _update_duel_hud() -> void:
@@ -1742,6 +1791,7 @@ func _fit_view() -> void:
 	var hd := h >= RT_HD
 	_screen.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR if hd else CanvasItem.TEXTURE_FILTER_NEAREST
 	RenderingServer.global_shader_parameter_set(&"look_hd", 1.0 if hd else 0.0)
+	_camera_rig.dof_hd = hd
 	RenderingServer.global_shader_parameter_set(&"px_scale", maxf(1.0, roundf(h / 360.0)))
 	_place_screen()
 

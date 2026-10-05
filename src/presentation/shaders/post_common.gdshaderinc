@@ -14,6 +14,13 @@ vec3 post_color(vec3 col, vec2 v) {
 		vec2 vv = v * 2.0 - 1.0; col *= 1.0 - night * 0.22 * smoothstep(0.55, 1.45, dot(vv, vv));
 	}
 	float gl = dot(col, vec3(0.299, 0.587, 0.114)); col *= mix(grade_s, grade_h, smoothstep(0.12, 0.62, gl));
+	// D-063: gradazione della resa nitida: un filo piu' di saturazione e di
+	// contrasto di giorno (la reference e' calda e piena).
+	if (look_hd > 0.5) {
+		float y = dot(col, vec3(0.299, 0.587, 0.114));
+		col = mix(vec3(y), col, 1.0 + 0.10 * (1.0 - night));
+		col = mix(col, (col - 0.45) * 1.06 + 0.45, 1.0 - night);
+	}
 	// D-061: vignettatura leggera anche di giorno (effetto diorama).
 	vec2 vd = v * 2.0 - 1.0; col *= 1.0 - 0.13 * (1.0 - night) * smoothstep(0.6, 1.7, dot(vd, vd));
 	return col;
