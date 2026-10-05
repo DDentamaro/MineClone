@@ -1,5 +1,13 @@
 # Avanzamento
 
+## 05/10/2026 — D-059: niente sconfitta per uscita dal ring
+
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 207/207 PASS |
+| `tools/duel_preview.gd` | Lo scontro gira, nessun errore di script |
+| Export Android debug 0.37.0-m5 (versionCode 39) + `apksigner verify` + `aapt2 dump badging` | OK; non provato sul telefono |
+
 ## 05/10/2026 — D-058: nemico con l'IA, parata, scontro nell'arena di Cell
 
 ### Test realmente eseguiti (D-058)

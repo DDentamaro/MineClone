@@ -1,8 +1,8 @@
 class_name ArenaDuel
 extends RefCounted
-## Scontro nell'arena (D-058), con le regole del torneo di Cell: si vince
-## mettendo l'avversario K.O. o facendolo uscire dal ring (toccare la terra
-## fuori dal marmo). Round dopo round: conto alla rovescia, combattimento,
+## Scontro nell'arena (D-058): si vince mettendo l'avversario K.O. (D-059:
+## niente sconfitta per uscita dal ring, si combatte anche fuori dal marmo).
+## Round dopo round: conto alla rovescia, combattimento,
 ## esito; chi vince un round affronta un avversario piu' sveglio, con
 ## un'arma presa a caso fra quelle dell'armeria.
 
@@ -52,16 +52,9 @@ func active() -> bool:
 	return phase == Phase.FIGHT
 
 
-## Fuori dal ring: i piedi poggiano sulla terra oltre il bordo del marmo.
-func ring_out(p: Vector3, on_ground: bool) -> bool:
-	if not on_ground or p.y > center.y - 0.5:
-		return false
-	return absf(p.x - center.x) > half or absf(p.z - center.z) > half
-
-
 ## Un passo. Restituisce "fight" all'inizio dello scontro, "win"/"lose" alla
 ## fine di un round, "next" quando si puo' preparare il round seguente.
-func step(dt: float, player: FighterBody, player_ground: bool, enemy: FighterBody, enemy_ground: bool) -> String:
+func step(dt: float, player: FighterBody, enemy: FighterBody) -> String:
 	t += dt
 	match phase:
 		Phase.INTRO:
@@ -85,12 +78,6 @@ func step(dt: float, player: FighterBody, player_ground: bool, enemy: FighterBod
 			elif not player.alive:
 				out = "lose"
 				how = "K.O."
-			elif ring_out(enemy.position, enemy_ground):
-				out = "win"
-				how = "Fuori dal ring!"
-			elif ring_out(player.position, player_ground):
-				out = "lose"
-				how = "Fuori dal ring!"
 			if out != "":
 				phase = Phase.END
 				t = 0.0

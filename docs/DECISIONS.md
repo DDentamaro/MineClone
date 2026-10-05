@@ -1084,3 +1084,8 @@ meccanica di parata, e lo scontro nell'arena di Cell.
   sinistra, punteggio, scritte al centro. Nell'arena il manichino a forma di personaggio e'
   sostituito dal nemico.
 
+## D-059 — Niente sconfitta per uscita dal ring
+Richiesta del proprietario: togliere il K.O. per uscita dal ring. Si vince solo per K.O.; si puo'
+combattere anche fuori dal marmo e il nemico segue il giocatore ovunque (l'IA non e' piu' tenuta
+dentro il ring).
+

@@ -103,4 +103,4 @@ verificato) · `verificato` (verificato anche su dispositivo).
 - [x] Costruire/scavare in debug; niente blocco dentro il giocatore (test + e2e)
 - [x] Multitouch: stick + camera + pulsanti, rilascio in ordine diverso, annullamento, reset (test)
 - [ ] Prova su telefono reale
-| Nemico con l'IA, parata e scontro nell'arena (oltre il prototipo) | — | nuovo | `Fighter`, `FighterAI`, `FighterBody`, `ArenaDuel`, `DuelHud`, `CombatController` (GUARD, STUN) | M5 | fatto (D-058) | Il nemico ha tutte le azioni del giocatore; parata e parata perfetta; round, K.O. e uscita dal ring |
+| Nemico con l'IA, parata e scontro nell'arena (oltre il prototipo) | — | nuovo | `Fighter`, `FighterAI`, `FighterBody`, `ArenaDuel`, `DuelHud`, `CombatController` (GUARD, STUN) | M5 | fatto (D-058) | Il nemico ha tutte le azioni del giocatore; parata e parata perfetta; round e K.O. (D-059: niente sconfitta per uscita dal ring) |

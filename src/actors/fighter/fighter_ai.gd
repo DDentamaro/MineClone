@@ -280,7 +280,7 @@ func _think_melee(me_c: CombatController, foe_c: CombatController, me_m: PlayerM
 					me_c.press_light()
 					_combo_left -= 1
 				elif _combo_left == 0 and (edge or open or rng.randf() < float(_p(5))):
-					# Forte in coda (vicino al bordo spinge fuori dal ring).
+					# Forte in coda.
 					me_c.press_heavy()
 					_heavy_hold = rng.randf_range(0.05, 0.25) if rng.randf() < 0.6 else rng.randf_range(0.5, 1.0)
 					_combo_left = -1

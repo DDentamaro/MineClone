@@ -1399,7 +1399,7 @@ func _next_round() -> void:
 func _step_duel(dt: float) -> void:
 	if duel == null or enemy == null:
 		return
-	enemy.step(dt, player_body, combat, magic.shots, duel.center, duel.half, duel.active())
+	enemy.step(dt, player_body, combat, magic.shots, duel.center, 0.0, duel.active())
 	_handle_enemy_events()
 	_push_out_of_enemy()
 	for e in player_body.events:
@@ -1419,7 +1419,7 @@ func _step_duel(dt: float) -> void:
 			"parry":
 				_texts.spawn((e["p"] as Vector3) + Vector3(0, 0.7, 0), "PARATA!", Color(1.0, 0.5, 0.4), 30)
 	enemy.body.events.clear()
-	match duel.step(dt, player_body, motor.on_ground, enemy.body, enemy.motor.on_ground):
+	match duel.step(dt, player_body, enemy.body):
 		"fight":
 			# Lock automatico sul rivale: col telefono e' la cosa piu' comoda.
 			if not lock.active():
