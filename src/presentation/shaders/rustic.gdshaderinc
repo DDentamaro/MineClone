@@ -16,6 +16,8 @@ global uniform float cloud_shadow_on;
 global uniform float shadow_strength;
 global uniform vec3 view_dir;
 global uniform float paint_mode;
+// D-061: resa nitida (luce a rampa morbida invece delle bande).
+global uniform float look_hd;
 global uniform float dither_amount;
 global uniform float slice_y;
 global uniform vec2 world_xz;
@@ -87,7 +89,13 @@ vec3 rustic_light_m(vec3 n, float sun, float blk, vec3 wp, vec3 S, float bands, 
 	float band = ndl < 0.18 ? 0.56 : (ndl < 0.52 ? 0.76 : 1.0);
 	float wsh = mix(1.0, shadow, shadow_strength);
 	float sh = pow(sun, 1.35) * wsh * cloud_shadow(wp);
-	if (paint_mode > 0.5) { float d = band * smoothstep(0.12, 0.58, sun) * wsh * cloud_shadow(wp); d = floor(d * bands + 0.5) / bands; band = d; sh = 1.0; }
+	if (paint_mode > 0.5 && look_hd > 0.5) {
+		// Half Lambert a rampa morbida: la luce avvolge la forma, le facce in
+		// ombra restano leggibili; l'ombra portata e' quella filtrata di Godot.
+		float wrap = clamp((dot(N, normalize(sun_dir)) + 0.35) / 1.35, 0.0, 1.0);
+		float ramp = mix(0.50, 1.0, smoothstep(0.08, 0.95, wrap));
+		band = ramp * smoothstep(0.12, 0.58, sun) * wsh * cloud_shadow(wp); sh = 1.0;
+	} else if (paint_mode > 0.5) { float d = band * smoothstep(0.12, 0.58, sun) * wsh * cloud_shadow(wp); d = floor(d * bands + 0.5) / bands; band = d; sh = 1.0; }
 	vec3 amb = ambient_color * (mix(0.35, 0.55, night) + mix(0.65, 0.45, night) * pow(sun, 1.35));
 	if (paint_mode > 0.5) amb *= S / 0.40 * mix(1.0, 0.85, night);
 	float rim = pow(1.0 - max(dot(N, normalize(view_dir)), 0.0), 2.5) * night * pow(sun, 0.8);

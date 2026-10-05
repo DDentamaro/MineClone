@@ -93,3 +93,5 @@ xvfb-run -a godot --path . --script res://tools/pose_sheet.gd -- --out=/tmp/pose
 godot --headless --path . --script res://tools/bench_fluid.gd  # tempi dell'acqua
 godot --path . -- --screenshot=shot.png --zoom=0.55 --cam=tps --time=0.9 --seed=42 --dev --lake --at=86.5,142.5 --nowater
 ```
+
+Grafica (D-061): resa nitida a 720 righe (la pixel-art resta in Opzioni > Righe 270-450), luce morbida, ombre filtrate e lunghe, ora d'oro rallentata, glow. Piano completo in `docs/PIANO_GRAFICA.md`.

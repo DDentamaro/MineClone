@@ -7,11 +7,17 @@ extends Node
 const DAY_LEN := 240.0
 const DAY := {"sun_intensity": 0.95, "sun_color": Vector3(1.00, 0.94, 0.84), "ambient_level": 0.40,
 	"ambient_tint": Vector3(0.80, 0.89, 1.00), "horizon": Vector3(0.61, 0.49, 0.44), "top": Vector3(0.30, 0.42, 0.61)}
-const DUSK := {"sun_intensity": 0.74, "sun_color": Vector3(1.00, 0.50, 0.27), "ambient_level": 0.29,
-	"ambient_tint": Vector3(0.60, 0.70, 1.00), "horizon": Vector3(0.72, 0.45, 0.40), "top": Vector3(0.13, 0.16, 0.31)}
+## D-061: ora d'oro meno rossa e ombre piu' chiare (la reference: luce ambra,
+## ombre fredde ma leggibili).
+const DUSK := {"sun_intensity": 0.80, "sun_color": Vector3(1.00, 0.70, 0.44), "ambient_level": 0.40,
+	"ambient_tint": Vector3(0.74, 0.79, 0.96), "horizon": Vector3(0.74, 0.52, 0.42), "top": Vector3(0.18, 0.22, 0.38)}
 const NIGHT := {"moon_yaw_deg": 38.0, "moon_pitch_deg": 52.0, "moon_intensity": 0.62, "moon_color": Vector3(0.55, 0.66, 0.98),
 	"ambient_level": 0.36, "ambient_tint": Vector3(0.46, 0.56, 0.90), "horizon": Vector3(0.10, 0.11, 0.18), "top": Vector3(0.04, 0.05, 0.11)}
 const SHADOW_STRENGTH := 0.84
+## D-061: velocita' del tempo col sole all'orizzonte (1 = normale).
+const GOLDEN_RATE := 0.4
+## Altezza massima del sole (frazione di 90 gradi): ombre sempre un po' lunghe.
+const SUN_MAX := 0.64
 const CLOUD_COVER := 0.73
 
 ## Ora del giorno 0..1.
@@ -41,7 +47,10 @@ func _process(dt: float) -> void:
 func apply(dt: float) -> void:
 	clock += dt
 	if not paused:
-		time = fmod(time + dt / DAY_LEN, 1.0)
+		# D-061: il tempo rallenta col sole basso (ora d'oro piu' lunga).
+		var e: float = state.get("elev", 1.0) if not state.is_empty() else 1.0
+		var rate := lerpf(GOLDEN_RATE, 1.0, smoothstep(0.0, 0.6, e)) if e > 0.0 else 1.0
+		time = fmod(time + dt * rate / DAY_LEN, 1.0)
 	state = sky_state(time)
 	var rs := RenderingServer
 	rs.global_shader_parameter_set(&"world_time", clock)
@@ -82,8 +91,9 @@ static func sky_state(t: float) -> Dictionary:
 	var u := (h - 6.0) / 12.0
 	var elev := sin(PI * clampf(u, 0.0, 1.0))
 	var sun_yaw := deg_to_rad(-90.0 + u * 180.0)
-	var sun_pitch := maxf(0.06, elev) * PI / 2.0 * 0.82
-	var dusk := 1.0 - minf(1.0, elev / 0.35)
+	var sun_pitch := maxf(0.06, elev) * PI / 2.0 * SUN_MAX
+	# Luce calda finche' il sole e' sotto la meta' del cielo.
+	var dusk := 1.0 - smoothstep(0.0, 0.62, elev)
 	var daylight := minf(1.0, elev / 0.10) if day else 0.0
 	var sd := Vector3(sin(sun_yaw) * cos(sun_pitch), sin(sun_pitch), cos(sun_yaw) * cos(sun_pitch)).normalized()
 	var my := deg_to_rad(NIGHT["moon_yaw_deg"])

@@ -131,7 +131,15 @@ reference e misura dei millisecondi per fotogramma sul telefono.
 
 Proposta: F0 → F1 → F2 → F3 → F5 → F4 → F6 → F7, con un APK a ogni fase.
 
-## 5. Decisioni da prendere
+## 5. Decisioni prese (05/10/2026)
+
+1. Resa nitida come la reference; la pixel-art resta come opzione (righe 270-450).
+2. Telefono di riferimento: Pixel 10.
+3. Nell'arena resta il ciclo del giorno, rallentato attorno all'alba e al tramonto.
+
+Fatto in D-061: F0, F1, F2, glow e vignettatura di F5.
+
+## 6. Decisioni da prendere (testo originale)
 
 1. **Pixel-art o no?** La reference non e' pixel-art. Proposta: la nuova resa diventa quella
    predefinita e il modo pixel attuale resta come opzione.

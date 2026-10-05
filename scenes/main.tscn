@@ -21,6 +21,13 @@ background_color = Color(0.043, 0.082, 0.102, 1)
 ambient_light_source = 1
 reflected_light_source = 1
 tonemap_mode = 0
+glow_enabled = true
+glow_intensity = 0.55
+glow_strength = 0.9
+glow_bloom = 0.02
+glow_blend_mode = 1
+glow_hdr_threshold = 0.95
+glow_hdr_scale = 1.6
 
 [sub_resource type="ShaderMaterial" id="post_mat"]
 render_priority = -128
@@ -57,8 +64,12 @@ environment = SubResource("env")
 
 [node name="Sun" type="DirectionalLight3D" parent="WorldView"]
 shadow_enabled = true
-directional_shadow_mode = 0
-directional_shadow_max_distance = 140.0
+shadow_bias = 0.06
+shadow_normal_bias = 1.2
+shadow_blur = 1.6
+directional_shadow_mode = 1
+directional_shadow_split_1 = 0.3
+directional_shadow_max_distance = 90.0
 
 [node name="DayCycle" type="Node" parent="WorldView" node_paths=PackedStringArray("light")]
 script = ExtResource("6_day")

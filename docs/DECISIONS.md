@@ -1118,3 +1118,21 @@ il ritmo nasce da regole che fanno alternare chi attacca e chi risponde, non dai
 - Misura IA contro IA, spada contro spada: 23 attacchi in 12,6 s, l'iniziativa cambia 14 volte,
   5 deviazioni, 4 parate, 12 colpi a segno.
 
+## D-061 — Piano grafico, prime fasi: resa nitida, luce morbida, ombre, ora d'oro
+Decisioni del proprietario sul piano (`docs/PIANO_GRAFICA.md`): resa nitida come la reference con
+la pixel-art come opzione; telefono di riferimento Pixel 10; nell'arena il ciclo del giorno,
+rallentato attorno al tramonto.
+- F0: `tools/look_preview.gd`, arena in vista iso come la reference, ora e righe scelte.
+- F1: righe del render target 270/360/450 (pixel-art, ingrandite senza filtro) e 540/720/900
+  (resa nitida, ingrandite con filtro lineare). Predefinite 720. Uniform globali `look_hd` e
+  `px_scale` (contorni di 2 pixel a 720 righe).
+- F2: nella resa nitida la luce non e' piu' a 3-4 bande ma una rampa morbida (Half Lambert
+  avvolgente, 0,5..1); l'ombra portata e' quella filtrata di Godot. Ombre: atlante 4096, filtro
+  morbido alto, blur 1,6, due fasce (PSSM 2), distanza 90 m, bias 0,06 / normale 1,2.
+  Sole al massimo a 0,64 di 90 gradi (ombre sempre un po' lunghe); luce calda finche' il sole e'
+  sotto la meta' del cielo; col sole basso il tempo scorre al 40% (ora d'oro piu' lunga). Colori
+  dell'ora d'oro meno rossi e ombre piu' chiare (sole 1,0/0,70/0,44, ambiente 0,40 azzurrino).
+- F5 (inizio): glow sulle superfici sopra 0,95 (emissive, magia), vignettatura leggera di giorno.
+- Prossime fasi: F3 materiali (lastre, crepe, erba nelle fughe), F4 occlusione, F5 profondita'
+  di campo e gradazione, F6 arredo dell'arena, F7 personaggi.
+

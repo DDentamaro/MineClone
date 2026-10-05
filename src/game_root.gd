@@ -118,7 +118,7 @@ func _ready() -> void:
 	_args = _parse_user_args()
 	# Preferenze del prototipo (chiavi isoterra.*): righe, spigoli, terza persona.
 	var rh := int(Settings.load_value("view", "rt_h", 360))
-	rt_height = rh if rh in [270, 360, 450] else 360
+	rt_height = rh if rh in RT_OPTIONS else RT_DEFAULT
 	toggles["edges"] = bool(Settings.load_value("view", "edges", true))
 	catalog = BlockCatalog.load_default()
 	var w: WorldData
@@ -1006,7 +1006,7 @@ func _on_button(id: StringName) -> void:
 		&"dev_time":
 			_day.time = fmod(_day.time + 3.0 / 24.0, 1.0)
 		&"dev_res":
-			var opts := [270, 360, 450]
+			var opts := RT_OPTIONS
 			rt_height = opts[(opts.find(rt_height) + 1) % opts.size()]
 			Settings.save_value("view", "rt_h", rt_height)
 			_fit_view()
@@ -1665,7 +1665,7 @@ func _poll_generation() -> void:
 func _refresh_labels() -> void:
 	_touch.labels[&"camera"] = ["Iso", "3ª p.", "1ª p."][_camera_rig.mode]
 	_touch.labels[&"dev"] = "Chiudi" if _touch.dev_open else "Opzioni"
-	_touch.labels[&"dev_res"] = "Righe %d" % rt_height
+	_touch.labels[&"dev_res"] = "Righe %d%s" % [rt_height, " nitida" if rt_height >= RT_HD else ""]
 	for key: String in toggles:
 		_touch.labels[StringName("dev_" + key)] = "%s %s" % [_dev_label(key), "ON" if toggles[key] else "OFF"]
 	_touch.labels[&"dev_digdebug"] = "Scava debug %s" % ("ON" if dig_debug else "OFF")
@@ -1715,7 +1715,13 @@ func debug_dig(hit: VoxelQuery.VoxelHit) -> bool:
 
 
 ## Altezza del render target a bassa risoluzione (RT_H del prototipo: 270/360/450).
-var rt_height := 360
+var rt_height := RT_DEFAULT
+## D-061: righe del render target. Fino a 450 la resa a pixel grandi (ingrandita
+## senza filtro); da 540 in su la resa nitida (filtrata, luce morbida, contorni
+## piu' spessi). Predefinita 720, misurata per un telefono come il Pixel 10.
+const RT_OPTIONS: Array[int] = [270, 360, 450, 540, 720, 900]
+const RT_DEFAULT := 720
+const RT_HD := 540
 var _occl := 0.0
 
 ## Punti del corpo usati per stimare quanto il giocatore e' coperto (BODY, riga 7928).
@@ -1731,6 +1737,12 @@ func _fit_view() -> void:
 	var h := rt_height
 	var b := _camera_rig.border_px
 	_view.size = Vector2i(maxi(1, roundi(h * s.x / s.y)) + 2 * b, h + 2 * b)
+	# Resa nitida (D-061): ingrandimento filtrato, luce morbida, contorni di
+	# due pixel; sotto 540 righe resta la pixel-art.
+	var hd := h >= RT_HD
+	_screen.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR if hd else CanvasItem.TEXTURE_FILTER_NEAREST
+	RenderingServer.global_shader_parameter_set(&"look_hd", 1.0 if hd else 0.0)
+	RenderingServer.global_shader_parameter_set(&"px_scale", maxf(1.0, roundf(h / 360.0)))
 	_place_screen()
 
 

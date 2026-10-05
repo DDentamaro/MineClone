@@ -1,5 +1,14 @@
 # Avanzamento
 
+## 05/10/2026 — D-061: resa nitida, luce morbida, ombre, ora d'oro
+
+### Test realmente eseguiti (D-061)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 211/211 PASS (aggiornata la prova delle righe: 720 predefinite, 900, poi 270 pixel-art) |
+| `tools/look_preview.gd` (nuovo) a 720 righe mattino e giorno, a 360 righe | Guardate a occhio. Primo tentativo all'alba troppo rosa con ombre blu scure: colori dell'ora d'oro corretti |
+| Export Android debug 0.39.0-m5 (versionCode 41) + `apksigner verify` + `aapt2 dump badging` | OK; non provato sul telefono (costo a 720 righe da misurare sul Pixel 10) |
+
 ## 05/10/2026 — D-060: lo scambio (postura, deviazione, clash, turni)
 
 ### Test realmente eseguiti (D-060)

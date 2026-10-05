@@ -189,9 +189,13 @@ func test_interruttori_del_pannello() -> void:
 	check(not g._day.shadows_on, "ombre spente")
 	g._on_button(&"dev_grass")
 	check(not g._vegetation.grass_visible, "erba nascosta")
+	g.rt_height = GameRoot.RT_DEFAULT
 	g._on_button(&"dev_res")
-	check_eq(g._view.size.y, 450 + 2, "righe 450 + bordo")
-	check_eq(g._touch.labels[&"dev_res"], "Righe 450", "etichetta")
+	check_eq(g._view.size.y, 900 + 2, "righe 900 + bordo (dopo le 720 predefinite)")
+	check_eq(g._touch.labels[&"dev_res"], "Righe 900 nitida", "etichetta")
+	g._on_button(&"dev_res")
+	check_eq(g.rt_height, 270, "poi si torna alla pixel-art")
+	check_eq(g._screen.texture_filter, CanvasItem.TEXTURE_FILTER_NEAREST, "pixel-art senza filtro")
 	g.free()
 
 

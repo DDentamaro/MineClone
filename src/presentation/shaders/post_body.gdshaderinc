@@ -17,6 +17,8 @@ global uniform float persp;
 global uniform float outline_on;
 global uniform float edges_on;
 global uniform float rays_on;
+// D-061: spessore dei contorni in pixel (2 nella resa nitida a 720 righe).
+global uniform float px_scale;
 // 1 sui pixel dell'erba: niente contorni ne' spigoli (alfa 0 del prototipo).
 uniform float no_outline = 0.0;
 
@@ -73,12 +75,13 @@ void fragment() {
 	vec3 col = sky ? sky_color(v) : (texture(screen_tex, uv).rgb);
 	if (outline_on > 0.5 && no_outline < 0.5 && !sky) {
 		float lc = lin_at(uv, dc, ip); float m = 0.0;
-		vec2 oR = vec2(px.x, 0.0), oU = vec2(0.0, px.y);
+		vec2 oR = vec2(px.x * px_scale, 0.0), oU = vec2(0.0, px.y * px_scale);
 		float dR = raw_depth(uv + oR), dL = raw_depth(uv - oR), dU = raw_depth(uv + oU), dD = raw_depth(uv - oU);
 		float lR = is_sky(dR) ? 0.0 : lin_at(uv + oR, dR, ip) - lc, lL = is_sky(dL) ? 0.0 : lin_at(uv - oR, dL, ip) - lc;
 		float lU = is_sky(dU) ? 0.0 : lin_at(uv + oU, dU, ip) - lc, lD = is_sky(dD) ? 0.0 : lin_at(uv - oU, dD, ip) - lc;
 		if (!is_sky(dR)) m = max(m, lR); if (!is_sky(dL)) m = max(m, lL); if (!is_sky(dU)) m = max(m, lU); if (!is_sky(dD)) m = max(m, lD);
-		vec2 q1 = uv + px, q2 = uv - px, q3 = uv + vec2(px.x, -px.y), q4 = uv + vec2(-px.x, px.y);
+		vec2 pd = px * px_scale;
+		vec2 q1 = uv + pd, q2 = uv - pd, q3 = uv + vec2(pd.x, -pd.y), q4 = uv + vec2(-pd.x, pd.y);
 		float d1 = raw_depth(q1), d2 = raw_depth(q2), d3 = raw_depth(q3), d4 = raw_depth(q4);
 		if (!is_sky(d1)) m = max(m, (lin_at(q1, d1, ip) - lc) * 0.8); if (!is_sky(d2)) m = max(m, (lin_at(q2, d2, ip) - lc) * 0.8);
 		if (!is_sky(d3)) m = max(m, (lin_at(q3, d3, ip) - lc) * 0.8); if (!is_sky(d4)) m = max(m, (lin_at(q4, d4, ip) - lc) * 0.8);
