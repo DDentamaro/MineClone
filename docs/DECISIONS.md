@@ -1136,3 +1136,19 @@ rallentato attorno al tramonto.
 - Prossime fasi: F3 materiali (lastre, crepe, erba nelle fughe), F4 occlusione, F5 profondita'
   di campo e gradazione, F6 arredo dell'arena, F7 personaggi.
 
+## D-062 — Piano grafico F3: materiali della resa nitida
+Richiesta del proprietario: procedere con F3. Nella resa nitida (righe >= 540) i blocchi non
+usano piu' i 16 texel per blocco della pixel-art ma colore procedurale a piena risoluzione
+(`materials_hd.gdshaderinc`, chiamato da `chunk.gdshader`); la pixel-art resta com'era.
+- Pavimento dell'arena: file sfalsate di lastre quasi rettangolari di circa 2 x 1,25 blocchi (una
+  su quattro divisa in due), bordi mossi, spigoli scheggiati (la fuga si allarga negli angoli),
+  tono caldo diverso per lastra (qualche lastra piu' fredda, chiara o scura), macchie e puntini,
+  smusso consumato (filo chiaro che prende la luce, poi scuro verso la fuga), crepe corte su una
+  lastra su cinque, fughe di terra con l'erba a chiazze. Le fughe scuriscono anche la luce (come
+  un'occlusione). Fianchi del ring a corsi di pietra sfalsati.
+- Pietra e pietra scura: grana fbm, crepe Voronoi, variazione per blocco, spigoli chiari sopra e
+  scuri sotto. Terra: grana e pochi sassolini. Sabbia: grana fine. Legno: quattro tavole per
+  blocco con venatura e fughe. Prato: il colore del bioma con ciuffi e chiazze fini.
+- Tentativi guardati e scartati: lastre Voronoi irregolari ("opus incertum", troppo fitte e
+  diverse dalla reference); lastre piccole con fughe larghe tutte erbose.
+

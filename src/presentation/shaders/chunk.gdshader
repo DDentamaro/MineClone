@@ -6,6 +6,7 @@ shader_type spatial;
 render_mode cull_back, specular_disabled, ambient_light_disabled, fog_disabled;
 
 #include "res://src/presentation/shaders/rustic.gdshaderinc"
+#include "res://src/presentation/shaders/materials_hd.gdshaderinc"
 
 uniform sampler2D atlas : source_color, filter_nearest, repeat_disable;
 
@@ -23,6 +24,8 @@ varying float v_bands;
 varying float v_emissive;
 varying vec2 v_sp;
 varying vec3 v_n;
+// D-062: quanto il punto e' in una fuga (luce piu' scura, come un'occlusione).
+varying float v_occl;
 
 // D-054: marmo dell'arena (come il ring del torneo di Cell): piastrelle chiare
 // di 2x2 blocchi con le fughe scure e una leggera variazione per piastrella.
@@ -97,6 +100,14 @@ void fragment() {
 		else col = tex;
 		col *= 0.92 + 0.16 * (lum - 0.5) + 0.04 * speck;
 	}
+	// D-062: resa nitida, materiali a piena risoluzione (piano grafico F3).
+	float occl = 0.0;
+	if (paint_mode > 0.5 && look_hd > 0.5) {
+		bool ok;
+		vec3 hc = hd_material(tile, face, sp, uv, v_world, col, ok, occl);
+		if (ok) { col = hc; wq = v_world; }
+	}
+	v_occl = occl;
 	v_col = col; v_wq = wq; v_S = S; v_bands = bands; v_sp = sp; v_n = N;
 	v_emissive = (tile == 9.0 || tile == 10.0) ? 1.0 : 0.0;
 	ALBEDO = vec3(1.0);
@@ -120,6 +131,7 @@ void light() {
 			float aok = ao * ao * (3.0 - 2.0 * ao) * 0.9 + 0.1 * ao;
 			if (paint_mode > 0.5) lt *= mix(mix(vec3(0.62, 0.64, 0.72), v_S / 0.40 * 0.62, 0.30), vec3(1.0), aok);
 			else lt *= mix(vec3(0.50, 0.54, 0.66), vec3(1.0), aok);
+			lt *= 1.0 - 0.28 * v_occl;
 		}
 		lt = max(min(lt, vec3(1.25)), vec3(0.030, 0.034, 0.055));
 		lt = quantize(lt, FRAGCOORD.xy);

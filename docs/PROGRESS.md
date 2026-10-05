@@ -1,5 +1,14 @@
 # Avanzamento
 
+## 05/10/2026 — D-062: materiali della resa nitida (lastre, pietra, terra, legno)
+
+### Test realmente eseguiti (D-062)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 211/211 PASS |
+| `tools/look_preview.gd` (ora anche `--at=dx,dz` per guardare fuori dall'arena) | Arena e prato guardati a occhio: tre versioni del pavimento prima di quella buona, sassolini della terra diradati |
+| Export Android debug 0.40.0-m5 (versionCode 42) + `apksigner verify` + `aapt2 dump badging` | OK; non provato sul telefono |
+
 ## 05/10/2026 — D-061: resa nitida, luce morbida, ombre, ora d'oro
 
 ### Test realmente eseguiti (D-061)

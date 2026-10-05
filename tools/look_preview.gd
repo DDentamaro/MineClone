@@ -11,6 +11,8 @@ var _time := 0.30
 var _rt := 720
 var _zoom := 1.5
 var _yaw := 0.0
+## --at=dx,dz: il giocatore spostato di tanto dal punto di nascita (fuori dall'arena).
+var _at := Vector2.ZERO
 var _phase := 0
 var _frame := 0
 
@@ -31,6 +33,9 @@ func _initialize() -> void:
 			_zoom = float(a.substr(7))
 		elif a.begins_with("--yaw="):
 			_yaw = float(a.substr(6))
+		elif a.begins_with("--at="):
+			var xz := a.substr(5).split(",")
+			_at = Vector2(float(xz[0]), float(xz[1]))
 	_game = (load("res://scenes/main.tscn") as PackedScene).instantiate()
 	root.add_child(_game)
 
@@ -41,6 +46,11 @@ func _process(_dt: float) -> bool:
 	match _phase:
 		0:
 			if g._runtime.is_idle() and g._build_ms > 0 and g._vegetation.is_idle() and g._water.is_idle():
+				if _at != Vector2.ZERO:
+					var p := g.world.spawn_point() + Vector3(_at.x, 0, _at.y)
+					g.motor.place_at(Vector3(p.x, g.world.size_y - 2, p.z))
+					g._avatar.position = g.motor.position
+					g._runtime.focus = g.motor.position
 				g.rt_height = _rt
 				g._fit_view()
 				g._day.time = _time
