@@ -1176,3 +1176,17 @@ texture dei personaggi. Poi: "Sfocatura eliminala".
 - Profondita' di campo (tilt-shift): fatta, guardata e poi spenta su richiesta del proprietario
   (`CameraRig.dof_on` falso); gia' prima la parte vicina copriva alberi e colonne.
 
+
+## D-064 — Niente sfocatura: risoluzione nativa
+
+Il proprietario vede ancora l'immagine sfocata dopo aver spento la profondita' di campo. La causa
+era l'ingrandimento: 720 righe stirate con filtro lineare sullo schermo del telefono (1080 righe
+fisiche, fattore 1,5) ammorbidiscono tutto.
+
+- Nuova opzione `RT_NATIVE` (0) e predefinita: tante righe quanti i pixel fisici dello schermo
+  (`DisplayServer.window_get_size`, fra 540 e 1440), un pixel per pixel, senza filtro.
+- Le righe fisse (270-900) restano in Opzioni per i telefoni che non reggono; da 540 a 900
+  restano filtrate. Etichetta "Nativa N".
+- Una volta sola (`rt_v` 3) le preferenze salvate passano alla nativa.
+- Glow senza bloom diffuso (`glow_bloom` 0): resta solo l'alone delle cose luminose.
+- Costo: piu' pixel da disegnare (circa 2,25 volte le 720 righe su un 1080p). Non misurato sul telefono.

@@ -1,5 +1,10 @@
 # Avanzamento
 
+## 05/10/2026 — D-064: niente sfocatura, risoluzione nativa
+
+- Predefinita la risoluzione nativa (un pixel per pixel, senza filtro); glow senza bloom diffuso.
+- Test eseguiti: `test_game_root` 13/13. Non provato sul telefono.
+
 ## 05/10/2026 — D-063: alberi, arredo, personaggi, ombre di contatto
 
 ### Test realmente eseguiti (D-063)

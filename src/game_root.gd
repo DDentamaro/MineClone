@@ -122,10 +122,11 @@ func _ready() -> void:
 	var rh := int(Settings.load_value("view", "rt_h", RT_DEFAULT))
 	# D-063: le righe salvate prima della resa nitida (0.38 e precedenti)
 	# portavano alla pixel-art; una volta sola si passa alla nitida.
-	if int(Settings.load_value("view", "rt_v", 1)) < 2:
+	# D-064: poi alla risoluzione nativa (niente ingrandimento sfocato).
+	if int(Settings.load_value("view", "rt_v", 1)) < 3:
 		rh = RT_DEFAULT
 		Settings.save_value("view", "rt_h", rh)
-		Settings.save_value("view", "rt_v", 2)
+		Settings.save_value("view", "rt_v", 3)
 	rt_height = rh if rh in RT_OPTIONS else RT_DEFAULT
 	toggles["edges"] = bool(Settings.load_value("view", "edges", true))
 	catalog = BlockCatalog.load_default()
@@ -308,7 +309,7 @@ func _swap_world(w: WorldData) -> void:
 	_runtime.focus = motor.position
 	_build_ms = 0
 	_runtime.setup(world, catalog)
-	_vegetation.hd_trees = rt_height >= RT_HD
+	_vegetation.hd_trees = view_rows() >= RT_HD
 	_vegetation.setup(world, catalog, world.world_seed)
 	_water.setup(world)
 	_grains.world = world
@@ -861,7 +862,7 @@ func _update_session_hud() -> void:
 		return
 	_status.visible = _touch.dev_open and not paused and not _bag.is_open()
 	_session.hud_visible = not _bag.is_open() and not _touch.dev_open and not _touch.hero_open
-	_session.quality = rt_height
+	_session.quality = view_rows()
 	_session.ui_density = _touch.dp(1.0)
 	var held := items.held()
 	_session.held_name = Loot.full_name(held) if held != null else "Mani libere"
@@ -1714,7 +1715,7 @@ func _poll_generation() -> void:
 func _refresh_labels() -> void:
 	_touch.labels[&"camera"] = ["Iso", "3ª p.", "1ª p."][_camera_rig.mode]
 	_touch.labels[&"dev"] = "Chiudi" if _touch.dev_open else "Opzioni"
-	_touch.labels[&"dev_res"] = "Righe %d%s" % [rt_height, " nitida" if rt_height >= RT_HD else ""]
+	_touch.labels[&"dev_res"] = "Nativa %d" % view_rows() if rt_height == RT_NATIVE else "Righe %d%s" % [rt_height, " nitida" if rt_height >= RT_HD else ""]
 	for key: String in toggles:
 		_touch.labels[StringName("dev_" + key)] = "%s %s" % [_dev_label(key), "ON" if toggles[key] else "OFF"]
 	_touch.labels[&"dev_digdebug"] = "Scava debug %s" % ("ON" if dig_debug else "OFF")
@@ -1768,9 +1769,15 @@ var rt_height := RT_DEFAULT
 ## D-061: righe del render target. Fino a 450 la resa a pixel grandi (ingrandita
 ## senza filtro); da 540 in su la resa nitida (filtrata, luce morbida, contorni
 ## piu' spessi). Predefinita 720, misurata per un telefono come il Pixel 10.
-const RT_OPTIONS: Array[int] = [270, 360, 450, 540, 720, 900]
-const RT_DEFAULT := 720
+## D-064: RT_NATIVE (0) = tante righe quanti i pixel fisici dello schermo, un
+## pixel per pixel: niente ingrandimento filtrato, quindi niente sfocatura.
+## E' la predefinita; le righe fisse restano per i telefoni che non reggono.
+const RT_NATIVE := 0
+const RT_OPTIONS: Array[int] = [270, 360, 450, 540, 720, 900, RT_NATIVE]
+const RT_DEFAULT := RT_NATIVE
 const RT_HD := 540
+## Tetto della nativa (schermi molto alti).
+const RT_NATIVE_MAX := 1440
 var _occl := 0.0
 
 ## Punti del corpo usati per stimare quanto il giocatore e' coperto (BODY, riga 7928).
@@ -1781,15 +1788,26 @@ const BODY: Array[Vector3] = [Vector3(0, .15, 0), Vector3(0, .5, 0), Vector3(0, 
 
 ## Il render target ha un pixel di bordo per lato: l'immagine viene spostata
 ## del resto sub-pixel della camera e il bordo resta fuori dallo schermo.
+## Righe effettive del render target.
+func view_rows() -> int:
+	if rt_height != RT_NATIVE:
+		return rt_height
+	var ph := DisplayServer.window_get_size().y
+	if ph <= 0:
+		ph = int(get_viewport().get_visible_rect().size.y)
+	return clampi(ph, RT_HD, RT_NATIVE_MAX)
+
+
 func _fit_view() -> void:
 	var s := get_viewport().get_visible_rect().size
-	var h := rt_height
+	var h := view_rows()
 	var b := _camera_rig.border_px
 	_view.size = Vector2i(maxi(1, roundi(h * s.x / s.y)) + 2 * b, h + 2 * b)
 	# Resa nitida (D-061): ingrandimento filtrato, luce morbida, contorni di
 	# due pixel; sotto 540 righe resta la pixel-art.
 	var hd := h >= RT_HD
-	_screen.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR if hd else CanvasItem.TEXTURE_FILTER_NEAREST
+	# Nativa: un pixel per pixel, nessun filtro (il filtro lineare sfocava).
+	_screen.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR if hd and rt_height != RT_NATIVE else CanvasItem.TEXTURE_FILTER_NEAREST
 	RenderingServer.global_shader_parameter_set(&"look_hd", 1.0 if hd else 0.0)
 	_camera_rig.dof_hd = hd
 	RenderingServer.global_shader_parameter_set(&"px_scale", maxf(1.0, roundf(h / 360.0)))
@@ -1797,7 +1815,7 @@ func _fit_view() -> void:
 
 
 func _view_scale() -> float:
-	return get_viewport().get_visible_rect().size.y / float(rt_height)
+	return get_viewport().get_visible_rect().size.y / float(view_rows())
 
 
 func _place_screen() -> void:

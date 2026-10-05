@@ -94,4 +94,4 @@ godot --headless --path . --script res://tools/bench_fluid.gd  # tempi dell'acqu
 godot --path . -- --screenshot=shot.png --zoom=0.55 --cam=tps --time=0.9 --seed=42 --dev --lake --at=86.5,142.5 --nowater
 ```
 
-Grafica (D-061): resa nitida a 720 righe (la pixel-art resta in Opzioni > Righe 270-450), luce morbida, ombre filtrate e lunghe, ora d'oro rallentata, glow. Materiali a piena risoluzione: lastre di pietra con fughe erbose, pietra, terra, legno (D-062). Alberi a cubetti di foglie, arredo dell'arena, personaggi con grana e metallo lucido, ombre di contatto (D-063). Piano completo in `docs/PIANO_GRAFICA.md`.
+Grafica (D-061): resa nitida a 720 righe (la pixel-art resta in Opzioni > Righe 270-450), luce morbida, ombre filtrate e lunghe, ora d'oro rallentata, glow. Materiali a piena risoluzione: lastre di pietra con fughe erbose, pietra, terra, legno (D-062). Alberi a cubetti di foglie, arredo dell'arena, personaggi con grana e metallo lucido, ombre di contatto (D-063). Risoluzione nativa predefinita, senza sfocatura (D-064). Piano completo in `docs/PIANO_GRAFICA.md`.
