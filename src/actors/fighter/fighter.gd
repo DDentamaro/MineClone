@@ -77,6 +77,10 @@ func step(dt: float, foe: FighterBody, foe_c: CombatController, foe_shots: Array
 	if not combat.is_busy():
 		combat.facing = avatar.facing
 	combat.forced = foe if foe != null and foe.alive and active else null
+	# Clash delle lame (D-060) contro il controller dell'avversario.
+	combat.rival = foe_c if active else null
+	if foe != null:
+		combat.rival_position = foe.position
 	combat.hitboxes = avatar.rig.hitboxes()
 	if body.alive:
 		combat.step(dt, motor, targets, stick)
@@ -91,7 +95,8 @@ func step(dt: float, foe: FighterBody, foe_c: CombatController, foe_shots: Array
 		motor.drive_on = combat.drive_on
 		motor.drive = combat.drive
 		motor.move_scale = combat.move_scale * combat.weapon.move_mult
-		if combat.state == CombatController.State.IDLE:
+		# Passo laterale piu' lento girando attorno; si corre attaccando o inseguendo.
+		if combat.state == CombatController.State.IDLE and not ai.mode in ["offense", "counter", "dash", "leap"]:
 			motor.move_scale *= GameRoot.STRAFE_SPEED
 		if not body.alive:
 			motor.drive_on = false

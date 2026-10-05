@@ -1,22 +1,33 @@
 class_name FighterAI
 extends RefCounted
-## Cervello del nemico dell'arena (D-058). Non ha mosse sue: preme gli stessi
-## tasti del giocatore sul suo `CombatController` (colpo, forte tenuto, schivata,
-## para tenuto), muove lo stesso stick e salta. Cosi' ha tutte le azioni del
-## giocatore: catene, colpi forti e caricati, attacco in corsa dopo la
-## capriola, attacco in aria dopo il salto, guardia, parata perfetta, magia col
-## bastone.
+## Cervello del nemico dell'arena (D-058, rifatto in D-060 attorno allo
+## scambio). Non ha mosse sue: preme gli stessi tasti del giocatore sul suo
+## `CombatController` (colpo, forte tenuto, schivata, para tenuto), muove lo
+## stesso stick e salta.
 ##
-## Vede quello che vedrebbe un giocatore: dove sta l'avversario, che colpo sta
-## preparando (con un ritardo di reazione), i proiettili in arrivo, il bordo del
-## ring. La difficolta' (`level` 0..3) cambia riflessi e scelte.
+## Lo scontro e' a turni, come nei giochi d'azione con i duelli (Sekiro, For
+## Honor; i "gettoni d'attacco" di DOOM e Batman per chi attacca quando):
+## - Distanza: resta appena fuori portata, gira attorno, finte di passo avanti
+##   e indietro. Non attacca mentre attacca il giocatore.
+## - Offensiva: una sequenza di 2-4 colpi della catena dell'arma con un ritmo
+##   che cambia (a volte trattiene il seguito), chiusa a volte da un forte o
+##   da un attacco pericoloso (rosso, si schiva). Se viene deviata si ferma.
+## - Rientro: finita la sequenza resta scoperta per un attimo (la finestra per
+##   colpirla), poi torna alla distanza.
+## - Difesa: quando il giocatore attacca alza la guardia e devia all'ultimo
+##   istante (riflessi e precisione dal livello); dopo una deviazione o alla
+##   fine della sequenza del giocatore contrattacca subito.
+## - Punizione: giocatore con la postura rotta o scoperto -> colpo forte.
+## Vede quello che vedrebbe un giocatore: il colpo che l'altro prepara (con un
+## ritardo di reazione), i proiettili in arrivo.
 
-## [reazione (s), parata perfetta, schivata, guardia, colpi in catena, forte]
+## [reazione (s), deviazione, schivata, interrompere, colpi in sequenza,
+##  forte in coda, pazienza (moltiplica i tempi d'attesa), pericoloso]
 const LEVELS := [
-	[0.34, 0.10, 0.18, 0.30, 2, 0.30],
-	[0.27, 0.20, 0.24, 0.30, 3, 0.40],
-	[0.21, 0.32, 0.28, 0.25, 4, 0.45],
-	[0.16, 0.45, 0.30, 0.20, 4, 0.50],
+	[0.34, 0.22, 0.15, 0.04, 2, 0.25, 1.4, 0.0],
+	[0.28, 0.40, 0.18, 0.08, 3, 0.30, 1.2, 0.15],
+	[0.22, 0.55, 0.20, 0.12, 4, 0.35, 1.0, 0.25],
+	[0.17, 0.70, 0.22, 0.16, 4, 0.40, 0.85, 0.30],
 ]
 ## Distanza preferita col bastone.
 const STAFF_RANGE := 5.5
@@ -25,29 +36,35 @@ var level := 0
 ## Uscite verso il motore: direzione voluta (piano XZ) e salto.
 var stick := Vector2.ZERO
 var jump := false
-## Cosa sta facendo (per le prove e il debug).
-var mode := "approach"
+## Cosa sta facendo: neutral, offense, recover, defense, counter, dash, leap.
+var mode := "neutral"
 var rng := RandomNumberGenerator.new()
 
 var _clock := 0.0
 var _mode_t := 0.0
+var _mode_len := 1.0
 var _seen_starts := 0
 var _pressed_starts := -1
 var _press_clock := -99.0
-var _threat_at := -1.0
-var _threat_kind := ""
-var _threat_dir := Vector2.ZERO
-var _combo_left := 0
+var _string_left := 0
+var _finisher := ""
+var _hold_next := false
 var _heavy_hold := 0.0
-var _guard_hold := 0.0
 var _strafe := 1.0
+var _step_dir := 0.0
+var _step_t := 0.0
 var _stuck_t := 0.0
 var _sidestep_t := 0.0
 var _last_pos := Vector3.ZERO
-var _dash_t := -1.0
 var _leap_t := -1.0
 var _seen_shots := {}
-var _hold_guard_until_safe := false
+## Difesa in corso: momento in cui reagire e come.
+var _react_at := -1.0
+var _react := ""
+var _shot_dir := Vector2.ZERO
+var _deflects := 0
+var _dash_clock := -99.0
+var _dt := 1.0 / 60.0
 
 
 func _init(lv: int = 0, seed_value: int = 0) -> void:
@@ -62,27 +79,26 @@ func _p(i: int) -> Variant:
 func reset() -> void:
 	stick = Vector2.ZERO
 	jump = false
-	mode = "approach"
-	_mode_t = 0.0
-	_threat_at = -1.0
-	_threat_kind = ""
-	_combo_left = 0
+	_set_mode("neutral", 1.0)
+	_react = ""
+	_react_at = -1.0
+	_string_left = 0
 	_heavy_hold = 0.0
-	_guard_hold = 0.0
-	_dash_t = -1.0
-	_leap_t = -1.0
-	_hold_guard_until_safe = false
 	_seen_shots.clear()
 
 
-## Un passo di decisione. `me`/`foe`: controller e corpo; `shots`: i
-## proiettili del rivale; `center`/`half`: il ring (half <= 0: nessun ring).
+## Un passo di decisione. `shots`: i proiettili del rivale; `center`/`half`:
+## il ring (half <= 0: nessun limite).
 func think(dt: float, me_c: CombatController, me_m: PlayerMotor, foe: FighterBody, foe_c: CombatController,
 		shots: Array, center: Vector3, half: float) -> void:
 	_clock += dt
+	_dt = dt
 	_mode_t += dt
 	jump = false
-	_release_holds(dt, me_c)
+	if _heavy_hold > 0.0:
+		_heavy_hold -= dt
+		if _heavy_hold <= 0.0:
+			me_c.release_heavy()
 	if not foe.alive:
 		stick = Vector2.ZERO
 		me_c.release_guard()
@@ -93,42 +109,40 @@ func think(dt: float, me_c: CombatController, me_m: PlayerMotor, foe: FighterBod
 	var dir := v / d if d > 1e-3 else Vector2(0, -1)
 	var w := me_c.weapon
 	var staff := w.kind == WeaponDefinition.Kind.STAFF
-	var reach := w.strike_dist + 0.35
+	# Portata vera: arma piu' lo scatto in avanti del primo colpo.
+	var first := w.attack(w.light_start)
+	var reach := w.strike_dist + 0.3 + (first.lunge * 0.8 if first != null else 0.0)
 	_track_stuck(dt, me_m)
-	# Stordito: non c'e' niente da fare.
+	# Respinto dalla deviazione del giocatore o da un clash: la sequenza e' finita.
+	if me_c.stunned() and me_c.stun_kind in ["recoil", "clash", "break"] and mode == "offense":
+		_set_mode("recover", 0.2)
 	if me_c.stunned():
 		stick = Vector2.ZERO
+		me_c.release_guard()
+		# Barcollare leggero: chi e' sveglio alza subito la guardia.
+		if me_c.stun_kind == "flinch" and rng.randf() < 0.1 + 0.15 * level:
+			me_c.press_guard()
 		return
-	# --- Difesa: un colpo nuovo dell'avversario si vede dopo la reazione.
-	_watch_attack(me_c, foe_c, d, dir)
-	_watch_shots(shots, me_m, dir)
-	if _defend(me_c, foe_c, me_m, d, dir):
+	_watch_attack(me_c, foe_c, d)
+	_watch_shots(shots, me_m)
+	if _defend(me_c, foe_c, d, dir):
 		_ring_guard(me_m, center, half)
 		return
-	# --- Attacco.
+	var open := foe_c.stunned() and foe_c.stun_kind != "flinch" or foe_c.broken
 	if staff:
 		_think_staff(me_c, foe_c, d, dir)
 	else:
-		_think_melee(me_c, foe_c, me_m, d, dir, reach, foe, center, half)
+		_think_melee(me_c, foe_c, me_m, d, dir, reach, open)
 	_ring_guard(me_m, center, half)
 	if _sidestep_t > 0.0:
 		_sidestep_t -= dt
 		stick = (stick + Vector2(-dir.y, dir.x) * _strafe * 1.2).normalized()
 
 
-func _release_holds(dt: float, me_c: CombatController) -> void:
-	if _heavy_hold > 0.0:
-		_heavy_hold -= dt
-		if _heavy_hold <= 0.0:
-			me_c.release_heavy()
-	if _guard_hold > 0.0:
-		_guard_hold -= dt
-		if _guard_hold <= 0.0 and not _hold_guard_until_safe:
-			me_c.release_guard()
-
+# ------------------------------------------------------------------ difesa
 
 ## Un attacco nuovo del rivale: si sceglie come reagire (dopo il ritardo).
-func _watch_attack(me_c: CombatController, foe_c: CombatController, d: float, _dir: Vector2) -> void:
+func _watch_attack(me_c: CombatController, foe_c: CombatController, d: float) -> void:
 	if foe_c.starts == _seen_starts:
 		return
 	_seen_starts = foe_c.starts
@@ -140,33 +154,32 @@ func _watch_attack(me_c: CombatController, foe_c: CombatController, d: float, _d
 		danger = 30.0
 	if d > danger:
 		return
-	_threat_at = _clock + float(_p(0)) * rng.randf_range(0.8, 1.3)
+	# Durante la propria sequenza si continua (chi colpisce per primo ha
+	# l'iniziativa), salvo attacchi pericolosi.
+	if mode == "offense" and me_c.state == CombatController.State.ATTACK and not foe_c.perilous:
+		return
+	_react_at = _clock + float(_p(0)) * rng.randf_range(0.8, 1.25)
 	var r := rng.randf()
-	var parry := float(_p(1))
-	var dodge := float(_p(2))
-	var guard := float(_p(3))
-	if a.cast != "":
-		# Contro la magia: schivare di lato o parare (la magia non si para
-		# all'ultimo istante).
-		_threat_kind = "dodge" if r < 0.55 else ("block" if r < 0.85 else "")
-	elif a.shape == AttackDefinition.Shape.RADIAL or a.plunge:
-		# Colpi a terra: meglio la capriola, oppure la guardia.
-		_threat_kind = "dodge" if r < dodge + parry else ("block" if r < dodge + parry + guard else "")
-	elif r < parry:
-		_threat_kind = "parry"
-	elif r < parry + dodge:
-		_threat_kind = "dodge"
-	elif r < parry + dodge + guard:
-		_threat_kind = "block"
+	if foe_c.perilous or a.shape == AttackDefinition.Shape.RADIAL or a.plunge:
+		# Pericoloso o a terra: capriola (la guardia non basta o costa troppo).
+		_react = "dodge" if r < 0.45 + 0.12 * level else "block"
+	elif a.cast != "":
+		# Magia da lontano: solo una capriola di lato, senza fermarsi in difesa.
+		_react = "dodge" if r < 0.6 else ""
+		return
+	elif r < float(_p(1)):
+		_react = "deflect"
+	elif r < float(_p(1)) + float(_p(2)):
+		_react = "dodge"
+	elif r < float(_p(1)) + float(_p(2)) + float(_p(3)):
+		_react = "interrupt"
 	else:
-		_threat_kind = ""
-	# Chi sta gia' colpendo da vicino a volte scambia invece di difendersi.
-	if me_c.state == CombatController.State.ATTACK and me_c.phase() >= 1 and rng.randf() < 0.5:
-		_threat_kind = ""
+		_react = "block"
+	if mode != "defense":
+		_set_mode("defense", 2.0)
 
 
-## Proiettili in arrivo: capriola di lato o guardia.
-func _watch_shots(shots: Array, me_m: PlayerMotor, _dir: Vector2) -> void:
+func _watch_shots(shots: Array, me_m: PlayerMotor) -> void:
 	for o in shots:
 		var s := o as FireMagic.Shot
 		if s == null or s.dead or _seen_shots.has(s):
@@ -176,131 +189,180 @@ func _watch_shots(shots: Array, me_m: PlayerMotor, _dir: Vector2) -> void:
 		if dist > 7.0 or s.v.length() < 0.1 or s.v.normalized().dot(to_me / maxf(dist, 1e-3)) < 0.8:
 			continue
 		_seen_shots[s] = true
-		if _threat_kind != "":
+		if _clock - _dash_clock < 1.2:
 			continue
-		_threat_at = _clock + float(_p(0)) * rng.randf_range(0.6, 1.0)
-		_threat_kind = "dodge" if rng.randf() < 0.6 else "block"
-		_threat_dir = Vector2(s.v.x, s.v.z).normalized()
+		_react_at = _clock + float(_p(0)) * rng.randf_range(0.6, 1.0)
+		_react = "dodge" if rng.randf() < 0.5 else ""
+		_shot_dir = Vector2(s.v.x, s.v.z).normalized()
 	if _seen_shots.size() > 32:
 		_seen_shots.clear()
 
 
-## Esegue la difesa scelta quando e' il momento. True = questo passo e' difesa.
-func _defend(me_c: CombatController, foe_c: CombatController, me_m: PlayerMotor, d: float, dir: Vector2) -> bool:
-	if _hold_guard_until_safe:
-		# Guardia tenuta finche' il colpo dell'avversario non e' finito.
-		var busy := foe_c.state == CombatController.State.ATTACK and foe_c.phase() <= 1
-		stick = dir * 0.0
-		if not busy and _clock > _threat_at + 0.15:
-			_hold_guard_until_safe = false
-			me_c.release_guard()
-			return false
-		return true
-	if _threat_kind == "" or _clock < _threat_at:
-		return false
-	var kind := _threat_kind
-	match kind:
-		"parry":
-			# Si preme Para un attimo prima che la lama arrivi.
-			var a := foe_c.attack
-			if foe_c.state != CombatController.State.ATTACK or a == null:
-				_threat_kind = ""
-				return false
-			var left := a.windup - foe_c.t
-			if foe_c.phase() == 0 and (foe_c.charging or left > 0.12):
-				stick = Vector2.ZERO
-				return true
-			_threat_kind = ""
-			me_c.release_guard()
-			me_c.press_guard()
-			_guard_hold = 0.4
-			stick = Vector2.ZERO
-			return true
-		"dodge":
-			_threat_kind = ""
+## In difesa: guardia, deviazione all'ultimo istante, capriola; finita la
+## sequenza del giocatore (o dopo una deviazione) si contrattacca.
+func _defend(me_c: CombatController, foe_c: CombatController, d: float, dir: Vector2) -> bool:
+	if mode != "defense":
+		# Fuori dalla difesa resta solo la capriola contro la magia.
+		if _react == "dodge" and _clock >= _react_at:
 			var side := Vector2(-dir.y, dir.x) * (1.0 if rng.randf() < 0.5 else -1.0)
-			if _threat_dir != Vector2.ZERO:
-				side = Vector2(-_threat_dir.y, _threat_dir.x) * signf(side.x + 0.001)
-			_threat_dir = Vector2.ZERO
-			stick = (side - dir * 0.4).normalized() if d < 2.5 else side
+			if _shot_dir != Vector2.ZERO:
+				side = Vector2(-_shot_dir.y, _shot_dir.x) * signf(side.x + 0.001)
+				_shot_dir = Vector2.ZERO
+			stick = side
 			me_c.press_dodge()
+			_dash_clock = _clock
+			_react = ""
 			return true
-		"block":
-			_threat_kind = ""
-			me_c.press_guard()
-			_hold_guard_until_safe = true
-			stick = Vector2.ZERO
-			return true
-	_threat_kind = ""
-	return false
+		return false
+	var foe_busy := foe_c.state == CombatController.State.ATTACK and foe_c.phase() <= 1
+	var a := foe_c.attack
+	stick = -dir * 0.15 if d < 1.2 else Vector2.ZERO
+	if _react != "" and _clock >= _react_at:
+		match _react:
+			"deflect":
+				# Para un attimo prima che la lama arrivi.
+				if foe_c.state == CombatController.State.ATTACK and a != null and foe_c.phase() == 0 \
+						and (foe_c.charging or a.windup - foe_c.t > 0.1):
+					me_c.press_guard()
+					return true
+				me_c.release_guard()
+				me_c.press_guard()
+				_react = ""
+			"block":
+				me_c.press_guard()
+				_react = ""
+			"dodge":
+				me_c.release_guard()
+				var side := Vector2(-dir.y, dir.x) * (1.0 if rng.randf() < 0.5 else -1.0)
+				if _shot_dir != Vector2.ZERO:
+					side = Vector2(-_shot_dir.y, _shot_dir.x) * signf(side.x + 0.001)
+					_shot_dir = Vector2.ZERO
+				stick = (side - dir * 0.5).normalized() if d < 2.5 else side
+				me_c.press_dodge()
+				_react = ""
+				_set_mode("recover", 0.25)
+				return true
+			"interrupt":
+				# Colpo veloce dentro la carica lenta dell'avversario.
+				me_c.release_guard()
+				me_c.press_light()
+				_react = ""
+				_begin_offense(1, "")
+				return true
+	# Deviazione riuscita (si apre la risposta): contrattacco immediato.
+	if me_c.riposte_t > 0.0:
+		_deflects += 1
+		me_c.release_guard()
+		_begin_offense(rng.randi_range(1, 2), "heavy" if foe_c.broken else "")
+		return false
+	# Finita la sequenza del giocatore: tocca a noi.
+	if not foe_busy and _react == "" and _mode_t > 0.25:
+		me_c.release_guard()
+		if d < me_c.weapon.strike_dist + 1.8 and rng.randf() < 0.75:
+			_begin_offense(rng.randi_range(1, int(_p(4))), "")
+		else:
+			_set_mode("neutral", rng.randf_range(0.4, 0.9) * float(_p(6)))
+		return false
+	if _mode_t > _mode_len and not foe_busy:
+		me_c.release_guard()
+		_set_mode("neutral", 0.6)
+		return false
+	return true
 
+
+# ------------------------------------------------------------------ attacco
 
 func _think_melee(me_c: CombatController, foe_c: CombatController, me_m: PlayerMotor, d: float, dir: Vector2,
-		reach: float, foe: FighterBody, center: Vector3, half: float) -> void:
-	# L'avversario stordito o scoperto (rientro di un colpo forte): si punisce.
-	var open := foe_c.stunned() or (foe_c.state == CombatController.State.ATTACK and foe_c.phase() == 2 and foe_c.attack != null and foe_c.attack.recovery > 0.35)
+		reach: float, open: bool) -> void:
+	if open and mode != "offense" and mode != "dash":
+		_begin_offense(int(_p(4)), "heavy" if foe_c.broken else "")
 	match mode:
-		"approach":
-			stick = dir
-			if d <= reach + 0.4:
-				_set_mode("attack")
-				_combo_left = rng.randi_range(1, int(_p(4)))
-			elif d < reach + 4.5 and d > reach + 1.5 and me_m.on_ground and _mode_t > 0.4:
+		"neutral":
+			me_c.release_guard()
+			# Appena fuori portata, di lato, con finte di passo avanti e indietro.
+			var want := reach + 1.0
+			var radial := clampf((d - want) * 1.2, -1.0, 1.0)
+			_step_t -= _dt
+			if _step_t <= 0.0:
+				_step_t = rng.randf_range(0.4, 0.9)
+				_step_dir = [0.0, 0.0, 0.8, -0.6][rng.randi() % 4]
+				if rng.randf() < 0.25:
+					_strafe = -_strafe
+			stick = (dir * (radial + _step_dir) + Vector2(-dir.y, dir.x) * _strafe * 0.7).limit_length(1.0)
+			if _mode_t > _mode_len:
 				var r := rng.randf()
-				if r < 0.012 + 0.006 * level:
-					# Capriola verso l'avversario e colpo in corsa.
+				if d > reach + 2.2 and d < reach + 5.0 and me_m.on_ground and r < 0.15 + 0.05 * level:
 					me_c.press_dodge()
-					_dash_t = _clock
-					_set_mode("dash")
-				elif r < 0.02 + 0.006 * level and d < reach + 3.2:
-					# Salto e colpo dall'alto.
+					_set_mode("dash", 0.8)
+				elif d > reach + 1.2 and d < reach + 3.5 and me_m.on_ground and r < 0.25 + 0.05 * level:
 					jump = true
 					_leap_t = _clock
-					_set_mode("leap")
+					_set_mode("leap", 1.2)
+				else:
+					var fin := ""
+					var fr := rng.randf()
+					if fr < float(_p(7)):
+						fin = "perilous"
+					elif fr < float(_p(7)) + float(_p(5)):
+						fin = "heavy"
+					_begin_offense(rng.randi_range(1, int(_p(4))), fin)
 		"dash":
 			stick = dir
 			if me_c.state == CombatController.State.DODGE and me_c.dodge_u() >= 0.5:
 				me_c.press_light()
-			if _mode_t > 0.7:
-				_set_mode("recover")
+			if _mode_t > _mode_len:
+				_set_mode("recover", 0.5)
 		"leap":
 			stick = dir
 			if not me_m.on_ground and _clock - _leap_t > 0.18 and me_c.state == CombatController.State.IDLE:
 				me_c.press_light()
-			if _mode_t > 1.0 and me_m.on_ground:
-				_set_mode("recover")
-		"attack":
-			stick = dir if d > reach * 0.6 else Vector2.ZERO
-			if d > reach + 1.6 and not me_c.is_busy():
-				_set_mode("approach")
+			if _mode_t > 0.5 and me_m.on_ground and not me_c.is_busy():
+				_set_mode("recover", 0.5)
+		"offense", "counter":
+			me_c.release_guard()
+			stick = dir if d > reach * 0.7 else Vector2.ZERO
+			if d > reach + 2.5 and not me_c.is_busy() and _mode_t > 3.0:
+				_set_mode("neutral", 0.5)
+				return
+			if d > reach + 0.2 and not me_c.is_busy():
+				# Inseguimento: a distanza una capriola in avanti chiude lo spazio.
+				if d > reach + 2.5 and me_m.on_ground and _clock - _dash_clock > 1.6 and rng.randf() < _dt * 1.5:
+					_dash_clock = _clock
+					me_c.press_dodge()
 				return
 			if _can_press(me_c):
-				var edge := half > 0.0 and Vector2(foe.position.x - center.x, foe.position.z - center.z).length() > half - 3.0
-				if _combo_left > 0:
+				# Ritmo che cambia: a volte il seguito aspetta la fine del rientro.
+				if _hold_next and me_c.state == CombatController.State.ATTACK and me_c.phase_u() < 0.7:
+					return
+				_hold_next = rng.randf() < 0.3
+				if _string_left > 0:
 					me_c.press_light()
-					_combo_left -= 1
-				elif _combo_left == 0 and (edge or open or rng.randf() < float(_p(5))):
-					# Forte in coda.
+					_string_left -= 1
+					_mark_press(me_c)
+				elif _finisher != "":
+					if _finisher == "perilous":
+						me_c.perilous_next = true
+						_heavy_hold = rng.randf_range(0.6, 0.9)
+					else:
+						_heavy_hold = rng.randf_range(0.05, 0.3) if rng.randf() < 0.6 else rng.randf_range(0.5, 0.9)
 					me_c.press_heavy()
-					_heavy_hold = rng.randf_range(0.05, 0.25) if rng.randf() < 0.6 else rng.randf_range(0.5, 1.0)
-					_combo_left = -1
-				else:
-					_combo_left = -1
-				_mark_press(me_c)
-			if _combo_left < 0 and not me_c.is_busy() and _heavy_hold <= 0.0:
-				_set_mode("recover")
+					_finisher = ""
+					_mark_press(me_c)
+				elif not me_c.is_busy() and _heavy_hold <= 0.0:
+					# Rientro: scoperto per un attimo (la finestra del giocatore).
+					_set_mode("recover", rng.randf_range(0.45, 0.85))
 		"recover":
-			# Dopo la catena: di lato e un passo indietro, a volte in guardia.
-			stick = (Vector2(-dir.y, dir.x) * _strafe - dir * (0.5 if d < reach + 1.0 else -0.3)).normalized()
-			if _mode_t < 0.05 and rng.randf() < 0.35:
-				me_c.press_guard()
-				_guard_hold = rng.randf_range(0.4, 0.9)
-			if _mode_t > rng.randf_range(0.5, 1.3) or (open and d < reach + 2.0):
-				_strafe = -_strafe if rng.randf() < 0.4 else _strafe
-				_set_mode("approach")
-	if open and mode == "approach" and d <= reach + 1.2:
-		_set_mode("attack")
-		_combo_left = int(_p(4))
+			me_c.release_guard()
+			stick = -dir * 0.35 if _mode_t > _mode_len * 0.6 else Vector2.ZERO
+			if _mode_t > _mode_len:
+				_set_mode("neutral", rng.randf_range(0.5, 1.4) * float(_p(6)))
+
+
+func _begin_offense(n: int, finisher: String) -> void:
+	_string_left = maxi(1, n)
+	_finisher = finisher
+	_hold_next = false
+	_set_mode("offense", 3.0)
 
 
 ## Bastone: a distanza, dardi in catena e palla di fuoco caricata.
@@ -308,10 +370,11 @@ func _think_staff(me_c: CombatController, foe_c: CombatController, d: float, dir
 	var side := Vector2(-dir.y, dir.x) * _strafe
 	if d < STAFF_RANGE - 2.0:
 		stick = (-dir + side * 0.4).normalized()
-		if d < 2.2 and me_c.state == CombatController.State.IDLE and rng.randf() < 0.04:
+		if d < 2.2 and me_c.state == CombatController.State.IDLE and _clock - _dash_clock > 1.5 and rng.randf() < _dt * 2.0:
+			_dash_clock = _clock
 			stick = -dir
 			me_c.press_dodge()
-		elif d < 2.4 and rng.randf() < 0.05:
+		elif d < 2.4 and rng.randf() < _dt * 2.5:
 			me_c.press_light()
 	elif d > STAFF_RANGE + 3.5:
 		stick = dir
@@ -319,13 +382,14 @@ func _think_staff(me_c: CombatController, foe_c: CombatController, d: float, dir
 		stick = side * 0.7
 		if _mode_t > 1.5:
 			_strafe = -_strafe
-			_set_mode("cast")
+			_set_mode("neutral", 1.0)
 	if d < 11.0 and _heavy_hold <= 0.0 and _can_press(me_c):
-		if foe_c.stunned() or (d > 4.0 and rng.randf() < 0.012 + 0.004 * level):
+		# Probabilita' al secondo (indipendenti dai fotogrammi).
+		if foe_c.stunned() or foe_c.broken or (d > 4.0 and rng.randf() < _dt * (0.25 + 0.08 * level)):
 			me_c.press_heavy()
 			_heavy_hold = rng.randf_range(0.6, 1.2)
 			_mark_press(me_c)
-		elif rng.randf() < 0.05 + 0.02 * level:
+		elif rng.randf() < _dt * (0.9 + 0.3 * level):
 			me_c.press_light()
 			_mark_press(me_c)
 
@@ -344,8 +408,7 @@ func _mark_press(me_c: CombatController) -> void:
 	_press_clock = _clock
 
 
-## Vicino al bordo del ring si torna verso il centro (ma si puo' cadere lo
-## stesso se spinti).
+## Vicino al bordo del ring si torna verso il centro.
 func _ring_guard(me_m: PlayerMotor, center: Vector3, half: float) -> void:
 	if half <= 0.0:
 		return
@@ -372,6 +435,7 @@ func _track_stuck(dt: float, me_m: PlayerMotor) -> void:
 			_strafe = -_strafe
 
 
-func _set_mode(m: String) -> void:
+func _set_mode(m: String, length: float = 1.0) -> void:
 	mode = m
 	_mode_t = 0.0
+	_mode_len = length

@@ -1089,3 +1089,32 @@ Richiesta del proprietario: togliere il K.O. per uscita dal ring. Si vince solo 
 combattere anche fuori dal marmo e il nemico segue il giocatore ovunque (l'IA non e' piu' tenuta
 dentro il ring).
 
+## D-060 — Lo scambio: postura, deviazione, clash, turni del nemico
+Segnalazione del proprietario: il combattimento non ha scambi, e' una ripetizione di colpi senza
+timing, non ha ritmo e le armi non si incontrano. Ricerca (Sekiro, For Honor, Mordhau, Sifu, i
+"gettoni d'attacco" di DOOM 2016 e Batman Arkham, l'anatomia dell'attacco anticipo/colpo/rientro):
+il ritmo nasce da regole che fanno alternare chi attacca e chi risponde, non dai numeri dei colpi.
+- Postura (come Sekiro e la struttura di Sifu), 0-100: sale parando (0,9 per punto di danno),
+  deviando (0,2, mai rotta), venendo deviati (0,75 + 8), prendendo colpi (0,35) e nei clash; cala
+  dopo 1,1 s senza colpi (16/s, di piu' in guardia). Piena = rotta: 1,6 s stordito e il colpo
+  successivo e' mortale (x2,5), poi riparte da zero.
+- Deviazione (parata perfetta): non stordisce piu' 0,9 s ma respinge chi attacca 0,38 s e gli
+  carica la postura; si apre la risposta. Cosi' l'attacco continua finche' non viene deviato, e
+  poi tocca all'altro (il "ritmo" di Sekiro).
+- Clash (come Mordhau e Soul Calibur): due lame attive che si toccano si annullano: entrambi
+  respinti 0,32 s, +10 di postura. Se un colpo pesa almeno 1,4 volte l'altro (danno, carica,
+  attacco pericoloso) passa, e l'altro e' respinto piu' a lungo con piu' postura.
+- Attacchi pericolosi: alcuni forti del nemico sono rossi (bagliore rosso e "!"): non si parano,
+  si schivano. Ogni colpo del nemico parte con un bagliore sulla lama (lettura dell'anticipo).
+- Niente stordimenti a catena: il barcollare di un colpo leggero si interrompe dopo 0,12 s con
+  la capriola o la guardia; i dardi di magia feriscono ma non fanno barcollare.
+- IA a turni (`FighterAI`): distanza appena fuori portata con finte e giri; sequenza di 1-4
+  colpi con ritmo che cambia (a volte trattiene il seguito), chiusa da un forte o da un
+  pericoloso; rientro scoperto; quando attacca il giocatore difende (devia, para, schiva o
+  interrompe una carica lenta) e alla fine della sua sequenza, o dopo una deviazione,
+  contrattacca; punisce la postura rotta. Portata con lo scatto del colpo, si corre inseguendo,
+  probabilita' al secondo (non a fotogramma), capriole con un tempo di attesa.
+- Il duello parte nella meta' nord del ring (al centro c'e' l'armeria): li' e' anche il punto di nascita.
+- Misura IA contro IA, spada contro spada: 23 attacchi in 12,6 s, l'iniziativa cambia 14 volte,
+  5 deviazioni, 4 parate, 12 colpi a segno.
+

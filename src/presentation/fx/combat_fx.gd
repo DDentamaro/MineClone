@@ -88,6 +88,18 @@ func clash(p: Vector3, perfect: bool) -> void:
 			_g(p + d * 0.1, d * 3.5, "fire", 0, 0.22, 0.025, 0.0, 3.0)
 
 
+## Bagliore sulla lama all'inizio di un colpo (D-060): annuncia l'attacco;
+## rosso per quelli pericolosi.
+func glint(p: Vector3, danger: bool) -> void:
+	var el := "fire" if danger else "air"
+	for i in (18 if danger else 8):
+		var a := TAU * i / (18.0 if danger else 8.0)
+		var d := Vector3(cos(a), sin(a), 0.0)
+		var g := _g(p, d * (2.6 if danger else 1.8), el, 0, 0.16, 0.022, 0.0, 6.0)
+		if g != null:
+			g.length = 0.06
+
+
 func dodge(p: Vector3, dir: Vector2) -> void:
 	for i in 8:
 		var v := Vector3(-dir.x, 0, -dir.y) * _rng.randf_range(1.0, 2.5) + _rand_dir() * 0.8 + Vector3(0, 0.8, 0)

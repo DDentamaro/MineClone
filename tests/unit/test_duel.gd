@@ -32,16 +32,21 @@ class Pair:
 		# a guarda verso -Z (facing 0), b sta davanti e lo guarda (facing PI).
 		a = Duelist.new(world, Vector3(24.5, 4, 26.0), 0.0, wa)
 		b = Duelist.new(world, Vector3(24.5, 4, 26.0 - dist), PI, wb)
+		a.combat.rival = b.combat
+		b.combat.rival = a.combat
 
 	## I due corpi si tengono attraverso i controller: si sciolgono a fine prova.
 	func dispose() -> void:
 		a.combat.forget_targets()
 		b.combat.forget_targets()
+		a.combat.rival = null
+		b.combat.rival = null
 
 	func step(n: int = 1) -> void:
 		for i in n:
 			for s: Duelist in [a, b]:
 				var foe: Duelist = b if s == a else a
+				s.combat.rival_position = foe.motor.position
 				s.combat.step(DT, s.motor, [foe.body] if foe.body.alive else [], s.stick)
 				s.combat.events.clear()
 				if s.combat.hitstop <= 0.0:
@@ -67,10 +72,16 @@ func test_parata_perfetta_stordisce_chi_attacca() -> void:
 	p.step()
 	_until_windup(p, 0.06)
 	p.b.combat.press_guard()
-	p.step(40)
-	check_eq(p.b.body.hp, 100.0, "parata perfetta: nessun danno")
-	check(p.a.combat.stunned(), "chi attacca resta stordito")
-	check(p.b.combat.riposte_t > 0.0, "si apre la risposta")
+	var recoiled := false
+	var riposte := false
+	for i in 40:
+		p.step()
+		recoiled = recoiled or (p.a.combat.stunned() and p.a.combat.stun_kind == "recoil")
+		riposte = riposte or p.b.combat.riposte_t > 0.0
+	check_eq(p.b.body.hp, 100.0, "deviazione: nessun danno")
+	check(recoiled, "chi attacca e' respinto")
+	check(p.a.combat.posture > 10.0, "la postura di chi e' deviato sale (%.1f)" % p.a.combat.posture)
+	check(riposte, "si apre la risposta")
 	p.dispose()
 
 
@@ -128,6 +139,61 @@ func test_la_capriola_schiva() -> void:
 	p.b.combat.press_dodge()
 	p.step(60)
 	check_eq(p.b.body.hp, 100.0, "colpo nella capriola: schivato")
+	p.dispose()
+
+
+func test_le_lame_attive_si_incontrano() -> void:
+	# Senza rig: due sfere ferme davanti a ognuno, nello stesso punto.
+	var p := Pair.new(&"sword", &"sword", 1.6)
+	p.a.combat.press_light()
+	p.b.combat.press_light()
+	var clashed := false
+	for i in 40:
+		var mid := (p.a.motor.position + p.b.motor.position) * 0.5 + Vector3(0, 1.0, 0)
+		p.a.combat.hitboxes = [[mid + Vector3(0.02, 0, 0), 0.1]]
+		p.b.combat.hitboxes = [[mid - Vector3(0.02, 0, 0), 0.1]]
+		p.step()
+		clashed = clashed or (p.a.combat.stun_kind == "clash" and p.b.combat.stun_kind == "clash")
+	check(clashed, "colpi uguali insieme: clash, respinti tutti e due")
+	check_eq(p.a.body.hp, 100.0, "nel clash nessuno e' ferito (a)")
+	check_eq(p.b.body.hp, 100.0, "nel clash nessuno e' ferito (b)")
+	p.dispose()
+
+
+func test_postura_rotta_e_colpo_mortale() -> void:
+	var p := Pair.new()
+	p.b.combat.add_posture(CombatController.POSTURE_MAX)
+	check(p.b.combat.broken and p.b.combat.stunned(), "postura piena: rotta e stordito")
+	p.a.combat.press_light()
+	p.step(60)
+	check(p.b.body.hp < 100.0 - 15.0, "il colpo sulla postura rotta e' mortale (%.0f)" % p.b.body.hp)
+	check(not p.b.combat.broken, "dopo il colpo mortale la postura riparte")
+	p.dispose()
+
+
+func test_attacco_pericoloso_non_si_para() -> void:
+	var p := Pair.new(&"greatsword", &"sword", 1.6)
+	p.b.combat.press_guard()
+	p.step(30)
+	p.a.combat.perilous_next = true
+	p.a.combat.press_heavy()
+	p.step(2)
+	p.a.combat.release_heavy()
+	check(p.a.combat.perilous, "attacco pericoloso")
+	for i in 120:
+		p.step()
+		p.b.combat.facing = PI
+	check(p.b.body.hp < 90.0, "in guardia ma colpito in pieno (%.0f)" % p.b.body.hp)
+	p.dispose()
+
+
+func test_il_barcollare_si_interrompe_con_la_schivata() -> void:
+	var p := Pair.new()
+	p.b.combat.stun(0.28, Vector2.ZERO, "flinch")
+	p.step(int(CombatController.FLINCH_ESCAPE / DT) + 2)
+	p.b.combat.press_dodge()
+	p.step(2)
+	check(p.b.combat.state == CombatController.State.DODGE, "dal barcollare si esce con la capriola")
 	p.dispose()
 
 

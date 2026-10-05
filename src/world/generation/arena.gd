@@ -85,9 +85,10 @@ static func locate(w: WorldData) -> Vector2i:
 	return best
 
 
-## Punto dei piedi dove si nasce: sul ring, a sud del centro, verso l'armeria.
+## Punto dei piedi dove si nasce: sul ring, a nord dell'armeria, dove parte
+## anche il duello (D-060: la meta' nord del ring e' libera).
 static func spawn_in(w: WorldData) -> Vector3:
-	return Vector3(w.arena.x + 0.5, w.arena.y, w.arena.z + 5.5)
+	return Vector3(w.arena.x + 0.5, w.arena.y, w.arena.z - 2.0)
 
 
 static func has(w: WorldData) -> bool:

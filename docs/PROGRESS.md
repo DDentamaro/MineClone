@@ -1,5 +1,15 @@
 # Avanzamento
 
+## 05/10/2026 — D-060: lo scambio (postura, deviazione, clash, turni)
+
+### Test realmente eseguiti (D-060)
+| Prova | Esito |
+|---|---|
+| `tools/run_tests.sh` | 211/211 PASS. Nuovi: clash delle lame, postura rotta e colpo mortale, attacco pericoloso non parabile, barcollare interrotto dalla capriola; aggiornati deviazione e IA contro IA |
+| IA contro IA (spada/spada, prova a parte) | 23 attacchi in 12,6 s, 14 cambi d'iniziativa, 5 deviazioni, 4 parate, 12 colpi. Corretti lungo la strada: lancia che non raggiungeva il bastone (camminata lenta, portata senza scatto), capriole e dardi a raffica (probabilita' a fotogramma), dardi che facevano barcollare |
+| `tools/duel_preview.gd` | Nel gioco, nessun errore |
+| Export Android debug 0.38.0-m5 (versionCode 40) + `apksigner verify` + `aapt2 dump badging` | OK; non provato sul telefono |
+
 ## 05/10/2026 — D-059: niente sconfitta per uscita dal ring
 
 | Prova | Esito |

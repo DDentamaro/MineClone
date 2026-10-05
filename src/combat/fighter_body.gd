@@ -47,15 +47,18 @@ func chest() -> Vector3:
 	return position + Vector3(0, height * 0.6, 0)
 
 
-func receive_hit(_attacker: CombatController, from: Vector3, impulse: Vector3, damage: float, parryable: bool = true) -> int:
+func receive_hit(attacker: CombatController, from: Vector3, impulse: Vector3, damage: float, parryable: bool = true) -> int:
 	if not alive:
 		return EVADE
-	var res := combat.defend(from, position, parryable)
+	var unblockable := attacker != null and attacker.perilous
+	var res := combat.defend(from, position, parryable, unblockable)
 	var push := Vector2(impulse.x, impulse.z)
 	match res:
 		EVADE:
 			return res
 		PARRY:
+			# Deviazione (D-060): poca postura a chi devia, mai rotta.
+			combat.add_posture(damage * CombatController.POSTURE_DEFLECT, Vector2.ZERO, true)
 			events.append({"type": "parry", "p": chest()})
 			return res
 		BLOCK:
@@ -64,12 +67,27 @@ func receive_hit(_attacker: CombatController, from: Vector3, impulse: Vector3, d
 			combat.absorb(damage, push * 0.6)
 			events.append({"type": "block", "p": chest(), "damage": chip})
 			return res
+	if combat.broken:
+		# Colpo mortale sulla postura rotta (D-060).
+		damage *= CombatController.DEATHBLOW_MULT
+		combat.broken = false
+		combat.posture = 0.0
+		events.append({"type": "deathblow", "p": chest()})
+		_damage(damage)
+		if alive:
+			combat.stun(0.7, push * 1.5, "stagger")
+		return HIT
 	_damage(damage)
 	if alive:
 		if impulse.y > 0.5:
 			motor.velocity.y = maxf(motor.velocity.y, impulse.y)
 			motor.on_ground = false
-		combat.react(damage, push)
+		if attacker == null and damage < 16.0:
+			# Dardi di magia (D-060): feriscono e sbilanciano, ma non fanno
+			# barcollare (a raffica bloccavano chi si avvicina).
+			combat.add_posture(damage * CombatController.POSTURE_HIT, push)
+		else:
+			combat.react(damage, push)
 	return HIT
 
 

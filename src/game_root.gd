@@ -367,6 +367,10 @@ func _physics_process(dt: float) -> void:
 	lock.step(motor.position, targets)
 	var locked := lock.active()
 	combat.forced = lock.target if locked else null
+	# Clash delle lame (D-060) col nemico dell'arena.
+	combat.rival = enemy.combat if _duel_on() else null
+	if combat.rival != null:
+		combat.rival_position = enemy.motor.position
 	_touch.lock_on = locked
 	if locked:
 		_avatar.aware_t = 2.5
@@ -610,7 +614,9 @@ func _handle_combat_events() -> void:
 				_camera_rig.shake(0.3)
 				_texts.spawn((e["position"] as Vector3) + Vector3(0, 0.6, 0), "PARATO!", Color(1.0, 0.5, 0.4), 30)
 			"guard_break":
-				_texts.spawn(motor.position + Vector3(0, 2.0, 0), "GUARDIA ROTTA", Color(1.0, 0.5, 0.4), 26)
+				_texts.spawn(motor.position + Vector3(0, 2.0, 0), "POSTURA ROTTA", Color(1.0, 0.5, 0.4), 26)
+			"clash":
+				_clash_fx(e)
 			"cast":
 				var a: AttackDefinition = e["attack"]
 				var f := CombatController.forward(float(e["facing"]))
@@ -1376,12 +1382,14 @@ func _duel_on() -> bool:
 	return duel != null and enemy != null and duel.active()
 
 
-## Round nuovo: vita piena, giocatore a sud e nemico a nord del centro.
+## Round nuovo: vita piena, i due uno di fronte all'altro a nord dell'armeria.
 func _next_round() -> void:
 	duel.start_round(WEAPONS)
 	var c := duel.center
 	enemy.set_weapon(duel.enemy_weapon)
-	enemy.place(Vector3(c.x, c.y, c.z - 5.0), PI)
+	# Nella meta' nord del ring, libera (al centro c'e' l'armeria, ai lati gli
+	# espositori): 5 m fra i due.
+	enemy.place(Vector3(c.x, c.y, c.z - 7.5), PI)
 	enemy.ai = FighterAI.new(duel.level, world.world_seed + duel.round_n * 101)
 	player_body.reset()
 	combat.cancel()
@@ -1390,7 +1398,7 @@ func _next_round() -> void:
 	combat.forget_targets()
 	lock.clear()
 	magic.clear()
-	motor.place_at(Vector3(c.x, c.y, c.z + 5.0))
+	motor.place_at(world.spawn_point())
 	_avatar.position = motor.position
 	_avatar.facing = 0.0
 	_avatar.rotation.y = 0.0
@@ -1411,6 +1419,9 @@ func _step_duel(dt: float) -> void:
 				_texts.spawn((e["p"] as Vector3) + Vector3(0, 0.7, 0), "PARATA!", GamePalette.ACCENT, 34)
 			"block":
 				_texts.spawn((e["p"] as Vector3) + Vector3(0, 0.6, 0), "parato", Color(0.8, 0.85, 0.9), 22)
+			"deathblow":
+				_texts.spawn((e["p"] as Vector3) + Vector3(0, 0.9, 0), "COLPO MORTALE", Color(1.0, 0.3, 0.25), 36)
+				_camera_rig.shake(0.6)
 	player_body.events.clear()
 	for e in enemy.body.events:
 		match String(e["type"]):
@@ -1418,6 +1429,9 @@ func _step_duel(dt: float) -> void:
 				_texts.spawn((e["p"] as Vector3) + Vector3(randf_range(-0.2, 0.2), 0.5, 0), str(roundi(float(e["damage"]))), Color(1.0, 0.95, 0.8), 28)
 			"parry":
 				_texts.spawn((e["p"] as Vector3) + Vector3(0, 0.7, 0), "PARATA!", Color(1.0, 0.5, 0.4), 30)
+			"deathblow":
+				_texts.spawn((e["p"] as Vector3) + Vector3(0, 0.9, 0), "COLPO MORTALE", GamePalette.ACCENT, 36)
+				_camera_rig.shake(0.6)
 	enemy.body.events.clear()
 	match duel.step(dt, player_body, enemy.body):
 		"fight":
@@ -1446,9 +1460,27 @@ func _handle_enemy_events() -> void:
 			"parried_by":
 				fx.clash(e["position"], true)
 				_camera_rig.shake(0.3)
+			"clash":
+				_clash_fx(e)
+			"start":
+				# Bagliore che annuncia il colpo; "!" rosso se e' pericoloso.
+				var seg := enemy.avatar.rig.blade_segment()
+				var tip := seg[1] if seg.size() == 2 else enemy.motor.position + Vector3(0, 1.4, 0)
+				var danger := bool(e.get("perilous", false))
+				fx.glint(tip, danger)
+				if danger:
+					_texts.spawn(enemy.motor.position + Vector3(0, 2.1, 0), "!", Color(1.0, 0.2, 0.15), 52)
+			"guard_break":
+				_texts.spawn(enemy.motor.position + Vector3(0, 2.0, 0), "POSTURA ROTTA", GamePalette.ACCENT, 28)
 			"blast":
 				_camera_rig.shake(float(e["shake"]) * 0.7)
 	enemy.events.clear()
+
+
+func _clash_fx(e: Dictionary) -> void:
+	fx.clash(e["position"], true)
+	_camera_rig.shake(0.35)
+	_texts.spawn((e["position"] as Vector3) + Vector3(0, 0.5, 0), "CLASH!", Color(0.85, 0.92, 1.0), 30)
 
 
 func _update_duel_hud() -> void:

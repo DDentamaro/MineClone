@@ -30,6 +30,15 @@ extends RefCounted
 ##   danno, l'attaccante resta stordito e il primo colpo di risposta fa di piu'.
 ## - Stordimento: chi e' parato, chi ha la guardia rotta e chi prende un colpo
 ##   forte (o un colpo mentre carica) arretra e per un attimo non agisce.
+## - Scambio (D-060, come Sekiro/For Honor/Mordhau): la postura (equilibrio)
+##   sale parando, deviando, prendendo colpi e venendo deviati; piena = rotta,
+##   e il colpo successivo e' mortale. La parata perfetta (deviazione) non
+##   stordisce a lungo: respinge chi attacca e gli carica la postura, cosi'
+##   l'attacco continua finche' e' deviato e poi tocca all'altro. Due lame
+##   attive che si toccano fanno un clash: si respingono a vicenda (vince il
+##   colpo molto piu' pesante). Gli attacchi pericolosi (rossi) non si parano:
+##   si schivano. Il barcollare di un colpo leggero si interrompe con la
+##   schivata o la guardia (niente stordimenti a catena).
 ##
 ## Nessun nodo: `step` e' deterministico e gira nei test headless.
 
@@ -53,12 +62,28 @@ const PARRY_WINDOW := 0.2
 const PARRY_REARM := 0.4
 const BLOCK_CONE := 1.4
 const GUARD_MOVE := 0.4
-## Stordimento di chi viene parato e di chi ha la guardia rotta.
-const PARRY_STUN := 0.9
-const BREAK_STUN := 1.1
-## Postura: danno parato che rompe la guardia, e quanto ne recupera al secondo.
-const POSTURE_MAX := 60.0
-const POSTURE_REGEN := 18.0
+## Stordimento di chi viene deviato (respinto, D-060) e di chi ha la postura rotta.
+const PARRY_STUN := 0.38
+const BREAK_STUN := 1.6
+## Postura (D-060): piena = rotta; recupero al secondo dopo una pausa senza
+## colpi (piu' in guardia, meno con poca vita).
+const POSTURE_MAX := 100.0
+const POSTURE_REGEN := 16.0
+const POSTURE_PAUSE := 1.1
+## Quanto pesa ogni cosa sulla postura (per punto di danno del colpo).
+const POSTURE_BLOCK := 0.9
+const POSTURE_DEFLECT := 0.2
+const POSTURE_DEFLECTED := 0.75
+const POSTURE_HIT := 0.35
+## Colpo mortale sulla postura rotta.
+const DEATHBLOW_MULT := 2.5
+## Clash: respinta e postura per entrambi; il colpo pesante vince se pesa
+## almeno tanto di piu'.
+const CLASH_STUN := 0.32
+const CLASH_POSTURE := 10.0
+const CLASH_WIN := 1.4
+## Barcollare dei colpi leggeri: dopo questo tempo si esce con schivata o guardia.
+const FLINCH_ESCAPE := 0.12
 ## Risposta dopo una parata perfetta: per quanto vale e quanto in piu' fa.
 const RIPOSTE := 1.2
 const RIPOSTE_MULT := 1.6
@@ -122,6 +147,17 @@ var posture := 0.0
 var riposte_t := 0.0
 var stun_len := 0.0
 var stun_push := Vector2.ZERO
+## Tipo di stordimento: "flinch" (si interrompe), "recoil", "clash", "break".
+var stun_kind := ""
+## Postura rotta: il prossimo colpo preso e' mortale.
+var broken := false
+var _posture_quiet := 0.0
+## Attacco pericoloso (D-060): il prossimo colpo e' rosso, non si para.
+var perilous_next := false
+var perilous := false
+## Avversario diretto (il suo controller): per il clash delle lame.
+var rival: CombatController
+var rival_position := Vector3.ZERO
 var _guard_press := -99.0
 var _guard_release := -99.0
 var _press_fresh := true
@@ -205,6 +241,7 @@ func forget_targets() -> void:
 	_hit_log.clear()
 	lock_target = null
 	forced = null
+	rival = null
 
 
 func is_busy() -> bool:
@@ -227,10 +264,10 @@ func parry_window() -> bool:
 ## Come finisce un colpo che arriva da `from` su chi sta in `me` (D-058):
 ## schivato nell'invulnerabilita', parato (perfetto o no) se in guardia e il
 ## colpo arriva da davanti, altrimenti preso.
-func defend(from: Vector3, me: Vector3, parryable: bool = true) -> int:
+func defend(from: Vector3, me: Vector3, parryable: bool = true, unblockable: bool = false) -> int:
 	if invulnerable():
 		return CombatTarget.EVADE
-	if state != State.GUARD:
+	if state != State.GUARD or unblockable:
 		return CombatTarget.HIT
 	var v := Vector2(from.x - me.x, from.z - me.z)
 	if v.length() > 0.05 and absf(wrapf(heading(v) - facing, -PI, PI)) > BLOCK_CONE:
@@ -242,43 +279,113 @@ func defend(from: Vector3, me: Vector3, parryable: bool = true) -> int:
 	return CombatTarget.BLOCK
 
 
-## Colpo parato in guardia: la postura cala; a zero la guardia si rompe.
-func absorb(damage: float, push: Vector2) -> void:
-	posture += damage
-	if posture >= POSTURE_MAX:
-		posture = 0.0
-		stun(BREAK_STUN, push)
+## Postura che sale (D-060): piena = rotta (stordito a lungo, colpo mortale).
+## `safe`: la deviazione non rompe mai chi devia.
+func add_posture(amount: float, push: Vector2 = Vector2.ZERO, safe: bool = false) -> void:
+	if amount <= 0.0 or broken:
+		return
+	posture = minf(POSTURE_MAX, posture + amount)
+	_posture_quiet = 0.0
+	if posture >= POSTURE_MAX and not safe:
+		posture = POSTURE_MAX
+		broken = true
+		stun(BREAK_STUN, push, "break")
 		events.append({"type": "guard_break"})
 
 
+## Colpo parato in guardia: la postura sale; piena la guardia si rompe.
+func absorb(damage: float, push: Vector2) -> void:
+	add_posture(damage * POSTURE_BLOCK, push)
+
+
 ## Stordimento: niente azioni per `secs`, arretrando con `push` (m/s).
-func stun(secs: float, push: Vector2) -> void:
+func stun(secs: float, push: Vector2, kind: String = "stagger") -> void:
 	cancel()
 	state = State.STUN
 	t = 0.0
 	stun_len = secs
 	stun_push = push
-	events.append({"type": "stun", "secs": secs})
+	stun_kind = kind
+	events.append({"type": "stun", "secs": secs, "kind": kind})
 
 
-## Chi attacca e viene parato all'ultimo istante.
-func parried(push: Vector2) -> void:
-	stun(PARRY_STUN, push)
+## Chi attacca e viene deviato: respinto e con la postura caricata.
+func parried(push: Vector2, damage: float = 10.0) -> void:
+	stun(PARRY_STUN, push, "recoil")
 	events.append({"type": "parried"})
+	add_posture(damage * POSTURE_DEFLECTED + 8.0, push)
 
 
-## Reazione a un colpo preso (D-058): un colpo forte stordisce sempre; uno
-## leggero interrompe chi sta caricando un colpo, scalfisce chi e' gia' nel
-## colpo (nessuna interruzione a meta' fendente) e fa barcollare chi e' fermo.
+## Reazione a un colpo preso: un colpo forte stordisce; uno leggero fa
+## barcollare (si esce con schivata o guardia) chi e' fermo o carica; chi e'
+## gia' nel fendente non si interrompe.
 func react(damage: float, push: Vector2) -> void:
 	if state == State.DODGE:
 		return
-	if damage >= 14.0 or push.length() >= 6.0:
-		stun(0.32 + minf(0.4, damage * 0.01), push)
+	add_posture(damage * POSTURE_HIT, push)
+	if state == State.STUN and stun_kind == "break":
+		return
+	if damage >= 16.0 or push.length() >= 6.0:
+		stun(0.32 + minf(0.35, damage * 0.008), push, "stagger")
 	elif state == State.ATTACK and phase() >= 1:
 		return
 	else:
-		stun(0.2, push * 0.7)
+		stun(0.28, push * 0.7, "flinch")
+
+
+## Peso di un colpo nel clash: danno, carica, attacco pericoloso.
+func clash_weight() -> float:
+	if attack == null:
+		return 0.0
+	return attack.damage * (1.0 + charge_fraction() * attack.charge_bonus) * (1.6 if perilous else 1.0)
+
+
+## Lama nella finestra in cui ferisce (fase attiva o primo tratto del seguito).
+func blade_live() -> bool:
+	if state != State.ATTACK or attack == null or attack.cast != "" or attack.plunge or attack.shape == AttackDefinition.Shape.RADIAL:
+		return false
+	var ph := phase()
+	return ph == 1 or (ph == 2 and phase_u() <= FOLLOW * 0.5)
+
+
+## Clash (D-060): le due lame attive si toccano. Il punto d'incontro, o INF.
+static func blades_meet(a: CombatController, b: CombatController) -> Vector3:
+	if a == null or b == null or not a.blade_live() or not b.blade_live():
+		return Vector3.INF
+	for ha: Array in a.hitboxes:
+		for hb: Array in b.hitboxes:
+			var pa: Vector3 = ha[0]
+			var pb: Vector3 = hb[0]
+			if pa.distance_to(pb) <= float(ha[1]) + float(hb[1]) + 0.06:
+				return pa.lerp(pb, 0.5)
+	return Vector3.INF
+
+
+## Esito del clash: entrambi respinti, oppure il colpo molto piu' pesante
+## passa e l'altro e' respinto piu' a lungo.
+static func resolve_clash(a: CombatController, b: CombatController, a_pos: Vector3, b_pos: Vector3, at: Vector3) -> void:
+	var dir := Vector2(b_pos.x - a_pos.x, b_pos.z - a_pos.z)
+	dir = dir.normalized() if dir.length() > 1e-3 else Vector2(0, -1)
+	var wa := a.clash_weight()
+	var wb := b.clash_weight()
+	var ev := {"type": "clash", "position": at}
+	if wa >= wb * CLASH_WIN:
+		b.stun(CLASH_STUN * 1.8, dir * 3.5, "clash")
+		b.add_posture(wa * 0.6 + CLASH_POSTURE, dir * 3.5)
+		ev["winner"] = 0
+	elif wb >= wa * CLASH_WIN:
+		a.stun(CLASH_STUN * 1.8, -dir * 3.5, "clash")
+		a.add_posture(wb * 0.6 + CLASH_POSTURE, -dir * 3.5)
+		ev["winner"] = 1
+	else:
+		a.stun(CLASH_STUN, -dir * 3.0, "clash")
+		b.stun(CLASH_STUN, dir * 3.0, "clash")
+		a.add_posture(CLASH_POSTURE)
+		b.add_posture(CLASH_POSTURE)
+		ev["winner"] = -1
+	a.hitstop = maxf(a.hitstop, 0.11)
+	b.hitstop = maxf(b.hitstop, 0.11)
+	a.events.append(ev)
 
 
 func invulnerable() -> bool:
@@ -330,8 +437,12 @@ func step(dt: float, motor: PlayerMotor, targets: Array, stick: Vector2) -> void
 		buffer = &""
 	cooldown = maxf(0.0, cooldown - dt)
 	riposte_t = maxf(0.0, riposte_t - dt)
-	if state != State.GUARD:
-		posture = maxf(0.0, posture - POSTURE_REGEN * dt)
+	_posture_quiet += dt
+	if broken and state != State.STUN:
+		broken = false
+		posture = POSTURE_MAX * 0.5
+	if _posture_quiet > POSTURE_PAUSE and not broken:
+		posture = maxf(0.0, posture - POSTURE_REGEN * (1.6 if state == State.GUARD else 1.0) * dt)
 	combo_t += dt
 	if combo_t > 1.6:
 		combo = 0
@@ -358,7 +469,7 @@ func step(dt: float, motor: PlayerMotor, targets: Array, stick: Vector2) -> void
 		State.GUARD:
 			_step_guard(motor, targets, stick)
 		State.STUN:
-			_step_stun(dt)
+			_step_stun(dt, motor, stick)
 
 
 func _enter_guard() -> void:
@@ -389,13 +500,22 @@ func _step_guard(motor: PlayerMotor, targets: Array, stick: Vector2) -> void:
 		move_scale = 1.0
 
 
-func _step_stun(dt: float) -> void:
+func _step_stun(dt: float, motor: PlayerMotor, stick: Vector2) -> void:
 	t += dt
 	var u := clampf(t / maxf(stun_len, 1e-3), 0.0, 1.0)
 	drive_on = true
 	drive = stun_push * pow(1.0 - u, 2.0)
 	move_scale = 0.0
-	buffer = &""
+	# Barcollare leggero: la schivata o la guardia lo interrompono.
+	if stun_kind == "flinch" and t >= FLINCH_ESCAPE:
+		if buffer == &"dodge" and motor.on_ground:
+			_start_dodge(stick)
+			return
+		if guard_held:
+			_enter_guard()
+			return
+	if buffer != &"dodge":
+		buffer = &""
 	if t >= stun_len:
 		state = State.IDLE
 		drive_on = false
@@ -443,6 +563,8 @@ func _start_attack(id: StringName, motor: PlayerMotor, targets: Array, stick: Ve
 	state = State.ATTACK
 	t = 0.0
 	_attack_clock = clock
+	perilous = perilous_next and a.charge_max > 0.0
+	perilous_next = false
 	_prev_u = 0.0
 	_prev_boxes = hitboxes.duplicate()
 	_impact_done = false
@@ -470,7 +592,7 @@ func _start_attack(id: StringName, motor: PlayerMotor, targets: Array, stick: Ve
 	if a.plunge:
 		motor.velocity.y = maxf(motor.velocity.y, 3.0)
 	starts += 1
-	events.append({"type": "start", "attack": a})
+	events.append({"type": "start", "attack": a, "perilous": perilous})
 
 
 ## Metri che lo scatto del colpo in corso fa percorrere (passo delle gambe).
@@ -573,6 +695,13 @@ func _step_attack(dt: float, motor: PlayerMotor, targets: Array, stick: Vector2)
 	else:
 		drive_on = false
 		move_scale = a.move_scale if t < le else lerpf(a.move_scale, 0.7, clampf((t - le) / maxf(a.recovery, 1e-3), 0.0, 1.0))
+	# Clash (D-060): la lama incontra quella attiva dell'avversario.
+	if rival != null and blade_live():
+		var at := blades_meet(self, rival)
+		if at != Vector3.INF:
+			resolve_clash(self, rival, motor.position, rival_position, at)
+			if state != State.ATTACK:
+				return
 	# Colpi.
 	var ph := phase()
 	var blade := not hitboxes.is_empty() and a.shape != AttackDefinition.Shape.RADIAL and not a.plunge and a.cast == ""
@@ -864,8 +993,8 @@ func _hit(tg: CombatTarget, dir: Vector2, from: Vector3, at: Vector3 = Vector3.I
 		CombatTarget.EVADE:
 			return
 		CombatTarget.PARRY:
-			hitstop = maxf(hitstop, 0.14)
-			parried(-dir * 4.0)
+			hitstop = maxf(hitstop, 0.12)
+			parried(-dir * 3.0, dmg)
 			events.append({"type": "parried_by", "target": tg, "position": p + back})
 			return
 		CombatTarget.BLOCK:
